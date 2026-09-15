@@ -11,6 +11,8 @@ class LectureColoringStrategy(PersistentColoringStrategy):
     Strategy specifically for coloring Polimi lectures.
     """
 
+    PREFIX: ClassVar[str] = "Lezione: Didattica - "
+
     AVAILABLE_LECTURE_COLORS: ClassVar[list[str]] = [
         "1",
         "2",
@@ -42,10 +44,10 @@ class LectureColoringStrategy(PersistentColoringStrategy):
     def determine_color(self, event: dict[str, Any]) -> str | None:
         title = event.get("summary", "")
 
-        if not title.startswith("Lezione: Didattica - "):
+        if not title.startswith(self.PREFIX):
             return None
 
-        course_name = title.replace("Lezione: Didattica - ", "").strip()
+        course_name = title.removeprefix(self.PREFIX).strip()
 
         if self.interactive:
             if course_name in self.prompted_courses and course_name in self.state:

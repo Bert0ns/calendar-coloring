@@ -4,6 +4,7 @@ from typing import Any
 
 from calendar_client import CalendarClient
 from colors import Colors
+from strategies import LectureColoringStrategy
 
 
 class CalendarSyncProcessor:
@@ -38,6 +39,16 @@ class CalendarSyncProcessor:
             h = hashlib.sha256(raw_id.encode("utf-8")).hexdigest()
             return f"polimi{h[:16]}"
         return cleaned
+
+    def _clean_summary(self, raw_summary: str) -> str:
+        """
+        Removes known boilerplate prefixes (e.g. 'Lezione: Didattica - ')
+        leaving only the clean course name for the target calendar.
+        """
+        prefix = LectureColoringStrategy.PREFIX
+        if raw_summary.startswith(prefix):
+            return raw_summary.removeprefix(prefix).strip()
+        return raw_summary
 
     def process(self) -> None:
         print(
@@ -79,16 +90,23 @@ class CalendarSyncProcessor:
             valid_id = self._sanitize_event_id(event_id)
             source_event_ids.add(valid_id)
 
-            summary = s_event.get("summary", "")
-            self.log(f"\n{Colors.BOLD}Event: {summary}{Colors.ENDC}")
+            raw_summary = s_event.get("summary", "")
+            self.log(f"\n{Colors.BOLD}Event: {raw_summary}{Colors.ENDC}")
 
             # Determine new color
             new_color_id = self.strategy.determine_color(s_event)
 
+            # Clean summary for target calendar
+            cleaned_summary = self._clean_summary(raw_summary)
+            if cleaned_summary != raw_summary:
+                self.log(
+                    f" ↳ {Colors.OKBLUE}Cleaned title: '{raw_summary}' ➔ '{cleaned_summary}'{Colors.ENDC}"
+                )
+
             # Construct body for target event with private property tag
             t_body: dict[str, Any] = {
                 "id": valid_id,
-                "summary": summary,
+                "summary": cleaned_summary,
                 "description": s_event.get("description", ""),
                 "start": s_event.get("start"),
                 "end": s_event.get("end"),
@@ -168,7 +186,7 @@ class CalendarSyncProcessor:
                             "calendar_id": target_id,
                             "event_id": valid_id,
                             "body": t_body,
-                            "summary": summary,
+                            "summary": cleaned_summary,
                         }
                     )
                 else:
@@ -179,7 +197,7 @@ class CalendarSyncProcessor:
                         "action": "insert",
                         "calendar_id": target_id,
                         "body": t_body,
-                        "summary": summary,
+                        "summary": cleaned_summary,
                     }
                 )
 

@@ -76,6 +76,8 @@ def test_sync_processor_inserts_and_protects_events():
     inserts = [op for op in called_ops if op["action"] == "insert"]
     assert len(inserts) == 1
     assert inserts[0]["body"]["colorId"] == "5"
+    assert inserts[0]["body"]["summary"] == "CS"
+    assert inserts[0]["summary"] == "CS"
     assert (
         inserts[0]["body"]["extendedProperties"]["private"]["polimi_sync_managed"]
         == "true"
@@ -119,3 +121,77 @@ def test_sync_processor_deletes_stale_managed_event():
     deletes = [op for op in called_ops if op["action"] == "delete"]
     assert len(deletes) == 1
     assert deletes[0]["event_id"] == "old_event_12345"
+
+
+def test_clean_summary():
+    processor = CalendarSyncProcessor(
+        client=MagicMock(),
+        strategy=MagicMock(),
+        source_name="Source",
+        target_name="Target",
+    )
+
+    # Lecture prefix is stripped
+    assert (
+        processor._clean_summary("Lezione: Didattica - Computer Security")
+        == "Computer Security"
+    )
+    # Exam summary is unmodified
+    assert (
+        processor._clean_summary("Esame: Computer Security - Appello 1")
+        == "Esame: Computer Security - Appello 1"
+    )
+    # Generic event is unmodified
+    assert processor._clean_summary("Meeting") == "Meeting"
+
+
+def test_sync_processor_updates_stale_summary_with_prefix():
+    mock_client = MagicMock()
+    mock_client.get_calendar_id_by_name.side_effect = lambda name: (
+        "src_id" if name == "Source" else "tgt_id"
+    )
+    mock_client.get_all_events.side_effect = lambda cid: (
+        [
+            {
+                "id": "event12345",
+                "summary": "Lezione: Didattica - Machine Learning",
+                "description": "desc",
+                "start": {"date": "2026-09-20"},
+                "end": {"date": "2026-09-20"},
+            }
+        ]
+        if cid == "src_id"
+        else [
+            {
+                "id": "event12345",
+                "summary": "Lezione: Didattica - Machine Learning",
+                "description": "desc",
+                "colorId": "3",
+                "start": {"date": "2026-09-20"},
+                "end": {"date": "2026-09-20"},
+                "extendedProperties": {"private": {"polimi_sync_managed": "true"}},
+            }
+        ]
+    )
+    mock_client.batch_mutate_events.side_effect = lambda ops: [(op, None) for op in ops]
+
+    mock_strategy = MagicMock()
+    mock_strategy.determine_color.return_value = "3"
+
+    processor = CalendarSyncProcessor(
+        client=mock_client,
+        strategy=mock_strategy,
+        source_name="Source",
+        target_name="Target",
+    )
+
+    processor.process()
+
+    assert mock_client.batch_mutate_events.called
+    called_ops = mock_client.batch_mutate_events.call_args[0][0]
+
+    updates = [op for op in called_ops if op["action"] == "update"]
+    assert len(updates) == 1
+    assert updates[0]["event_id"] == "event12345"
+    assert updates[0]["body"]["summary"] == "Machine Learning"
+    assert updates[0]["summary"] == "Machine Learning"
