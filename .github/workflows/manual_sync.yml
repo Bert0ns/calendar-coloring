@@ -6,9 +6,10 @@ on:
       target:
         description: "What to sync"
         required: true
-        default: "lectures"
+        default: "all"
         type: choice
         options:
+          - all
           - exams
           - lectures
       verbose:

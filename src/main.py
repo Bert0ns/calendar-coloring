@@ -1,27 +1,30 @@
-import sys
-import os
 import argparse
+import os
+import sys
+
 from dotenv import load_dotenv
 
 from auth import Authenticator
 from calendar_client import CalendarClient
 from colors import Colors
-from sync_processor import CalendarSyncProcessor
 from strategies import (
     CompositeColoringStrategy,
     ExamColoringStrategy,
     LectureColoringStrategy,
 )
+from sync_processor import CalendarSyncProcessor
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Sync and color Google Calendar events."
     )
     parser.add_argument(
         "target",
-        choices=["exams", "lectures"],
-        help="Mandatory: Specify what to process (exams or lectures).",
+        nargs="?",
+        default="all",
+        choices=["all", "exams", "lectures"],
+        help="Specify what to process (all, exams, or lectures). Default: all.",
     )
     parser.add_argument(
         "-v",
@@ -39,14 +42,14 @@ def main():
 
     load_dotenv()
 
-    source_name = os.getenv("SOURCE_CALENDAR_NAME", "Polimi 11163057")
-    target_name = os.getenv("TARGET_CALENDAR_NAME", "Polimi 11163057 Colored")
+    source_name = os.getenv("SOURCE_CALENDAR_NAME", "Polimi Calendar")
+    target_name = os.getenv("TARGET_CALENDAR_NAME", "Polimi Calendar Colored")
     credentials_path = os.getenv("CREDENTIALS_PATH", "credentials.json")
 
     strategies_to_use = []
-    if args.target == "exams":
+    if args.target in ["all", "exams"]:
         strategies_to_use.append(ExamColoringStrategy(interactive=args.interactive))
-    elif args.target == "lectures":
+    if args.target in ["all", "lectures"]:
         strategies_to_use.append(LectureColoringStrategy(interactive=args.interactive))
 
     authenticator = Authenticator(credentials_path=credentials_path)

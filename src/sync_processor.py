@@ -1,5 +1,7 @@
+import hashlib
 import sys
-import time
+from typing import Any
+
 from calendar_client import CalendarClient
 from colors import Colors
 
@@ -10,23 +12,34 @@ class CalendarSyncProcessor:
     def __init__(
         self,
         client: CalendarClient,
-        strategy,
+        strategy: Any,
         source_name: str,
         target_name: str,
         verbose: bool = False,
-    ):
+    ) -> None:
         self.client = client
         self.strategy = strategy
         self.source_name = source_name
         self.target_name = target_name
         self.verbose = verbose
 
-    def log(self, message):
+    def log(self, message: str) -> None:
         """Prints message only if verbose mode is enabled."""
         if self.verbose:
             print(message)
 
-    def process(self):
+    def _sanitize_event_id(self, raw_id: str) -> str:
+        """
+        Sanitizes an event ID for Google Calendar (base32hex: a-v, 0-9, length 5-1024).
+        """
+        valid_chars = set("abcdefghijklmnopqrstuv0123456789")
+        cleaned = "".join(c for c in raw_id.lower() if c in valid_chars)
+        if len(cleaned) < 5:
+            h = hashlib.sha256(raw_id.encode("utf-8")).hexdigest()
+            return f"polimi{h[:16]}"
+        return cleaned
+
+    def process(self) -> None:
         print(
             f"\n{Colors.OKCYAN}{Colors.BOLD}🔍 Syncing '{self.source_name}' ➔ '{self.target_name}'{Colors.ENDC}"
         )
@@ -47,26 +60,23 @@ class CalendarSyncProcessor:
 
         source_events = self.client.get_all_events(source_id)
         target_events = self.client.get_all_events(target_id)
-        target_events_map = {e["id"]: e for e in target_events}
+        target_events_map: dict[str, dict[str, Any]] = {
+            e["id"]: e for e in target_events if "id" in e
+        }
 
         print(
             f"{Colors.OKBLUE}📥 Fetched {len(source_events)} source & {len(target_events)} target events.{Colors.ENDC}"
         )
 
-        source_event_ids = set()
-        inserted = 0
-        updated = 0
-        deleted = 0
+        source_event_ids: set[str] = set()
+        mutations: list[dict[str, Any]] = []
 
         for s_event in source_events:
             event_id = s_event.get("id")
             if not event_id:
                 continue
 
-            # Google Calendar requires IDs to be base32hex (a-v, 0-9).
-            valid_id = "".join(
-                c for c in event_id.lower() if c in "abcdefghijklmnopqrstuv0123456789"
-            )
+            valid_id = self._sanitize_event_id(event_id)
             source_event_ids.add(valid_id)
 
             summary = s_event.get("summary", "")
@@ -75,13 +85,18 @@ class CalendarSyncProcessor:
             # Determine new color
             new_color_id = self.strategy.determine_color(s_event)
 
-            # Construct body for target event
-            t_body = {
+            # Construct body for target event with private property tag
+            t_body: dict[str, Any] = {
                 "id": valid_id,
                 "summary": summary,
                 "description": s_event.get("description", ""),
                 "start": s_event.get("start"),
                 "end": s_event.get("end"),
+                "extendedProperties": {
+                    "private": {
+                        "polimi_sync_managed": "true",
+                    }
+                },
             }
             if "location" in s_event:
                 t_body["location"] = s_event["location"]
@@ -106,7 +121,6 @@ class CalendarSyncProcessor:
                 self.log(f" ↳ {Colors.OKBLUE}Using default calendar color{Colors.ENDC}")
 
             if valid_id in target_events_map:
-                # Compare carefully to see if an update is actually needed
                 t_event = target_events_map[valid_id]
                 needs_update = False
 
@@ -117,6 +131,16 @@ class CalendarSyncProcessor:
                 if t_event.get("location", "") != t_body.get("location", ""):
                     needs_update = True
                 if t_event.get("colorId") != t_body.get("colorId"):
+                    needs_update = True
+
+                # Ensure managed tag is populated on existing events
+                is_managed = (
+                    t_event.get("extendedProperties", {})
+                    .get("private", {})
+                    .get("polimi_sync_managed")
+                    == "true"
+                )
+                if not is_managed:
                     needs_update = True
 
                 s_start = t_body.get("start", {}).get(
@@ -138,46 +162,83 @@ class CalendarSyncProcessor:
                     needs_update = True
 
                 if needs_update:
-                    try:
-                        self.client.update_event(target_id, valid_id, t_body)
+                    mutations.append(
+                        {
+                            "action": "update",
+                            "calendar_id": target_id,
+                            "event_id": valid_id,
+                            "body": t_body,
+                            "summary": summary,
+                        }
+                    )
+                else:
+                    self.log(f" ↳ {Colors.WARNING}Identical (Skipped){Colors.ENDC}")
+            else:
+                mutations.append(
+                    {
+                        "action": "insert",
+                        "calendar_id": target_id,
+                        "body": t_body,
+                        "summary": summary,
+                    }
+                )
+
+        # Delete events that no longer exist in source, ONLY if managed by this sync
+        for t_event_id, t_event in target_events_map.items():
+            if t_event_id not in source_event_ids:
+                is_managed = (
+                    t_event.get("extendedProperties", {})
+                    .get("private", {})
+                    .get("polimi_sync_managed")
+                    == "true"
+                )
+                if not is_managed:
+                    self.log(
+                        f" ↳ {Colors.OKBLUE}Preserving unmanaged target event '{t_event.get('summary')}' (ID: {t_event_id}){Colors.ENDC}"
+                    )
+                    continue
+
+                mutations.append(
+                    {
+                        "action": "delete",
+                        "calendar_id": target_id,
+                        "event_id": t_event_id,
+                        "summary": t_event.get("summary", t_event_id),
+                    }
+                )
+
+        inserted = 0
+        updated = 0
+        deleted = 0
+
+        if mutations:
+            print(
+                f"\n{Colors.OKBLUE}⚡ Executing {len(mutations)} calendar operations via batch API...{Colors.ENDC}"
+            )
+            batch_results = self.client.batch_mutate_events(mutations)
+            for op, exc in batch_results:
+                action = op["action"]
+                summary = op.get("summary", "")
+                if exc:
+                    print(
+                        f"{Colors.FAIL}✖ Failed to {action} '{summary}' - {exc}{Colors.ENDC}"
+                    )
+                else:
+                    if action == "insert":
+                        inserted += 1
+                        self.log(
+                            f" ↳ {Colors.OKGREEN}Inserted into target calendar{Colors.ENDC}"
+                        )
+                    elif action == "update":
                         updated += 1
                         self.log(
                             f" ↳ {Colors.OKGREEN}Updated in target calendar{Colors.ENDC}"
                         )
-                        time.sleep(0.2)  # Avoid rate limits
-                    except Exception as e:
-                        print(
-                            f"{Colors.FAIL}✖ Failed to update '{summary}' - {e}{Colors.ENDC}"
+                    elif action == "delete":
+                        deleted += 1
+                        self.log(
+                            f" ↳ {Colors.FAIL}Deleted old event ID '{op.get('event_id')}'{Colors.ENDC}"
                         )
-                else:
-                    self.log(f" ↳ {Colors.WARNING}Identical (Skipped){Colors.ENDC}")
-            else:
-                try:
-                    self.client.insert_event(target_id, t_body)
-                    inserted += 1
-                    self.log(
-                        f" ↳ {Colors.OKGREEN}Inserted into target calendar{Colors.ENDC}"
-                    )
-                    time.sleep(0.2)  # Avoid rate limits
-                except Exception as e:
-                    print(
-                        f"{Colors.FAIL}✖ Failed to insert '{summary}' - {e}{Colors.ENDC}"
-                    )
-
-        # Delete events that no longer exist in source
-        for t_event_id in target_events_map:
-            if t_event_id not in source_event_ids:
-                try:
-                    self.client.delete_event(target_id, t_event_id)
-                    deleted += 1
-                    self.log(
-                        f" ↳ {Colors.FAIL}Deleted old event ID '{t_event_id}'{Colors.ENDC}"
-                    )
-                    time.sleep(0.2)  # Avoid rate limits
-                except Exception as e:
-                    print(
-                        f"{Colors.FAIL}✖ Failed to delete '{t_event_id}' - {e}{Colors.ENDC}"
-                    )
 
         print(f"\n{Colors.OKGREEN}{Colors.BOLD}✔ Finished Sync!{Colors.ENDC}")
         print(f"  Inserted: {Colors.OKGREEN}{inserted}{Colors.ENDC}")

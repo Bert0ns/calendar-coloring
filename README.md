@@ -60,37 +60,43 @@ pip install -r requirements.txt
 
 ## Usage
 
-This script requires you to explicitly state what part of your calendar you want to configure: **exams** or **lectures**.
+You can sync your entire calendar at once (**exams and lectures**), or specify an individual target.
 
 ### Basic Commands (Auto-Sync)
 
-To silently sync your calendar using automated rules or previously saved preferences:
+To silently sync your calendar using automated rules and previously saved preferences:
 
 ```bash
+# Sync both exams and lectures (default)
+python3 src/main.py
+
+# Or explicitly specify a target
+python3 src/main.py all
 python3 src/main.py exams
 python3 src/main.py lectures
 ```
 
-_(Running `python3 src/main.py lectures` will read from `course_colors.json` to perfectly match your past color choices)._
+_(Running the sync will read from `course_colors.json` and `exam_states.json` to preserve your past color choices)._
 
 ### Interactive Commands (Customization)
 
-To manually set up your preferences, add the `-i` flag:
+To customize or review your preferences, add the `-i` flag:
 
 ```bash
+python3 src/main.py -i
 python3 src/main.py exams -i
 python3 src/main.py lectures -i
 ```
 
-- **When running `exams -i`**: The script asks you **two** questions per exam. First, it asks if you are subscribed (to smartly auto-decline duplicate dates). Second, it prints the full 11-color palette so you can manually assign a specific custom color to that exam (defaulting to 11 if subscribed, or 8 if not).
-- **When running `lectures -i`**: The script **ignores** your saved JSON file and prints the full 11-color palette. It lets you assign fresh custom colors to all your courses, and saves your new choices automatically.
+- **When running `exams -i`**: The script asks you questions per exam. It offers your current saved subscription status and color as defaults (press Enter to keep). You can pick custom colors or update subscriptions.
+- **When running `lectures -i`**: The script iterates through your courses, showing your existing color as default (or a deterministic suggestion for new courses). Press Enter to keep, or enter a number 1-11 to customize.
 
 ### Verbose Logging
 
-To see a detailed breakdown of exactly what decisions the script is making for every single event, use the `-v` flag:
+To see a detailed breakdown of decisions and batch operations, use the `-v` flag:
 
 ```bash
-python3 src/main.py lectures -v
+python3 src/main.py -v
 ```
 
 ---

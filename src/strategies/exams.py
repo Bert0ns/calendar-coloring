@@ -1,5 +1,8 @@
-from .base import PersistentColoringStrategy
+from typing import Any
+
 from colors import Colors
+
+from .base import PersistentColoringStrategy
 
 
 class ExamColoringStrategy(PersistentColoringStrategy):
@@ -10,19 +13,20 @@ class ExamColoringStrategy(PersistentColoringStrategy):
     COLOR_GREY = "8"
     COLOR_RED = "11"
 
-    def __init__(self, interactive=False):
+    def __init__(self, interactive: bool = False) -> None:
         super().__init__("exam_states.json", interactive)
-        self.subscribed_titles = self._derive_subscribed_titles()
+        self.subscribed_titles: set[str] = self._derive_subscribed_titles()
+        self.prompted_keys: set[str] = set()
 
-    def _derive_subscribed_titles(self):
+    def _derive_subscribed_titles(self) -> set[str]:
         subscribed = set()
         for key, state_data in self.state.items():
-            if state_data.get("subscribed", False):
+            if isinstance(state_data, dict) and state_data.get("subscribed", False):
                 title = key.rsplit(" (", 1)[0]
                 subscribed.add(title)
         return subscribed
 
-    def determine_color(self, event):
+    def determine_color(self, event: dict[str, Any]) -> str | None:
         title = event.get("summary", "")
         description = event.get("description", "")
 
@@ -37,36 +41,43 @@ class ExamColoringStrategy(PersistentColoringStrategy):
         cache_key = f"{title} ({date_str})"
 
         if self.interactive:
-            if cache_key in self.state:
+            # If already prompted in this run, return saved color
+            if cache_key in self.prompted_keys and cache_key in self.state:
                 return self.state[cache_key]["color"]
+            self.prompted_keys.add(cache_key)
 
-            if title in self.subscribed_titles:
-                print(
-                    f"{Colors.WARNING} ↳ Auto-declining '{title}' on {date_str} (already subscribed to another date){Colors.ENDC}"
-                )
-                self.state[cache_key] = {
-                    "color": self.COLOR_GREY,
-                    "subscribed": False,
-                }
-                self._save_state()
-                return self.COLOR_GREY
+            existing_entry = self.state.get(cache_key)
 
-            # Prompt 1: Subscription Status
-            suggestion_str = ""
-            default_ans = None
-            if description.startswith("Non iscritto"):
-                suggestion_str = (
-                    f" [{Colors.BOLD}y{Colors.ENDC}/{Colors.BOLD}N{Colors.ENDC}]"
-                )
-                default_ans = "n"
+            # Determine suggestion/default for subscription
+            default_ans: str | None = None
+            if existing_entry is not None:
+                default_ans = "y" if existing_entry.get("subscribed") else "n"
             elif description.startswith("Iscritto"):
+                default_ans = "y"
+            elif (
+                description.startswith("Non iscritto")
+                or title in self.subscribed_titles
+            ):
+                default_ans = "n"
+
+            if default_ans == "y":
                 suggestion_str = (
                     f" [{Colors.BOLD}Y{Colors.ENDC}/{Colors.BOLD}n{Colors.ENDC}]"
                 )
-                default_ans = "y"
+            elif default_ans == "n":
+                suggestion_str = (
+                    f" [{Colors.BOLD}y{Colors.ENDC}/{Colors.BOLD}N{Colors.ENDC}]"
+                )
             else:
                 suggestion_str = (
                     f" [{Colors.BOLD}y{Colors.ENDC}/{Colors.BOLD}n{Colors.ENDC}]"
+                )
+
+            if title in self.subscribed_titles and (
+                not existing_entry or not existing_entry.get("subscribed")
+            ):
+                print(
+                    f"{Colors.WARNING} ↳ Note: Already subscribed to another date for '{title}'.{Colors.ENDC}"
                 )
 
             is_subscribed = False
@@ -85,11 +96,15 @@ class ExamColoringStrategy(PersistentColoringStrategy):
                     break
                 else:
                     print(
-                        f"{Colors.WARNING} ↳ Please answer 'y' or 'n' (or press Enter for suggestion).{Colors.ENDC}"
+                        f"{Colors.WARNING} ↳ Please answer 'y' or 'n' (or press Enter for default).{Colors.ENDC}"
                     )
 
             # Prompt 2: Color Choice
-            default_color = self.COLOR_RED if is_subscribed else self.COLOR_GREY
+            if existing_entry and "color" in existing_entry:
+                default_color = existing_entry["color"]
+            else:
+                default_color = self.COLOR_RED if is_subscribed else self.COLOR_GREY
+
             Colors.print_color_palette()
 
             chosen_color = None

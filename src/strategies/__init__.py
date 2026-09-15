@@ -1,15 +1,15 @@
 from .base import (
-    EventColoringStrategy,
     CompositeColoringStrategy,
+    EventColoringStrategy,
     PersistentColoringStrategy,
 )
 from .exams import ExamColoringStrategy
 from .lectures import LectureColoringStrategy
 
 __all__ = [
-    "EventColoringStrategy",
     "CompositeColoringStrategy",
-    "PersistentColoringStrategy",
+    "EventColoringStrategy",
     "ExamColoringStrategy",
     "LectureColoringStrategy",
+    "PersistentColoringStrategy",
 ]
