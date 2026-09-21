@@ -134,7 +134,18 @@ class CalendarClient:
 
                 batch.add(req, callback=make_callback(req_id, op), request_id=req_id)
 
-            batch.execute()
+            try:
+                batch.execute()
+            except Exception:
+                import time
+
+                time.sleep(1)
+                try:
+                    batch.execute()
+                except Exception as exc:
+                    for idx, op in enumerate(chunk):
+                        results.append((op, exc))
+                    continue
             for idx, op in enumerate(chunk):
                 req_id = f"op_{idx}"
                 results.append(
