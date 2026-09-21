@@ -143,7 +143,7 @@ class CalendarClient:
                 try:
                     batch.execute()
                 except Exception as exc:
-                    for idx, op in enumerate(chunk):
+                    for op in chunk:
                         results.append((op, exc))
                     continue
             for idx, op in enumerate(chunk):

@@ -38,20 +38,32 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Reconstruct Secure Credentials
+        env:
+          GCP_CREDENTIALS_JSON: ${{ secrets.GCP_CREDENTIALS_JSON }}
+          GCP_TOKEN_PICKLE_B64: ${{ secrets.GCP_TOKEN_PICKLE_B64 }}
         run: |
-          echo "${{ secrets.GCP_CREDENTIALS_JSON }}" > credentials.json
-          echo "${{ secrets.GCP_TOKEN_PICKLE_B64 }}" | base64 --decode > token.pickle
+          if [ -z "$GCP_CREDENTIALS_JSON" ]; then
+            echo "::error::Secret GCP_CREDENTIALS_JSON is missing or empty."
+            exit 1
+          fi
+          if [ -z "$GCP_TOKEN_PICKLE_B64" ]; then
+            echo "::error::Secret GCP_TOKEN_PICKLE_B64 is missing or empty."
+            exit 1
+          fi
 
-          # Check if the token was decoded successfully
-          if [ ! -f token.pickle ]; then
-            echo "Error: Failed to reconstruct token.pickle from secrets."
+          echo "$GCP_CREDENTIALS_JSON" > credentials.json
+          echo "$GCP_TOKEN_PICKLE_B64" | base64 --decode > token.pickle
+
+          # Verify token.pickle is non-empty
+          if [ ! -s token.pickle ]; then
+            echo "::error::Failed to reconstruct token.pickle from GCP_TOKEN_PICKLE_B64."
             exit 1
           fi
 
       - name: Run Sync
         env:
-          SOURCE_CALENDAR_NAME: ${{ secrets.SOURCE_CALENDAR_NAME || 'Polimi calendar' }}
-          TARGET_CALENDAR_NAME: ${{ secrets.TARGET_CALENDAR_NAME || 'Polimi calendar Colored' }}
+          SOURCE_CALENDAR_NAME: ${{ secrets.SOURCE_CALENDAR_NAME || 'Polimi' }}
+          TARGET_CALENDAR_NAME: ${{ secrets.TARGET_CALENDAR_NAME || 'Polimi Colored' }}
         run: |
           if [ "${{ inputs.verbose }}" == "true" ]; then
             python3 src/main.py ${{ inputs.target }} -v

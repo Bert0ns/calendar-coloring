@@ -32,6 +32,11 @@ class Authenticator:
                     creds = None
 
             if not creds or not creds.valid:
+                if os.getenv("CI") == "true":
+                    raise RuntimeError(
+                        "Google credentials could not be loaded or refreshed in CI. "
+                        "Please verify your GCP_CREDENTIALS_JSON and GCP_TOKEN_PICKLE_B64 repository secrets."
+                    )
                 flow = InstalledAppFlow.from_client_secrets_file(
                     self.credentials_path, self.SCOPES
                 )
