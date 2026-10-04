@@ -64,6 +64,7 @@ jobs:
         env:
           SOURCE_CALENDAR_NAME: ${{ secrets.SOURCE_CALENDAR_NAME || 'Polimi' }}
           TARGET_CALENDAR_NAME: ${{ secrets.TARGET_CALENDAR_NAME || 'Polimi Colored' }}
+          SOURCE_ICAL_URL: ${{ secrets.SOURCE_ICAL_URL }}
         run: |
           if [ "${{ inputs.verbose }}" == "true" ]; then
             python3 src/main.py ${{ inputs.target }} -v

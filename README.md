@@ -92,6 +92,26 @@ python3 src/main.py lectures -i
 - **When running `exams -i`**: The script asks you questions per exam. It offers your current saved subscription status and color as defaults (press Enter to keep). You can pick custom colors or update subscriptions.
 - **When running `lectures -i`**: The script iterates through your courses, showing your existing color as default (or a deterministic suggestion for new courses). Press Enter to keep, or enter a number 1-11 to customize.
 
+### Syncing directly from a Polimi iCal URL
+
+Instead of subscribing to the Polimi calendar inside Google Calendar, you can
+pull events straight from your personal iCal feed (e.g. from the Polimi app):
+
+```bash
+python3 src/main.py --ical "https://ical-polimiapp.polimi.it/<your-id>/<your-token>"
+```
+
+Or set it once in `.env` so every run uses it (takes precedence over
+`SOURCE_CALENDAR_NAME`):
+
+```bash
+SOURCE_ICAL_URL="https://ical-polimiapp.polimi.it/<your-id>/<your-token>"
+```
+
+This is also handy for GitHub Actions: just add `SOURCE_ICAL_URL` as a
+repository secret — no Google source-calendar subscription needed, only the
+target calendar where colored events are written.
+
 ### Verbose Logging
 
 To see a detailed breakdown of decisions and batch operations, use the `-v` flag:

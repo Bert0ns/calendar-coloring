@@ -4,6 +4,7 @@ from typing import Any
 
 from calendar_client import CalendarClient
 from colors import Colors
+from ical_source import fetch_ical_events
 from strategies import LectureColoringStrategy
 
 
@@ -17,12 +18,14 @@ class CalendarSyncProcessor:
         source_name: str,
         target_name: str,
         verbose: bool = False,
+        source_ical_url: str | None = None,
     ) -> None:
         self.client = client
         self.strategy = strategy
         self.source_name = source_name
         self.target_name = target_name
         self.verbose = verbose
+        self.source_ical_url = source_ical_url
 
     def log(self, message: str) -> None:
         """Prints message only if verbose mode is enabled."""
@@ -51,16 +54,23 @@ class CalendarSyncProcessor:
         return raw_summary
 
     def process(self) -> None:
-        print(
-            f"\n{Colors.OKCYAN}{Colors.BOLD}🔍 Syncing '{self.source_name}' ➔ '{self.target_name}'{Colors.ENDC}"
-        )
-
-        source_id = self.client.get_calendar_id_by_name(self.source_name)
-        if not source_id:
+        if self.source_ical_url:
             print(
-                f"{Colors.FAIL}✖ Source calendar '{self.source_name}' not found.{Colors.ENDC}"
+                f"\n{Colors.OKCYAN}{Colors.BOLD}🔍 Syncing iCal feed ➔ '{self.target_name}'{Colors.ENDC}"
             )
-            sys.exit(1)
+            source_events = fetch_ical_events(self.source_ical_url)
+        else:
+            print(
+                f"\n{Colors.OKCYAN}{Colors.BOLD}🔍 Syncing '{self.source_name}' ➔ '{self.target_name}'{Colors.ENDC}"
+            )
+
+            source_id = self.client.get_calendar_id_by_name(self.source_name)
+            if not source_id:
+                print(
+                    f"{Colors.FAIL}✖ Source calendar '{self.source_name}' not found.{Colors.ENDC}"
+                )
+                sys.exit(1)
+            source_events = self.client.get_all_events(source_id)
 
         target_id = self.client.get_calendar_id_by_name(self.target_name)
         if not target_id:
@@ -69,7 +79,6 @@ class CalendarSyncProcessor:
             )
             target_id = self.client.create_calendar(self.target_name)
 
-        source_events = self.client.get_all_events(source_id)
         target_events = self.client.get_all_events(target_id)
         target_events_map: dict[str, dict[str, Any]] = {
             e["id"]: e for e in target_events if "id" in e

@@ -38,6 +38,15 @@ def main() -> None:
         action="store_true",
         help="Ask interactively if you are subscribed to each exam or pick lecture colors.",
     )
+    parser.add_argument(
+        "--ical",
+        "--source-ical-url",
+        dest="ical_url",
+        default=None,
+        help="Sync directly from a Polimi iCal feed URL instead of a Google "
+        "source calendar. Overrides SOURCE_CALENDAR_NAME and the "
+        "SOURCE_ICAL_URL env var.",
+    )
     args = parser.parse_args()
 
     load_dotenv()
@@ -45,6 +54,7 @@ def main() -> None:
     source_name = os.getenv("SOURCE_CALENDAR_NAME", "Polimi Calendar")
     target_name = os.getenv("TARGET_CALENDAR_NAME", "Polimi Calendar Colored")
     credentials_path = os.getenv("CREDENTIALS_PATH", "credentials.json")
+    ical_url = args.ical_url or os.getenv("SOURCE_ICAL_URL") or None
 
     strategies_to_use = []
     if args.target in ["all", "exams"]:
@@ -68,6 +78,7 @@ def main() -> None:
         source_name=source_name,
         target_name=target_name,
         verbose=args.verbose,
+        source_ical_url=ical_url,
     )
     processor.process()
 
