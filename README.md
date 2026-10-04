@@ -17,7 +17,7 @@ This script connects to your Google Calendar and synchronizes events from a read
 
 ## Prerequisites
 
-1. **Python 3**: Make sure Python 3 is installed on your system.
+1. **Python 3.10+**: Make sure Python 3.10 or newer is installed on your system.
 2. **Google Cloud Account**: You need a Google Cloud account to generate API credentials.
 
 ## Setup Instructions
@@ -61,23 +61,24 @@ pip install -r requirements.txt
 
 ## Usage
 
-You can sync your entire calendar at once (**exams and lectures**), or specify an individual target.
+You can sync your entire calendar at once (**exams, lectures and deadlines**), or specify an individual target.
 
 ### Basic Commands (Auto-Sync)
 
 To silently sync your calendar using automated rules and previously saved preferences:
 
 ```bash
-# Sync both exams and lectures (default)
+# Sync exams, lectures and deadlines (default)
 python3 src/main.py
 
 # Or explicitly specify a target
 python3 src/main.py all
 python3 src/main.py exams
 python3 src/main.py lectures
+python3 src/main.py deadlines
 ```
 
-_(Running the sync will read from `course_colors.json` and `exam_states.json` to preserve your past color choices)._
+_(Running the sync will read from `course_colors.json`, `exam_states.json` and `deadline_colors.json` to preserve your past color choices)._
 
 ### Interactive Commands (Customization)
 
@@ -87,10 +88,12 @@ To customize or review your preferences, add the `-i` flag:
 python3 src/main.py -i
 python3 src/main.py exams -i
 python3 src/main.py lectures -i
+python3 src/main.py deadlines -i
 ```
 
-- **When running `exams -i`**: The script asks you questions per exam. It offers your current saved subscription status and color as defaults (press Enter to keep). You can pick custom colors or update subscriptions.
+- **When running `exams -i`**: The script asks you questions per exam. It offers your current saved subscription status and color as defaults (press Enter to keep). You are asked only once per exam title — the answer is reused for its other dates. You can pick custom colors or update subscriptions.
 - **When running `lectures -i`**: The script iterates through your courses, showing your existing color as default (or a deterministic suggestion for new courses). Press Enter to keep, or enter a number 1-11 to customize.
+- **When running `deadlines -i`**: Same per-title color picker for deadlines such as `Scadenza: Esame di laurea`.
 
 ### Syncing directly from a Polimi iCal URL
 
@@ -108,9 +111,33 @@ Or set it once in `.env` so every run uses it (takes precedence over
 SOURCE_ICAL_URL="https://ical-polimiapp.polimi.it/<your-id>/<your-token>"
 ```
 
+> ⚠️ **Treat the iCal URL like a password**: anyone with the link can read your
+> timetable. Keep it in `.env` (gitignored) or a `--ical` argument — never
+> commit it. The active source is printed (with the token redacted) in `-v`
+> mode so you can confirm which source is used.
+
+Recurring iCal events (`RRULE`/`EXDATE`) are passed through to Google Calendar,
+which expands them natively. Events are also matched by their `CATEGORIES`
+(`Esame`/`Lezione`/`Scadenza`) when the usual title prefixes are missing.
+
 This is also handy for GitHub Actions: just add `SOURCE_ICAL_URL` as a
 repository secret — no Google source-calendar subscription needed, only the
 target calendar where colored events are written.
+
+### Safe operations: dry-run, pruning and quiet mode
+
+```bash
+# Preview operations without applying any changes
+python3 src/main.py --dry-run
+
+# Also delete managed target events starting before a date (drops past semesters)
+python3 src/main.py --prune-before 2025-01-01
+
+# Suppress informational output (for cron/scheduled runs)
+python3 src/main.py -q
+```
+
+Flags compose freely, e.g. `python3 src/main.py --ical <url> --dry-run -v`.
 
 ### Verbose Logging
 
@@ -124,11 +151,11 @@ python3 src/main.py -v
 
 ## Important Note
 
-Because the script creates a _copy_ of your exams to color them, **you should hide the original calendar** in your Google Calendar web interface or mobile app. Otherwise, you will see duplicates of every event! You can do this by unchecking the box next to the original "Polimi <student_id>" calendar in the sidebar.
+Because the script creates a _copy_ of your events to color them, **you should hide the original calendar** in your Google Calendar web interface or mobile app (only needed in Google-source mode — with `--ical` there is no source subscription to hide). Otherwise, you will see duplicates of every event! You can do this by unchecking the box next to the original "Polimi <student_id>" calendar in the sidebar.
 
 ## Running in the Cloud (GitHub Actions)
 
-This repository includes a GitHub Actions workflow (`.github/workflows/manual_sync.yml`) that allows you to trigger the sync manually from the cloud without running it on your laptop!
+This repository includes a GitHub Actions workflow (`.github/workflows/manual_sync.yml`) that syncs **automatically every Monday at 06:00 UTC** and can also be triggered manually from the Actions tab without running anything on your laptop!
 
 ### Setup Instructions for GitHub Actions
 
@@ -144,10 +171,11 @@ Because your API credentials are kept highly secure and ignored by Git, you must
    - `GCP_TOKEN_PICKLE_B64`: Paste the base64 string you copied in Step 1.
    - `SOURCE_CALENDAR_NAME`: custom source calendar name
    - `TARGET_CALENDAR_NAME`: custom target calendar name
+   - `SOURCE_ICAL_URL`: your personal Polimi iCal feed URL (optional; takes precedence over the source calendar)
 
 ### Using your custom colors in the cloud
 
-By default, your custom color choices are in `course_colors.json` and `exam_states.json`.
+By default, your custom color choices are in `course_colors.json`, `exam_states.json` and `deadline_colors.json`. After each cloud run, the workflow commits any updated state files back to the repository, so local and cloud runs stay in sync.
 
 ---
 
@@ -158,9 +186,11 @@ The code follows SOLID principles and is modularized for clarity:
 - `src/auth.py`: Handles Google OAuth 2.0.
 - `src/calendar_client.py`: Wrapper for Google API interactions.
 - `src/colors.py`: Centralized ANSI and Google Calendar color definitions.
+- `src/ical_source.py`: Fetches and parses Polimi iCal feeds into Google Calendar event dicts (stdlib only).
 - `src/sync_processor.py`: Coordinates the sync process and delta comparisons.
 - `src/strategies/`: Contains the logic for event coloring (Open/Closed principle).
   - `base.py`: Abstract base classes and JSON persistence logic.
   - `exams.py`: Rules for coloring and auto-declining exams.
   - `lectures.py`: Rules for deterministic course coloring.
+  - `deadlines.py`: Rules for deterministic deadline coloring.
 - `src/main.py`: Configures the environment and manages the command line interface.

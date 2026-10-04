@@ -43,11 +43,15 @@ class LectureColoringStrategy(PersistentColoringStrategy):
 
     def determine_color(self, event: dict[str, Any]) -> str | None:
         title = event.get("summary", "")
+        categories = event.get("categories", [])
 
-        if not title.startswith(self.PREFIX):
+        if title.startswith(self.PREFIX):
+            course_name = title.removeprefix(self.PREFIX).strip()
+        elif "Lezione" in categories:
+            # iCal feeds may omit the prefix; fall back to the category label
+            course_name = title.strip()
+        else:
             return None
-
-        course_name = title.removeprefix(self.PREFIX).strip()
 
         if self.interactive:
             if course_name in self.prompted_courses and course_name in self.state:

@@ -136,15 +136,21 @@ class CalendarClient:
 
             try:
                 batch.execute()
-            except Exception:
+            except Exception as first_exc:
                 import time
 
-                time.sleep(1)
-                try:
-                    batch.execute()
-                except Exception as exc:
+                last_exc: Exception | None = first_exc
+                for attempt in range(3):
+                    time.sleep(2**attempt)
+                    try:
+                        batch.execute()
+                        last_exc = None
+                        break
+                    except Exception as exc:
+                        last_exc = exc
+                if last_exc is not None:
                     for op in chunk:
-                        results.append((op, exc))
+                        results.append((op, last_exc))
                     continue
             for idx, op in enumerate(chunk):
                 req_id = f"op_{idx}"

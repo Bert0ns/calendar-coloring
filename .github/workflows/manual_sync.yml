@@ -12,11 +12,18 @@ on:
           - all
           - exams
           - lectures
+          - deadlines
       verbose:
         description: "Enable verbose logging"
         required: false
         default: false
         type: boolean
+  schedule:
+    # Weekly automatic sync (Mondays at 06:00 UTC)
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -71,3 +78,13 @@ jobs:
           else
             python3 src/main.py ${{ inputs.target }}
           fi
+
+      - name: Persist color preferences
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          for f in course_colors.json exam_states.json deadline_colors.json; do
+            [ -f "$f" ] && git add "$f"
+          done
+          git diff --staged --quiet || git commit -m "chore: update sync state [skip ci]"
+          git push
