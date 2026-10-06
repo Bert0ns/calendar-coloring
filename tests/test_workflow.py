@@ -4,18 +4,18 @@ from unittest.mock import MagicMock
 import pytest
 from conftest import FakeCalendarGateway
 
-from polimi_calendar_coloring.catalog import Catalog
-from polimi_calendar_coloring.config import Config
-from polimi_calendar_coloring.palette import GoogleColor
-from polimi_calendar_coloring.preferences import JsonPreferencesRepository, Preferences
-from polimi_calendar_coloring.reporting import NullReporter
-from polimi_calendar_coloring.sync import (
+from calendar_coloring.catalog import Catalog
+from calendar_coloring.config import Config
+from calendar_coloring.palette import GoogleColor
+from calendar_coloring.preferences import JsonPreferencesRepository, Preferences
+from calendar_coloring.reporting import NullReporter
+from calendar_coloring.sync import (
     GoogleCalendarSource,
     SourceCalendarNotFoundError,
     SyncService,
 )
-from polimi_calendar_coloring.targets import SyncTarget
-from polimi_calendar_coloring.workflow import SyncOptions, SyncWorkflow
+from calendar_coloring.targets import SyncTarget
+from calendar_coloring.workflow import SyncOptions, SyncWorkflow
 
 SOURCE = [
     {

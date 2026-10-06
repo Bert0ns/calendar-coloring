@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "polimi-calendar-coloring"
+name = "calendar-coloring"
 dynamic = ["version"]
-description = "Sync a read-only Polimi calendar into a color-coded Google Calendar."
+description = "Sync a read-only university calendar into a color-coded Google Calendar."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.12"
@@ -30,16 +30,16 @@ dev = [
 ]
 
 [project.scripts]
-polimi-calendar = "polimi_calendar_coloring.cli.main:main"
+calendar-coloring = "calendar_coloring.cli.main:main"
 
 [tool.setuptools.dynamic]
-version = { attr = "polimi_calendar_coloring.__version__" }
+version = { attr = "calendar_coloring.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-polimi_calendar_coloring = ["py.typed"]
+calendar_coloring = ["py.typed"]
 
 [tool.black]
 line-length = 88
@@ -69,7 +69,7 @@ python_files = ["test_*.py"]
 addopts = "--strict-markers"
 
 [tool.coverage.run]
-source = ["polimi_calendar_coloring"]
+source = ["calendar_coloring"]
 branch = true
 
 [tool.coverage.report]

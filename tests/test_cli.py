@@ -8,17 +8,17 @@ from unittest.mock import MagicMock
 import pytest
 from conftest import FakeCalendarGateway
 
-from polimi_calendar_coloring.auth import (
+from calendar_coloring.auth import (
     CredentialsFileNotFoundError,
     LoginRequiredError,
 )
-from polimi_calendar_coloring.cli import main as cli
-from polimi_calendar_coloring.config import Config
-from polimi_calendar_coloring.ical_source import IcalFeedSource, mask_url
-from polimi_calendar_coloring.reporting import NullReporter
-from polimi_calendar_coloring.sync.source import GoogleCalendarSource
-from polimi_calendar_coloring.targets import SyncTarget
-from polimi_calendar_coloring.workflow import SyncOptions
+from calendar_coloring.cli import main as cli
+from calendar_coloring.config import Config
+from calendar_coloring.ical_source import IcalFeedSource, mask_url
+from calendar_coloring.reporting import NullReporter
+from calendar_coloring.sync.source import GoogleCalendarSource
+from calendar_coloring.targets import SyncTarget
+from calendar_coloring.workflow import SyncOptions
 
 SOURCE = [
     {
@@ -97,8 +97,8 @@ def test_bad_prune_date_message(capsys) -> None:
 
 
 def test_mask_url_hides_token() -> None:
-    masked = mask_url("https://ical-polimiapp.polimi.it/12345/secret-token-abc")
-    assert masked == "https://ical-polimiapp.polimi.it/<redacted>"
+    masked = mask_url("https://ical.example.com/12345/secret-token-abc")
+    assert masked == "https://ical.example.com/<redacted>"
 
 
 @pytest.mark.parametrize("url", ["not a url", "", "http://[::1"])
@@ -123,7 +123,7 @@ def test_run_reports_missing_source(config: Config) -> None:
 
 
 def test_run_reports_ical_failure_without_touching_calendar(config: Config) -> None:
-    from polimi_calendar_coloring.ical_source import ICalError
+    from calendar_coloring.ical_source import ICalError
 
     def broken_fetch(url: str) -> str:
         raise ICalError("Could not download iCal feed.")
@@ -212,7 +212,7 @@ def install_gateway(monkeypatch, gateway) -> None:
 
 
 def test_main_wires_everything(isolated_env, fake_auth, monkeypatch) -> None:
-    gateway = FakeCalendarGateway({"Polimi Calendar": SOURCE})
+    gateway = FakeCalendarGateway({"Calendar": SOURCE})
     install_gateway(monkeypatch, gateway)
 
     assert cli.main(["lectures"]) == cli.EXIT_OK
@@ -220,7 +220,7 @@ def test_main_wires_everything(isolated_env, fake_auth, monkeypatch) -> None:
     kwargs = fake_auth.call_args.kwargs
     assert str(kwargs["token_path"]) == "token.json"
     assert str(kwargs["legacy_token_path"]) == "token.pickle"
-    assert gateway.created == ["Polimi Calendar Colored"]
+    assert gateway.created == ["Calendar Colored"]
     assert (isolated_env / "course_colors.json").exists()
 
 
@@ -241,7 +241,7 @@ def test_main_ical_flag_overrides_env(
         return response
 
     monkeypatch.setattr(
-        "polimi_calendar_coloring.ical_source.urllib.request.urlopen", fake_urlopen
+        "calendar_coloring.ical_source.urllib.request.urlopen", fake_urlopen
     )
 
     assert cli.main(["--ical", "https://cli/feed", "-v"]) == cli.EXIT_OK
@@ -284,15 +284,15 @@ def test_main_reports_login_required(isolated_env, fake_auth, capsys) -> None:
 def test_main_quiet_prints_nothing_on_success(
     isolated_env, fake_auth, monkeypatch, capsys
 ) -> None:
-    install_gateway(monkeypatch, FakeCalendarGateway({"Polimi Calendar": SOURCE}))
+    install_gateway(monkeypatch, FakeCalendarGateway({"Calendar": SOURCE}))
     assert cli.main(["-q"]) == cli.EXIT_OK
     assert capsys.readouterr().out == ""
 
 
 def test_module_entry_point_shows_help(capsys, monkeypatch) -> None:
-    monkeypatch.setattr(sys, "argv", ["polimi-calendar", "--help"])
+    monkeypatch.setattr(sys, "argv", ["calendar-coloring", "--help"])
     with pytest.raises(SystemExit) as exc_info:
-        runpy.run_module("polimi_calendar_coloring", run_name="__main__")
+        runpy.run_module("calendar_coloring", run_name="__main__")
     assert exc_info.value.code == 0
     assert "--prune-before" in capsys.readouterr().out
 
@@ -337,24 +337,24 @@ def test_main_tui_without_textual_fails_before_login(
 ) -> None:
     monkeypatch.setattr(cli, "tui_available", lambda: False)
     assert cli.main(["--tui"]) == cli.EXIT_FAILURE
-    assert "pip install 'polimi-calendar-coloring[tui]'" in capsys.readouterr().out
+    assert "pip install 'calendar-coloring[tui]'" in capsys.readouterr().out
     fake_auth.assert_not_called()
 
 
 def test_main_tui_runs_the_app(isolated_env, fake_auth, monkeypatch) -> None:
     pytest.importorskip("textual")
-    from polimi_calendar_coloring.tui.app import PolimiCalendarApp
+    from calendar_coloring.tui.app import CalendarColoringApp
 
-    gateway = FakeCalendarGateway({"Polimi Calendar": SOURCE})
+    gateway = FakeCalendarGateway({"Calendar": SOURCE})
     install_gateway(monkeypatch, gateway)
-    launched: list[PolimiCalendarApp] = []
-    monkeypatch.setattr(PolimiCalendarApp, "run", lambda app: launched.append(app))
+    launched: list[CalendarColoringApp] = []
+    monkeypatch.setattr(CalendarColoringApp, "run", lambda app: launched.append(app))
 
     assert cli.main(["lectures", "--tui"]) == cli.EXIT_OK
 
     [app] = launched
     assert app.options == SyncOptions(target=SyncTarget.LECTURES)
-    assert app.target_name == "Polimi Calendar Colored"
+    assert app.target_name == "Calendar Colored"
     assert isinstance(app.source, GoogleCalendarSource)
     assert gateway.batches == []
 
@@ -363,3 +363,42 @@ def test_tui_available_matches_installed_textual() -> None:
     import importlib.util
 
     assert cli.tui_available() is (importlib.util.find_spec("textual") is not None)
+
+
+@pytest.mark.parametrize(
+    ("argv", "interactive_shell", "expected"),
+    [
+        ([], True, True),
+        (["exams"], True, True),
+        ([], False, False),  # cron, CI, pipes
+        (["--no-tui"], True, False),
+        (["-i"], True, False),
+        (["--dry-run"], True, False),
+        (["--tui"], False, True),  # explicit request wins over the shell check
+    ],
+)
+def test_tui_is_the_default_in_a_terminal(
+    argv, interactive_shell, expected, monkeypatch
+) -> None:
+    monkeypatch.setattr(cli, "_is_interactive_shell", lambda: interactive_shell)
+    assert cli.parse_args(argv).tui is expected
+
+
+def test_parse_args_rejects_tui_with_no_tui() -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        cli.parse_args(["--tui", "--no-tui"])
+    assert exc_info.value.code == 2
+
+
+def test_default_tui_without_textual_falls_back_to_plain_sync(
+    isolated_env, fake_auth, monkeypatch, capsys
+) -> None:
+    monkeypatch.setattr(cli, "_is_interactive_shell", lambda: True)
+    monkeypatch.setattr(cli, "tui_available", lambda: False)
+    gateway = FakeCalendarGateway({"Calendar": SOURCE})
+    install_gateway(monkeypatch, gateway)
+
+    assert cli.main([]) == cli.EXIT_OK
+
+    assert "Running a plain sync instead" in capsys.readouterr().out
+    assert gateway.created == ["Calendar Colored"]

@@ -2,17 +2,17 @@ import re
 
 import pytest
 
-from polimi_calendar_coloring.catalog import discover
-from polimi_calendar_coloring.cli.prompts import (
+from calendar_coloring.catalog import discover
+from calendar_coloring.cli.prompts import (
     InteractivePreferenceEditor,
     parse_color,
     parse_yes_no,
 )
-from polimi_calendar_coloring.events import Enrollment, ExamOccurrence
-from polimi_calendar_coloring.palette import GoogleColor
-from polimi_calendar_coloring.preferences import ExamPreference, Preferences
-from polimi_calendar_coloring.suggestions import suggest_color
-from polimi_calendar_coloring.targets import SyncTarget
+from calendar_coloring.events import Enrollment, ExamOccurrence
+from calendar_coloring.palette import GoogleColor
+from calendar_coloring.preferences import ExamPreference, Preferences
+from calendar_coloring.suggestions import suggest_color
+from calendar_coloring.targets import SyncTarget
 
 ANSI = re.compile(r"\033\[[0-9;]*m")
 

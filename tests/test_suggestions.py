@@ -1,9 +1,9 @@
 import pytest
 
-from polimi_calendar_coloring.events import Enrollment, ExamOccurrence
-from polimi_calendar_coloring.palette import GoogleColor
-from polimi_calendar_coloring.preferences import ExamPreference
-from polimi_calendar_coloring.suggestions import (
+from calendar_coloring.events import Enrollment, ExamOccurrence
+from calendar_coloring.palette import GoogleColor
+from calendar_coloring.preferences import ExamPreference
+from calendar_coloring.suggestions import (
     auto_exam_preference,
     default_exam_color,
     is_subscribed_to_other_session,

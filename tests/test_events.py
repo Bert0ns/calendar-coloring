@@ -1,6 +1,6 @@
 import pytest
 
-from polimi_calendar_coloring.events import (
+from calendar_coloring.events import (
     Enrollment,
     ExamOccurrence,
     clean_summary,

@@ -1,13 +1,13 @@
 from pathlib import Path
 
-from polimi_calendar_coloring.config import Config
+from calendar_coloring.config import Config
 
 
 def test_defaults_are_backwards_compatible() -> None:
     config = Config.from_env({})
     assert config == Config()
-    assert config.source_calendar_name == "Polimi Calendar"
-    assert config.target_calendar_name == "Polimi Calendar Colored"
+    assert config.source_calendar_name == "Calendar"
+    assert config.target_calendar_name == "Calendar Colored"
     assert config.credentials_path == Path("credentials.json")
     assert config.token_path == Path("token.json")
     assert config.legacy_token_path == Path("token.pickle")

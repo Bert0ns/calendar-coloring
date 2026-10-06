@@ -79,8 +79,8 @@ jobs:
 
       - name: Run Sync
         env:
-          SOURCE_CALENDAR_NAME: ${{ secrets.SOURCE_CALENDAR_NAME || 'Polimi' }}
-          TARGET_CALENDAR_NAME: ${{ secrets.TARGET_CALENDAR_NAME || 'Polimi Colored' }}
+          SOURCE_CALENDAR_NAME: ${{ secrets.SOURCE_CALENDAR_NAME || 'Calendar' }}
+          TARGET_CALENDAR_NAME: ${{ secrets.TARGET_CALENDAR_NAME || 'Calendar Colored' }}
           SOURCE_ICAL_URL: ${{ secrets.SOURCE_ICAL_URL }}
           # Empty on scheduled runs: fall back to the defaults.
           TARGET: ${{ inputs.target }}
@@ -91,7 +91,7 @@ jobs:
           if [ -n "$TARGET" ]; then args+=("$TARGET"); fi
           if [ "$VERBOSE" == "true" ]; then args+=("--verbose"); fi
           if [ "$DRY_RUN" == "true" ]; then args+=("--dry-run"); fi
-          polimi-calendar "${args[@]}"
+          calendar-coloring --no-tui "${args[@]}"
 
       - name: Persist color preferences
         if: ${{ inputs.dry_run != true }}

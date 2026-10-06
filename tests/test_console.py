@@ -1,8 +1,8 @@
 import re
 
-from polimi_calendar_coloring.cli.ansi import palette_lines
-from polimi_calendar_coloring.cli.console import ConsoleReporter
-from polimi_calendar_coloring.sync.models import (
+from calendar_coloring.cli.ansi import palette_lines
+from calendar_coloring.cli.console import ConsoleReporter
+from calendar_coloring.sync.models import (
     ColorOrigin,
     EventDecision,
     Mutation,

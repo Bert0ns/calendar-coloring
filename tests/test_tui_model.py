@@ -1,10 +1,10 @@
-from polimi_calendar_coloring.catalog import discover
-from polimi_calendar_coloring.events import Enrollment, ExamOccurrence
-from polimi_calendar_coloring.palette import GoogleColor
-from polimi_calendar_coloring.preferences import ExamPreference, Preferences
-from polimi_calendar_coloring.suggestions import suggest_color
-from polimi_calendar_coloring.tui.model import ExamRow, ItemStatus, PreferencesDraft
-from polimi_calendar_coloring.workflow import SyncOptions, SyncSession
+from calendar_coloring.catalog import discover
+from calendar_coloring.events import Enrollment, ExamOccurrence
+from calendar_coloring.palette import GoogleColor
+from calendar_coloring.preferences import ExamPreference, Preferences
+from calendar_coloring.suggestions import suggest_color
+from calendar_coloring.tui.model import ExamRow, ItemStatus, PreferencesDraft
+from calendar_coloring.workflow import SyncOptions, SyncSession
 
 
 def event(i: int, summary: str, day: str, description: str = "") -> dict:
