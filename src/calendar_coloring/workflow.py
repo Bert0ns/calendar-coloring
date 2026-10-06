@@ -141,6 +141,20 @@ class SyncWorkflow:
             profile=profile,
         )
 
+    def syncable_events(self, session: SyncSession) -> list[Event]:
+        """The source events that are copied to the target calendar."""
+        return self._planner(session.options, session.profile).syncable(
+            session.source_events
+        )
+
+    def rediscover(self, session: SyncSession) -> SyncSession:
+        """The session with its events classified again, after the profile's
+        rules changed. No I/O."""
+        return replace(
+            session,
+            catalog=discover(self.syncable_events(session), session.profile.classifier),
+        )
+
     def complete_preferences(self, session: SyncSession) -> None:
         """Fills preferences the user never chose with the automatic rules."""
         fill_missing_preferences(

@@ -1,3 +1,4 @@
+from datetime import date
 from unittest.mock import MagicMock
 
 import pytest
@@ -268,3 +269,25 @@ def test_profile_and_calendar_list(config: Config) -> None:
         CalendarInfo("id::Src", "Src", writable=False),
         CalendarInfo("id::Tgt", "Tgt", writable=True),
     ]
+
+
+def test_rediscover_uses_the_current_rules(config: Config) -> None:
+    gateway = FakeCalendarGateway({"Src": SOURCE})
+    workflow = make_workflow(config, gateway).workflow
+    session = workflow.load(SyncOptions(), GoogleCalendarSource(gateway, "Src"), "T")
+    assert session.catalog.courses == ("CS",)
+
+    session.profile.rules = []
+    rediscovered = workflow.rediscover(session)
+
+    assert rediscovered.catalog == Catalog()
+    assert rediscovered.profile is session.profile
+
+
+def test_syncable_events_leave_out_pruned_ones(config: Config) -> None:
+    gateway = FakeCalendarGateway({"Src": SOURCE})
+    workflow = make_workflow(config, gateway).workflow
+    options = SyncOptions(prune_before=date(2027, 1, 1))
+    session = workflow.load(options, GoogleCalendarSource(gateway, "Src"), "T")
+
+    assert [e["id"] for e in workflow.syncable_events(session)] == ["eam00001"]

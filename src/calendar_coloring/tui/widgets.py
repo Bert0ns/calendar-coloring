@@ -1,5 +1,5 @@
-"""Reusable TUI pieces: color swatches, the color and calendar pickers and the
-plan view."""
+"""Reusable TUI pieces: color swatches, the color and calendar pickers, the
+rule editor and the plan view."""
 
 from __future__ import annotations
 
@@ -9,13 +9,31 @@ from typing import ClassVar
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding, BindingType
-from textual.containers import Vertical
+from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Input, Label, OptionList, Tree
+from textual.widgets import (
+    Button,
+    Checkbox,
+    Input,
+    Label,
+    OptionList,
+    Select,
+    Static,
+    Tree,
+)
 from textual.widgets.option_list import Option
 
 from calendar_coloring.events import Event
 from calendar_coloring.palette import GoogleColor
+from calendar_coloring.rules import (
+    NAME_PLACEHOLDER,
+    TITLE_PLACEHOLDER,
+    Condition,
+    EventKind,
+    Field,
+    MatchKind,
+    Rule,
+)
 from calendar_coloring.sync.models import (
     ColorOrigin,
     EventDecision,
@@ -23,6 +41,7 @@ from calendar_coloring.sync.models import (
     MutationAction,
     SyncPlan,
 )
+from calendar_coloring.tui.rules import RuleForm
 from calendar_coloring.tui.setup import CalendarChoice
 
 ACTION_STYLES = {
@@ -192,6 +211,194 @@ class CalendarPicker(ModalScreen[str | None]):
             self.query_one("#calendar-error", Label).update(error)
             return
         self.dismiss(event.value.strip())
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+KIND_LABELS = {
+    EventKind.EXAM: "Exam",
+    EventKind.LECTURE: "Lecture",
+    EventKind.DEADLINE: "Deadline",
+}
+_FIELD_OPTIONS = [
+    ("Title", Field.TITLE),
+    ("Description", Field.DESCRIPTION),
+    ("Location", Field.LOCATION),
+    ("Category (iCal)", Field.CATEGORY),
+]
+_MATCH_OPTIONS = [
+    ("starts with", MatchKind.STARTS_WITH),
+    ("contains", MatchKind.CONTAINS),
+    ("is exactly", MatchKind.EQUALS),
+    ("matches the regex", MatchKind.REGEX),
+]
+
+
+class RuleEditor(ModalScreen[Rule | None]):
+    """Modal form for a rule, telling live how many events it matches.
+
+    With ``with_kind=False`` only the condition is edited (e.g. for the exam
+    enrollment): the returned rule's kind and title are then meaningless.
+    Dismisses with the rule, or ``None`` when cancelled.
+    """
+
+    BINDINGS: ClassVar[list[BindingType]] = [
+        Binding("escape", "cancel", "Cancel"),
+        Binding("ctrl+s", "save", "Save", priority=True),
+    ]
+
+    DEFAULT_CSS = """
+    RuleEditor {
+        align: center middle;
+    }
+    RuleEditor > Vertical {
+        width: 76;
+        height: auto;
+        border: thick $accent;
+        background: $surface;
+        padding: 0 1;
+    }
+    RuleEditor .form-label {
+        margin-top: 1;
+        color: $text-muted;
+    }
+    RuleEditor Horizontal {
+        height: auto;
+    }
+    RuleEditor #rule-field, RuleEditor #rule-match {
+        width: 1fr;
+    }
+    RuleEditor #rule-status {
+        margin: 1 0;
+    }
+    RuleEditor #rule-status.error {
+        color: $error;
+    }
+    RuleEditor #rule-buttons Button {
+        margin-right: 2;
+    }
+    """
+
+    def __init__(
+        self,
+        title: str,
+        form: RuleForm,
+        count_matches: Callable[[Condition], int],
+        total: int,
+        with_kind: bool = True,
+    ) -> None:
+        super().__init__()
+        self.title_text = title
+        self.form = form
+        self.count_matches = count_matches
+        self.total = total
+        self.with_kind = with_kind
+        self.result: Rule | None = None
+
+    def compose(self) -> ComposeResult:
+        form = self.form
+        with Vertical():
+            yield Label(Text(self.title_text, style="bold"))
+            if self.with_kind:
+                yield Label("Events matching the condition are", classes="form-label")
+                yield Select(
+                    [(label, kind) for kind, label in KIND_LABELS.items()],
+                    value=form.kind,
+                    allow_blank=False,
+                    id="rule-kind",
+                )
+            yield Label("Condition", classes="form-label")
+            with Horizontal():
+                yield Select(
+                    _FIELD_OPTIONS,
+                    value=form.field,
+                    allow_blank=False,
+                    id="rule-field",
+                )
+                yield Select(
+                    _MATCH_OPTIONS,
+                    value=form.match,
+                    allow_blank=False,
+                    id="rule-match",
+                )
+            yield Input(form.value, placeholder="Text to match", id="rule-value")
+            yield Checkbox(
+                "Ignore upper/lower case", form.ignore_case, id="rule-ignore-case"
+            )
+            if self.with_kind:
+                yield Label(
+                    f"Title in the colored calendar ({TITLE_PLACEHOLDER}: the "
+                    f"original, {NAME_PLACEHOLDER}: the name)",
+                    classes="form-label",
+                )
+                yield Input(form.title, id="rule-title")
+            yield Static(id="rule-status")
+            with Horizontal(id="rule-buttons"):
+                yield Button("Save", id="save-rule", variant="primary")
+                yield Button("Cancel", id="cancel-rule")
+
+    def on_mount(self) -> None:
+        self.query_one("#rule-value", Input).focus()
+        self._validate()
+
+    def _validate(self) -> None:
+        status = self.query_one("#rule-status", Static)
+        try:
+            condition = Condition(
+                field=self.query_one("#rule-field", Select).value,  # type: ignore[arg-type]
+                match=self.query_one("#rule-match", Select).value,  # type: ignore[arg-type]
+                value=self.query_one("#rule-value", Input).value,
+                ignore_case=self.query_one("#rule-ignore-case", Checkbox).value,
+            )
+        except ValueError as exc:
+            self.result = None
+            status.update(f"Invalid condition: {exc}.")
+            status.add_class("error")
+        else:
+            kind = (
+                self.query_one("#rule-kind", Select).value
+                if self.with_kind
+                else self.form.kind
+            )
+            title = (
+                self.query_one("#rule-title", Input).value.strip()
+                if self.with_kind
+                else ""
+            )
+            self.result = Rule(
+                kind,  # type: ignore[arg-type]
+                condition,
+                title or TITLE_PLACEHOLDER,
+            )
+            matches = self.count_matches(condition)
+            status.update(f"Matches {matches} of {self.total} events.")
+            status.remove_class("error")
+        self.query_one("#save-rule", Button).disabled = self.result is None
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        self._validate()
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        self._validate()
+
+    def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
+        self._validate()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        event.stop()
+        self.action_save()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        event.stop()
+        if event.button.id == "save-rule":
+            self.action_save()
+        else:
+            self.action_cancel()
+
+    def action_save(self) -> None:
+        if self.result is not None:
+            self.dismiss(self.result)
 
     def action_cancel(self) -> None:
         self.dismiss(None)
