@@ -1,229 +1,395 @@
-# Polimi Calendar Coloring Sync
+# Polimi Calendar Coloring
 
-This tool connects to your Google Calendar and synchronizes events from a read-only Polimi iCal subscription into a new, fully customizable Google Calendar. During the synchronization, it automatically color-codes your exams based on your enrollment status!
+Turn your Politecnico di Milano timetable into a color-coded Google Calendar.
 
-### Features
+The Polimi calendar is read-only and every event in it has the same color.
+This tool copies it into a Google Calendar you own and colors each event:
 
-- **Intelligent Synchronization**: Safely copies events from a source calendar (or directly from your Polimi iCal feed) to a target calendar, updating only what has changed to minimize API calls and avoid rate limits. Events you add yourself to the target calendar are never touched.
-- **Auto-Coloring Exams**: Automatically colors exams **Red** if you are subscribed ("Iscritto") and **Grey** if you are not ("Non iscritto"). Once you are subscribed to one session of an exam, the other sessions of the same exam are greyed out.
-- **Auto-Coloring Lectures & Deadlines**: Automatically assigns unique, consistent colors to different courses ("Lezione: Didattica - [Course Name]") and deadlines ("Scadenza: ...").
-- **Automatic Title Cleanup**: Automatically strips the boilerplate `"Lezione: Didattica - "` prefix from lecture titles in the target calendar, leaving only the clean course name.
-- **Interactive Customization**: Run with `-i` to review your exam subscriptions and pick colors for exams, courses and deadlines. Your saved choices are offered as defaults (press Enter to keep them).
-- **Dry Run**: Run with `--dry-run` to preview what would change without touching your calendar or your saved preferences.
-- **Persistent Memory**: Saves your choices to `course_colors.json`, `exam_states.json` and `deadline_colors.json` so your calendar stays perfectly coordinated across future automated syncs.
-- **Environment Configuration**: Easily configure calendar names, the iCal feed and file paths using a `.env` file.
-- **Beautiful Terminal Output**: Features a concise, color-coded ANSI terminal interface so you know exactly what is happening.
+- **Exams**: red if you are enrolled (_Iscritto_), grey if you are not. Once you
+  enroll in one session of an exam, its other sessions turn grey.
+- **Lectures**: one color per course, with the `Lezione: Didattica - ` prefix
+  stripped from the title.
+- **Deadlines** (`Scadenza: …`): one color per deadline.
 
----
+Your choices are saved in plain JSON files, so every later sync uses the same
+colors. You can run it on your laptop, from a terminal UI, or on a weekly
+schedule with GitHub Actions.
 
-## Prerequisites
+![The terminal UI, Exams tab](docs/tui.svg)
 
-1. **Python 3.10+**: Make sure Python 3.10 or newer is installed on your system.
-2. **Google Cloud Account**: You need a Google Cloud account to generate API credentials.
+## Contents
 
-## Setup Instructions
+- [How it works](#how-it-works)
+- [Setup](#setup)
+- [Usage](#usage)
+  - [Sync](#sync)
+  - [Terminal UI](#terminal-ui)
+  - [Interactive prompts](#interactive-prompts)
+  - [Use an iCal URL as the source](#use-an-ical-url-as-the-source)
+  - [Command reference](#command-reference)
+- [Coloring rules](#coloring-rules)
+- [Configuration](#configuration)
+- [Run it in the cloud with GitHub Actions](#run-it-in-the-cloud-with-github-actions)
+- [Troubleshooting](#troubleshooting)
+- [Development](#development)
+- [Architecture](#architecture)
 
-### 1. Configure Google Cloud Credentials
+## How it works
 
-Because this tool accesses your personal Google Calendar, you must create your own API credentials:
+```
+Polimi calendar ──read──▶ discover ──▶ preferences ──▶ plan ──▶ apply ──write──▶ your colored calendar
+(Google or iCal)          courses,      saved colors,    diff of    batched
+                          exams,        rules, or        inserts/   Google API
+                          deadlines     your edits       updates/   calls
+                                                         deletes
+```
 
-1. Go to the [Google Cloud Console](https://console.cloud.google.com/).
-2. Create a **New Project**.
-3. In the sidebar, navigate to **APIs & Services** > **Library** and enable the **Google Calendar API**.
-4. Go to **APIs & Services** > **OAuth consent screen**:
-   - Choose **External** user type.
-   - Fill in the required app details (name, email).
-   - **Important**: Scroll down to the **Test users** section, click **+ ADD USERS**, and add your own Google email address. Without this, you will get a `403 Access Denied` error during login.
-5. Go to **APIs & Services** > **Credentials**:
-   - Click **+ CREATE CREDENTIALS** > **OAuth client ID**.
-   - Select **Desktop app** as the application type.
-   - Click Create, then download the JSON file.
-6. Rename the downloaded file to `credentials.json` and place it in the same directory as this README.
+1. **Discover**: read the source events and list the courses, exam sessions
+   and deadlines they contain.
+2. **Preferences**: load your saved colors and subscriptions. Anything you
+   haven't chosen yet is filled in by the [coloring rules](#coloring-rules), or
+   you choose it yourself in the TUI or with the `-i` prompts.
+3. **Plan**: compare the source with the target calendar and work out the
+   events to insert, update and delete. Unchanged events cost no API calls.
+4. **Apply**: send the changes through the Google batch API, retrying
+   transient failures.
 
-> **Note**: while the OAuth app is in _Testing_ mode, Google expires the login (refresh token) after 7 days. When that happens, simply run the tool again locally to log in.
+The sync is safe to repeat:
 
-### 2. Configure Environment Variables
+- Only events the tool created are updated or deleted. They're tagged with a
+  private property. Events you add to the target calendar yourself are left
+  alone.
+- Events removed from the source are removed from the target.
+- If an event isn't covered by the current run (for example, a lecture during
+  `polimi-calendar exams`), its existing color is kept.
+- The target calendar is created on the first sync.
 
-Copy the provided `.env.example` file to create your own `.env` file:
+## Setup
+
+You need **Python 3.10+** and a Google account. The tool runs under your own
+Google Cloud OAuth client, so nobody else ever sees your calendar.
+
+### 1. Create Google API credentials
+
+1. Open the [Google Cloud Console](https://console.cloud.google.com/) and
+   create a **new project**.
+2. Go to **APIs & Services → Library** and enable the **Google Calendar API**.
+3. Go to **APIs & Services → OAuth consent screen**:
+   - Choose the **External** user type and fill in the required fields.
+   - Under **Test users**, add your own Google address. If you skip this,
+     login fails with `403 access_denied`.
+4. Go to **APIs & Services → Credentials → Create credentials → OAuth client
+   ID**, choose **Desktop app**, then download the JSON file.
+5. Save it as `credentials.json` in the project directory.
+
+### 2. Install
+
+```bash
+git clone https://github.com/Bert0ns/polimi-calendar-coloring.git
+cd polimi-calendar-coloring
+pip install ".[tui]"      # or `pip install .` if you don't want the terminal UI
+```
+
+This installs the `polimi-calendar` command. `python -m polimi_calendar_coloring`
+works too.
+
+### 3. Configure
 
 ```bash
 cp .env.example .env
 ```
 
-Inside `.env`, you can customize the names of your source and target calendars, your iCal feed URL and, optionally, where credentials, token and preferences are stored.
-
-### 3. Install
-
-Open a terminal in the project directory and run:
+In `.env`, set the name of the calendar to read and the one to write:
 
 ```bash
-pip install .
+SOURCE_CALENDAR_NAME="Polimi 10123456"        # the Polimi calendar you subscribed to
+TARGET_CALENDAR_NAME="Polimi Colored"         # created on the first sync
 ```
 
-This installs the `polimi-calendar` command (you can also use `python -m polimi_calendar_coloring`).
+If you'd rather not subscribe to the Polimi calendar in Google, give the tool
+your [iCal URL](#use-an-ical-url-as-the-source) instead. All settings are listed
+under [Configuration](#configuration).
 
----
+### 4. First run
+
+```bash
+polimi-calendar --dry-run
+```
+
+Your browser opens so you can log in with Google, and the login is saved to
+`token.json`. Without a browser (WSL, SSH), the login URL is printed for you to
+open by hand. The dry run then shows what a sync would change without touching
+anything.
+
+> [!IMPORTANT]
+> The colored calendar is a **copy** of the Polimi calendar. In Google Calendar,
+> hide the original Polimi calendar (untick it in the sidebar) to avoid seeing
+> every event twice. If you use an iCal URL as the source, there is nothing to
+> hide.
 
 ## Usage
 
-You can sync your entire calendar at once (**exams, lectures and deadlines**), or specify an individual target.
-
-### Basic Commands (Auto-Sync)
-
-To silently sync your calendar using automated rules and previously saved preferences:
+### Sync
 
 ```bash
-# Sync exams, lectures and deadlines (default)
-polimi-calendar
-
-# Or explicitly specify a target
-polimi-calendar all
-polimi-calendar exams
+polimi-calendar             # exams, lectures and deadlines
+polimi-calendar exams       # only (re)color exams
 polimi-calendar lectures
 polimi-calendar deadlines
 ```
 
-_(Running the sync will read from `course_colors.json`, `exam_states.json` and `deadline_colors.json` to preserve your past color choices)._
+The sync is non-interactive, so it also runs fine from cron or CI. Anything
+new gets a color from the [coloring rules](#coloring-rules), and that color is
+saved for future runs.
 
-The first run opens your browser to log in with Google; the login is then cached in `token.json`. Without a browser (e.g. WSL or SSH), the login URL is printed so you can open it manually.
+Useful flags:
 
-### Interactive Commands (Customization)
+```bash
+polimi-calendar --dry-run                   # show the changes, write nothing
+polimi-calendar -v                          # explain the decision for every event
+polimi-calendar -q                          # only warnings and errors
+polimi-calendar --prune-before 2026-02-01   # also delete synced events before this date
+```
 
-To customize or review your preferences, add the `-i` flag:
+`--prune-before` is handy for dropping past semesters. Flags can be combined,
+e.g. `polimi-calendar lectures --dry-run -v`. The command exits with a non-zero
+status if any calendar operation fails.
+
+### Terminal UI
+
+```bash
+polimi-calendar --tui
+polimi-calendar exams --tui    # only the Exams and Sync tabs
+```
+
+The TUI needs the `tui` extra (`pip install ".[tui]"`). It opens with one tab
+per kind of event:
+
+| Tab           | What you can do                                                                                                                                                                                      |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Courses**   | Every course in the source with its color. Pick a new color from the 11 Google colors.                                                                                                               |
+| **Exams**     | Every exam session with its date, what Polimi says (_Iscritto_ / _Non iscritto_), whether you're already subscribed to another date, and your subscription. Toggle the subscription or pick a color. |
+| **Deadlines** | Same as Courses, for deadlines.                                                                                                                                                                      |
+| **Sync**      | **Preview changes** lists the inserts, updates and deletes; expand an event to see its color, time and original title. **Apply** writes them to Google Calendar with a progress bar.                 |
+
+The **Status** column shows where each value comes from:
+
+- **saved**: chosen earlier and stored in the JSON files.
+- **suggested**: not chosen yet, so the coloring rules decide. It's saved at
+  the next sync.
+- **modified**: changed in this session and not saved yet.
+- **not set**: an exam with no enrollment information. Its color is left as is
+  until you choose one.
+
+| Key           | Action                                         |
+| ------------- | ---------------------------------------------- |
+| `Enter` / `c` | Pick a color for the selected row              |
+| `Space`       | Toggle the exam subscription (Exams tab)       |
+| `Ctrl+S`      | Save preferences without syncing               |
+| `p`           | Preview the changes                            |
+| `a`           | Apply the previewed changes                    |
+| `q`           | Quit (asks again if there are unsaved changes) |
+
+Toggling a subscription switches between the default red and grey. A custom
+color you picked for the exam is kept. Applying saves your preferences, just
+like a normal sync. If you edit something after a preview, preview again
+before applying.
+
+### Interactive prompts
 
 ```bash
 polimi-calendar -i
 polimi-calendar exams -i
-polimi-calendar lectures -i
-polimi-calendar deadlines -i
 ```
 
-- **When running `exams -i`**: You are asked about each exam, with your current saved subscription status and color as defaults (press Enter to keep). Dates of the same exam that have no saved choice yet reuse your first answer instead of asking again. You can pick custom colors or update subscriptions.
-- **When running `lectures -i`**: You go through your courses, showing your existing color as default (or a deterministic suggestion for new courses). Press Enter to keep, or enter a number 1-11 to customize.
-- **When running `deadlines -i`**: Same per-title color picker for deadlines such as `Scadenza: Esame di laurea`.
+Without the TUI you get a question-by-question flow before the sync: your
+subscription to each exam session, then a color for each course and deadline.
+The current choice is the default, so you can press Enter to keep it. Other
+dates of the same exam with no saved choice reuse your first answer. Add `--dry-run` to
+try choices without saving them.
 
-### Syncing directly from a Polimi iCal URL
+### Use an iCal URL as the source
 
-Instead of subscribing to the Polimi calendar inside Google Calendar, you can
-pull events straight from your personal iCal feed (e.g. from the Polimi app):
+You can read events straight from your personal Polimi iCal feed (e.g. from the
+Polimi app) instead of a Google calendar:
 
 ```bash
-polimi-calendar --ical "https://ical-polimiapp.polimi.it/<your-id>/<your-token>"
+polimi-calendar --ical "https://ical-polimiapp.polimi.it/<id>/<token>"
 ```
 
-Or set it once in `.env` so every run uses it (takes precedence over
-`SOURCE_CALENDAR_NAME`):
+Or set it once in `.env`, where it takes precedence over `SOURCE_CALENDAR_NAME`:
 
 ```bash
-SOURCE_ICAL_URL="https://ical-polimiapp.polimi.it/<your-id>/<your-token>"
+SOURCE_ICAL_URL="https://ical-polimiapp.polimi.it/<id>/<token>"
 ```
 
-> ⚠️ **Treat the iCal URL like a password**: anyone with the link can read your
-> timetable. Keep it in `.env` (gitignored) or a `--ical` argument — never
-> commit it. The active source is printed (with the token redacted) in `-v`
-> mode so you can confirm which source is used.
+Recurring events (`RRULE`/`EXDATE`) are passed to Google, which expands them.
+Events are classified by their `CATEGORIES` (`Lezione`, `Esame`, `Scadenza`)
+when the title prefixes are missing.
 
-Recurring iCal events (`RRULE`/`EXDATE`) are passed through to Google Calendar,
-which expands them natively. Events are also matched by their `CATEGORIES`
-(`Esame`/`Lezione`/`Scadenza`) when the usual title prefixes are missing.
+> [!WARNING]
+> Treat the iCal URL like a password: anyone who has it can read your
+> timetable. Keep it in `.env` (which is gitignored) or in a CI secret. The tool
+> never logs it; `-v` shows only the host with the token redacted.
 
-This is also handy for GitHub Actions: just add `SOURCE_ICAL_URL` as a
-repository secret — no Google source-calendar subscription needed, only the
-target calendar where colored events are written.
+### Command reference
 
-### Safe operations: dry-run, pruning and quiet mode
-
-```bash
-# Preview operations without changing the calendar or saved preferences
-polimi-calendar --dry-run
-
-# Also delete managed target events starting before a date (drops past semesters)
-polimi-calendar --prune-before 2025-01-01
-
-# Suppress informational output (for cron/scheduled runs)
-polimi-calendar -q
+```
+polimi-calendar [all|exams|lectures|deadlines] [options]
 ```
 
-Flags compose freely, e.g. `polimi-calendar --ical <url> --dry-run -v`. Combine `-i` with `--dry-run` to try out choices without saving them. The command exits with a non-zero status if any calendar operation fails.
+| Option                                            | Description                                                                     |
+| ------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `all` (default), `exams`, `lectures`, `deadlines` | Which kinds of events to color and edit.                                        |
+| `--tui`                                           | Open the terminal UI. Can't be combined with `-i` or `--dry-run`.               |
+| `-i`, `--interactive`                             | Ask about subscriptions and colors before syncing.                              |
+| `-n`, `--dry-run`                                 | Show what would change. Nothing is written to the calendar or the JSON files.   |
+| `--ical URL`                                      | Read from an iCal feed. Overrides `SOURCE_CALENDAR_NAME` and `SOURCE_ICAL_URL`. |
+| `--prune-before YYYY-MM-DD`                       | Also delete synced events starting before this date.                            |
+| `-v`, `--verbose`                                 | Show the decision for every event.                                              |
+| `-q`, `--quiet`                                   | Show only warnings and errors.                                                  |
 
-### Verbose Logging
+## Coloring rules
 
-To see a detailed breakdown of decisions and batch operations, use the `-v` flag:
+These rules fill in anything you haven't chosen yourself. Your saved choices
+always win.
 
-```bash
-polimi-calendar -v
-```
+| Event                                                 | Rule                                                                                                           |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Exam, another session of an exam you're subscribed to | Not subscribed, **Graphite** (grey). Checked first.                                                            |
+| Exam, description starts with `Iscritto`              | Subscribed, **Tomato** (red).                                                                                  |
+| Exam, description starts with `Non iscritto`          | Not subscribed, **Graphite**.                                                                                  |
+| Exam, no information                                  | Left uncolored until you choose.                                                                               |
+| Lecture (`Lezione: Didattica - <course>`)             | A color derived from the course name, so it's the same on every machine. The prefix is removed from the title. |
+| Deadline (`Scadenza: <name>`)                         | A color derived from the name. The title is kept as is.                                                        |
 
----
+### Saved preferences
 
-## Important Note
+| File                   | Content                                                                  |
+| ---------------------- | ------------------------------------------------------------------------ |
+| `course_colors.json`   | `{"<course>": "<color id>"}`                                             |
+| `exam_states.json`     | `{"<exam title> (<YYYY-MM-DD>)": {"color": "<id>", "subscribed": true}}` |
+| `deadline_colors.json` | `{"<deadline>": "<color id>"}`                                           |
 
-Because the tool creates a _copy_ of your events to color them, **you should hide the original calendar** in your Google Calendar web interface or mobile app (only needed in Google-source mode — with `--ical` there is no source subscription to hide). Otherwise, you will see duplicates of every event! You can do this by unchecking the box next to the original "Polimi <student_id>" calendar in the sidebar.
+Color IDs are Google's: 1 Lavender, 2 Sage, 3 Grape, 4 Flamingo, 5 Banana,
+6 Tangerine, 7 Peacock, 8 Graphite, 9 Blueberry, 10 Basil, 11 Tomato. You can
+edit the files by hand. Invalid entries are skipped with a warning, and files
+are written atomically, so an interrupted run can't corrupt them.
 
-## Running in the Cloud (GitHub Actions)
+## Configuration
 
-This repository includes a GitHub Actions workflow (`.github/workflows/manual_sync.yml`) that syncs **automatically every Monday at 06:00 UTC** and can also be triggered manually from the Actions tab without running anything on your laptop!
+All settings come from environment variables, usually set in `.env`. Relative
+paths are resolved from the directory you run the command in.
 
-### Setup Instructions for GitHub Actions
+| Variable               | Default                   | Description                                       |
+| ---------------------- | ------------------------- | ------------------------------------------------- |
+| `SOURCE_CALENDAR_NAME` | `Polimi Calendar`         | Google calendar to read from.                     |
+| `TARGET_CALENDAR_NAME` | `Polimi Calendar Colored` | Google calendar to write to (created if missing). |
+| `SOURCE_ICAL_URL`      | _(unset)_                 | Read from this iCal feed instead of a calendar.   |
+| `CREDENTIALS_PATH`     | `credentials.json`        | OAuth client downloaded from Google Cloud.        |
+| `TOKEN_PATH`           | `token.json`              | Cached Google login.                              |
+| `COURSE_COLORS_PATH`   | `course_colors.json`      | Saved course colors.                              |
+| `EXAM_STATES_PATH`     | `exam_states.json`        | Saved exam subscriptions and colors.              |
+| `DEADLINE_COLORS_PATH` | `deadline_colors.json`    | Saved deadline colors.                            |
 
-Because your API credentials are kept highly secure and ignored by Git, you must provide them to GitHub as Repository Secrets:
+## Run it in the cloud with GitHub Actions
 
-1. **Log in locally once** so that `token.json` is created (e.g. run `polimi-calendar --dry-run`).
-2. **Add Secrets**: Go to your GitHub repository **Settings** -> **Secrets and variables** -> **Actions**. Click **New repository secret** and add:
-   - `GCP_CREDENTIALS_JSON`: Paste the raw text contents of your `credentials.json` file.
-   - `GCP_TOKEN_JSON`: Paste the raw text contents of your `token.json` file.
-   - `SOURCE_CALENDAR_NAME`: custom source calendar name
-   - `TARGET_CALENDAR_NAME`: custom target calendar name
-   - `SOURCE_ICAL_URL`: your personal Polimi iCal feed URL (optional; takes precedence over the source calendar)
+The repository includes a workflow,
+[`.github/workflows/manual_sync.yml`](.github/workflows/manual_sync.yml), that
+syncs **every Monday at 06:00 UTC**. You can also run it from the **Actions**
+tab and choose the target, verbose output, or a dry run.
 
-The workflow also accepts `target`, `verbose` and `dry_run` inputs when triggered manually. The cloud run cannot open a browser: if the login has expired (see the note on _Testing_ mode above), the workflow fails with a clear message. Run the tool locally to log in again and update the `GCP_TOKEN_JSON` secret.
+1. Log in locally once so that `token.json` exists, e.g. with
+   `polimi-calendar --dry-run`.
+2. In your fork, go to **Settings → Secrets and variables → Actions** and add
+   these repository secrets:
 
-> Upgrading from an older version? `token.pickle` is migrated to `token.json` automatically, and the old `GCP_TOKEN_PICKLE_B64` secret is still accepted.
+   | Secret                 | Value                                                       |
+   | ---------------------- | ----------------------------------------------------------- |
+   | `GCP_CREDENTIALS_JSON` | Contents of `credentials.json`.                             |
+   | `GCP_TOKEN_JSON`       | Contents of `token.json`.                                   |
+   | `SOURCE_CALENDAR_NAME` | Optional, defaults to `Polimi`.                             |
+   | `TARGET_CALENDAR_NAME` | Optional, defaults to `Polimi Colored`.                     |
+   | `SOURCE_ICAL_URL`      | Optional. If set, it's used instead of the source calendar. |
 
-### Using your custom colors in the cloud
+After each run, the workflow commits the updated preference files back to the
+repository, so colors you pick locally (and push) and colors the cloud run
+assigns stay in sync.
 
-By default, your custom color choices are in `course_colors.json`, `exam_states.json` and `deadline_colors.json`. After each cloud run, the workflow commits any updated state files back to the repository, so local and cloud runs stay in sync.
+> [!NOTE]
+> While your OAuth app is in **Testing** mode, Google expires the login after
+> 7 days. The cloud run can't open a browser, so it then fails with a "login
+> required" message. Run the tool locally to log in again and update the
+> `GCP_TOKEN_JSON` secret.
 
----
+## Troubleshooting
+
+| Problem                                                   | Fix                                                                                                          |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `403 access_denied` when logging in                       | Add your Google address as a **Test user** on the OAuth consent screen.                                      |
+| `OAuth client file 'credentials.json' not found`          | Download the Desktop OAuth client JSON and save it as `credentials.json`, or point `CREDENTIALS_PATH` to it. |
+| `Source calendar '…' not found`                           | `SOURCE_CALENDAR_NAME` must match the calendar name exactly as shown in Google Calendar.                     |
+| Every event shows up twice                                | Hide the original Polimi calendar in Google Calendar.                                                        |
+| `Could not download iCal feed`                            | The iCal URL may have expired or been revoked. Generate a new one.                                           |
+| `The terminal UI needs the optional 'textual' dependency` | Run `pip install ".[tui]"`.                                                                                  |
+| Login keeps expiring after a week                         | That's Google's Testing mode: log in again locally (and update `GCP_TOKEN_JSON` if you use GitHub Actions).  |
+
+> Upgrading from an older version? `token.pickle` is migrated to `token.json`
+> automatically, and the old `GCP_TOKEN_PICKLE_B64` secret is still accepted.
 
 ## Development
 
 ```bash
-pip install -e ".[dev]"
-pytest          # tests (incl. regression tests against the previous implementation)
+pip install -e ".[dev,tui]"
+pytest          # unit, golden regression and Textual pilot tests
 mypy            # strict type checking
 ruff check .    # linting
 black .         # formatting
+pre-commit install
 ```
+
+CI runs all of the above on Python 3.10 and 3.12 and requires 95% test
+coverage.
 
 ## Architecture
 
-The code is split into three phases (**discover → preferences → plan/apply**) and follows SOLID principles: the core never prints or prompts, and depends on small interfaces (ports) implemented by adapters.
+The core never prints, prompts or touches the network directly. It depends on
+small interfaces (ports) that the adapters implement, so the CLI, the
+interactive prompts and the TUI are all thin frontends over the same
+discover → preferences → plan → apply phases.
 
 ```
 src/polimi_calendar_coloring/
-├── palette.py         # GoogleColor: single source of truth for the 11 colors
-├── events.py          # Polimi event parsing (prefixes, iCal categories, title cleanup)
-├── catalog.py         # Discover: courses, exam sessions and deadlines to sync
+├── palette.py         # GoogleColor: the 11 Google colors (id, name, RGB)
+├── events.py          # Polimi event parsing: title prefixes, iCal categories, enrollment
+├── catalog.py         # Discover: courses, exam sessions and deadlines in the source
 ├── preferences.py     # Preferences model + JSON repository (atomic writes)
-├── suggestions.py     # Pure rules for default colors / subscriptions
-├── resolution.py      # Auto-fill missing preferences (non-interactive mode)
-├── strategies.py      # Pure coloring strategies: event + preferences -> color
+├── suggestions.py     # Pure rules for default colors and subscriptions
+├── resolution.py      # Fill in preferences the user never chose
+├── strategies.py      # Pure lookups: event + preferences → color
+├── workflow.py        # Use case: load, preview/plan, apply (and run = all at once)
+├── reporting.py       # Reporter port (progress and messages)
 ├── sync/
 │   ├── source.py      # EventSource port + Google calendar source
-│   ├── planner.py     # Pure diff: source + target events -> SyncPlan
+│   ├── planner.py     # Pure diff: source + target events → SyncPlan
 │   ├── models.py      # Mutation, SyncPlan, SyncResult value objects
 │   ├── gateway.py     # CalendarGateway port
-│   └── service.py     # Target-calendar I/O around the planner (plan / apply)
-├── workflow.py        # Use case orchestrating the three phases
-├── reporting.py       # Reporter port
-├── ical_source.py     # iCal feed source (stdlib parser)
-├── google_client.py   # Google Calendar API adapter (batch requests + retries)
-├── auth.py            # Google OAuth (Desktop flow, token.json)
-├── config.py          # Configuration from environment variables
-└── cli/
-    ├── main.py        # Argument parsing and wiring of concrete adapters
-    ├── prompts.py     # Interactive preference editor (-i)
-    ├── console.py     # Colored console reporter
-    └── ansi.py        # ANSI styling helpers
+│   └── service.py     # Target-calendar I/O around the planner, with progress
+├── ical_source.py     # iCal feed source (standard library parser)
+├── google_client.py   # Google Calendar adapter (batch requests + retries)
+├── auth.py            # Google OAuth, Desktop flow, token.json
+├── config.py          # Settings from environment variables
+├── cli/
+│   ├── main.py        # Argument parsing and wiring of the adapters
+│   ├── prompts.py     # Interactive preference editor (-i)
+│   ├── console.py     # Colored console reporter
+│   └── ansi.py        # ANSI styling helpers
+└── tui/               # Optional: pip install ".[tui]"
+    ├── model.py       # View model of the editor (pure Python, no Textual)
+    ├── widgets.py     # Color picker, plan tree, swatches
+    └── app.py         # Textual app: tabs, workers, reporter
 ```
+
+## License
+
+[MIT](LICENSE)
