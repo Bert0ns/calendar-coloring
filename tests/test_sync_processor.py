@@ -351,6 +351,12 @@ def test_prune_before_deletes_only_old_managed_events():
     called_ops = mock_client.batch_mutate_events.call_args[0][0]
     deletes = [op for op in called_ops if op["action"] == "delete"]
     assert [op["event_id"] for op in deletes] == ["old12345"]
+    # The pruned event must not also be updated/re-inserted in the same batch
+    assert all(
+        op.get("event_id") != "old12345" and op["body"]["id"] != "old12345"
+        for op in called_ops
+        if op["action"] != "delete"
+    )
 
 
 def test_recurrence_change_triggers_update():

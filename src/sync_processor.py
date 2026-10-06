@@ -224,6 +224,12 @@ class CalendarSyncProcessor:
                     f"{Colors.WARNING}⚠ Skipping '{s_event.get('summary', event_id)}': no start time.{Colors.ENDC}"
                 )
                 continue
+            if self.prune_before is not None:
+                # Events before the cutoff are being pruned: don't also update
+                # or re-insert them in the same run.
+                start = self._start_date(s_event)
+                if start is not None and start < self.prune_before:
+                    continue
 
             valid_id = self._sanitize_event_id(event_id)
             source_event_ids.add(valid_id)
