@@ -1,4 +1,3 @@
-import json
 import runpy
 import sys
 from dataclasses import replace
@@ -6,7 +5,7 @@ from datetime import date
 from unittest.mock import MagicMock
 
 import pytest
-from conftest import FakeCalendarGateway
+from conftest import FakeCalendarGateway, save_profile, saved
 
 from calendar_coloring.auth import (
     CredentialsFileNotFoundError,
@@ -15,7 +14,9 @@ from calendar_coloring.auth import (
 from calendar_coloring.cli import main as cli
 from calendar_coloring.config import Config
 from calendar_coloring.ical_source import IcalFeedSource, mask_url
+from calendar_coloring.profile import CalendarSettings
 from calendar_coloring.reporting import NullReporter
+from calendar_coloring.suggestions import suggest_color
 from calendar_coloring.sync.source import GoogleCalendarSource
 from calendar_coloring.targets import SyncTarget
 from calendar_coloring.workflow import SyncOptions
@@ -112,7 +113,7 @@ def test_mask_url_handles_garbage(url: str) -> None:
 def test_run_returns_zero_on_success(config: Config) -> None:
     gateway = FakeCalendarGateway({"Src": SOURCE})
     assert cli.run(SyncOptions(), config, gateway, NullReporter()) == cli.EXIT_OK
-    assert json.loads(config.course_colors_path.read_text()) == {"CS": "3"}
+    assert saved(config, "courses") == {"CS": "3"}
 
 
 def test_run_reports_missing_source(config: Config) -> None:
@@ -146,7 +147,7 @@ def test_run_fails_when_a_mutation_fails(config: Config) -> None:
 
 
 def test_run_routes_preference_warnings_to_reporter(config: Config) -> None:
-    config.course_colors_path.write_text("{oops")
+    config.profile_path.write_text("{oops")
     reporter = MagicMock()
     cli.run(SyncOptions(), config, FakeCalendarGateway({"Src": SOURCE}), reporter)
     reporter.warning.assert_called_once()
@@ -157,10 +158,14 @@ def test_run_describes_configuration_without_leaking_ical_token(config) -> None:
     config = replace(config, source_ical_url="https://ical.example/42/secret")
     reporter = MagicMock()
     cli.describe_run(
-        SyncOptions(dry_run=True, prune_before=date(2025, 1, 1)), config, reporter
+        SyncOptions(dry_run=True, prune_before=date(2025, 1, 1)),
+        config,
+        CalendarSettings(source="Src", target="Tgt"),
+        reporter,
     )
     details = [c.args[0] for c in reporter.detail.call_args_list]
     assert details == [
+        f"Profile: {config.profile_path}",
         "Source: iCal feed at https://ical.example/<redacted>",
         "Target: Google Calendar 'Tgt'",
         "Options: dry-run, prune-before=2025-01-01",
@@ -169,9 +174,13 @@ def test_run_describes_configuration_without_leaking_ical_token(config) -> None:
 
 def test_build_source(config: Config) -> None:
     gateway = FakeCalendarGateway()
-    google = cli.build_source(config, gateway, NullReporter())
+    calendars = CalendarSettings(source="Src", target="Tgt")
+    google = cli.build_source(config, calendars, gateway, NullReporter())
     ical = cli.build_source(
-        replace(config, source_ical_url="https://x/y"), gateway, NullReporter()
+        replace(config, source_ical_url="https://x/y"),
+        calendars,
+        gateway,
+        NullReporter(),
     )
     assert isinstance(google, GoogleCalendarSource)
     assert google.name == "Src"
@@ -189,6 +198,7 @@ def isolated_env(monkeypatch, tmp_path):
         "TARGET_CALENDAR_NAME",
         "CREDENTIALS_PATH",
         "SOURCE_ICAL_URL",
+        "PROFILE_PATH",
         "CI",
     ):
         monkeypatch.delenv(key, raising=False)
@@ -221,7 +231,44 @@ def test_main_wires_everything(isolated_env, fake_auth, monkeypatch) -> None:
     assert str(kwargs["token_path"]) == "token.json"
     assert str(kwargs["legacy_token_path"]) == "token.pickle"
     assert gateway.created == ["Calendar Colored"]
-    assert (isolated_env / "course_colors.json").exists()
+    assert saved(Config(profile_path=isolated_env / "profile.json"), "courses") == {
+        "CS": suggest_color("CS").color_id
+    }
+
+
+def test_main_reads_the_calendars_from_the_profile(
+    isolated_env, fake_auth, monkeypatch
+) -> None:
+    save_profile(
+        Config(profile_path=isolated_env / "profile.json"),
+        calendars={"source": "Uni", "target": "Uni colored"},
+    )
+    gateway = FakeCalendarGateway({"Uni": SOURCE})
+    install_gateway(monkeypatch, gateway)
+
+    assert cli.main(["--no-tui"]) == cli.EXIT_OK
+    assert gateway.created == ["Uni colored"]
+
+
+def test_env_overrides_the_profile_calendars(
+    isolated_env, fake_auth, monkeypatch
+) -> None:
+    save_profile(
+        Config(profile_path=isolated_env / "profile.json"),
+        calendars={"source": "Uni", "target": "Uni colored"},
+    )
+    monkeypatch.setenv("SOURCE_CALENDAR_NAME", "Other")
+    monkeypatch.setenv("TARGET_CALENDAR_NAME", "Other colored")
+    gateway = FakeCalendarGateway({"Other": SOURCE})
+    install_gateway(monkeypatch, gateway)
+
+    assert cli.main(["--no-tui"]) == cli.EXIT_OK
+    assert gateway.created == ["Other colored"]
+    # Overrides are not written back into the profile.
+    assert saved(Config(profile_path=isolated_env / "profile.json"), "calendars") == {
+        "source": "Uni",
+        "target": "Uni colored",
+    }
 
 
 def test_main_ical_flag_overrides_env(

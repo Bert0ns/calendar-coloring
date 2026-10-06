@@ -5,14 +5,18 @@ Turn your university timetable into a color-coded Google Calendar.
 The university calendar is read-only and every event in it has the same color.
 This tool copies it into a Google Calendar you own and colors each event:
 
-- **Exams**: red if you are enrolled (_Iscritto_), grey if you are not. Once you
-  enroll in one session of an exam, its other sessions turn grey.
-- **Lectures**: one color per course, with the `Lezione: Didattica - ` prefix
-  stripped from the title.
-- **Deadlines** (`Scadenza: …`): one color per deadline.
+- **Exams**: red if you are enrolled, grey if you are not. Once you enroll in
+  one session of an exam, its other sessions turn grey.
+- **Lectures**: one color per course, with boilerplate stripped from the title.
+- **Deadlines**: one color per deadline.
 
-Your choices are saved in plain JSON files, so every later sync uses the same
-colors. You can run it on your laptop, from a terminal UI, or on a weekly
+What counts as an exam, a lecture or a deadline is up to the
+[rules of your profile](#profile-and-rules), so the tool can be adapted to the
+format of any university. The built-in profile handles the Politecnico di
+Milano format (`Esame: …`, `Lezione: Didattica - …`, `Scadenza: …`).
+
+The profile and your choices are saved in a plain JSON file, `profile.json`, so
+every later sync uses the same colors. You can run it on your laptop, from a terminal UI, or on a weekly
 schedule with GitHub Actions.
 
 ![The terminal UI, Exams tab](docs/tui.svg)
@@ -27,6 +31,7 @@ schedule with GitHub Actions.
   - [Interactive prompts](#interactive-prompts)
   - [Use an iCal URL as the source](#use-an-ical-url-as-the-source)
   - [Command reference](#command-reference)
+- [Profile and rules](#profile-and-rules)
 - [Coloring rules](#coloring-rules)
 - [Configuration](#configuration)
 - [Run it in the cloud with GitHub Actions](#run-it-in-the-cloud-with-github-actions)
@@ -95,16 +100,22 @@ works too.
 
 ### 3. Configure
 
-```bash
-cp .env.example .env
+Create `profile.json` with the name of the calendar to read and the one to
+write. Everything else (the event rules and your colors) starts from the
+built-in PoliMi profile and is filled in by the first sync:
+
+```json
+{
+  "calendars": {
+    "source": "My University",
+    "target": "Colored Calendar"
+  }
+}
 ```
 
-In `.env`, set the name of the calendar to read and the one to write:
-
-```bash
-SOURCE_CALENDAR_NAME="My University"          # the calendar you subscribed to
-TARGET_CALENDAR_NAME="Colored Calendar"       # created on the first sync
-```
+The source is the calendar you subscribed to; the target is created on the
+first sync. If your university doesn't use the PoliMi format, copy the
+[rules](#profile-and-rules) into the file and adapt them.
 
 If you'd rather not subscribe to the source calendar in Google, give the tool
 your [iCal URL](#use-an-ical-url-as-the-source) instead. All settings are listed
@@ -172,13 +183,13 @@ per kind of event:
 | Tab           | What you can do                                                                                                                                                                                                   |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Courses**   | Every course in the source with its color. Pick a new color from the 11 Google colors.                                                                                                                            |
-| **Exams**     | Every exam session with its date, what the source calendar says (_Iscritto_ / _Non iscritto_), whether you're already subscribed to another date, and your subscription. Toggle the subscription or pick a color. |
+| **Exams**     | Every exam session with its date, what the source calendar says (_enrolled_ / _not enrolled_), whether you're already subscribed to another date, and your subscription. Toggle the subscription or pick a color. |
 | **Deadlines** | Same as Courses, for deadlines.                                                                                                                                                                                   |
 | **Sync**      | **Preview changes** lists the inserts, updates and deletes; expand an event to see its color, time and original title. **Apply** writes them to Google Calendar with a progress bar.                              |
 
 The **Status** column shows where each value comes from:
 
-- **saved**: chosen earlier and stored in the JSON files.
+- **saved**: chosen earlier and stored in the profile.
 - **suggested**: not chosen yet, so the coloring rules decide. It's saved at
   the next sync.
 - **modified**: changed in this session and not saved yet.
@@ -221,20 +232,22 @@ university app) instead of a Google calendar:
 calendar-coloring --ical "https://ical.example.com/<id>/<token>"
 ```
 
-Or set it once in `.env`, where it takes precedence over `SOURCE_CALENDAR_NAME`:
+Or set it once in `.env`, where it takes precedence over the source calendar:
 
 ```bash
 SOURCE_ICAL_URL="https://ical.example.com/<id>/<token>"
 ```
 
 Recurring events (`RRULE`/`EXDATE`) are passed to Google, which expands them.
-Events are classified by their `CATEGORIES` (`Lezione`, `Esame`, `Scadenza`)
-when the title prefixes are missing.
+Rules can match the feed's `CATEGORIES` with `"field": "category"`; the PoliMi
+profile uses them (`Lezione`, `Esame`, `Scadenza`) when the title prefixes are
+missing.
 
 > [!WARNING]
 > Treat the iCal URL like a password: anyone who has it can read your
-> timetable. Keep it in `.env` (which is gitignored) or in a CI secret. The tool
-> never logs it; `-v` shows only the host with the token redacted.
+> timetable. Keep it in `.env` (which is gitignored) or in a CI secret, never
+> in `profile.json`. The tool never logs it; `-v` shows only the host with the
+> token redacted.
 
 ### Command reference
 
@@ -248,54 +261,132 @@ calendar-coloring [all|exams|lectures|deadlines] [options]
 | `--tui`                                           | Open the terminal UI (default in a terminal). Not with `-i`, `--dry-run`, `--no-tui`. |
 | `--no-tui`                                        | Run a plain sync instead of opening the terminal UI.                                  |
 | `-i`, `--interactive`                             | Ask about subscriptions and colors before syncing.                                    |
-| `-n`, `--dry-run`                                 | Show what would change. Nothing is written to the calendar or the JSON files.         |
-| `--ical URL`                                      | Read from an iCal feed. Overrides `SOURCE_CALENDAR_NAME` and `SOURCE_ICAL_URL`.       |
+| `-n`, `--dry-run`                                 | Show what would change. Nothing is written to the calendar or the profile.            |
+| `--ical URL`                                      | Read from an iCal feed. Overrides the source calendar and `SOURCE_ICAL_URL`.          |
 | `--prune-before YYYY-MM-DD`                       | Also delete synced events starting before this date.                                  |
 | `-v`, `--verbose`                                 | Show the decision for every event.                                                    |
 | `-q`, `--quiet`                                   | Show only warnings and errors.                                                        |
+
+## Profile and rules
+
+`profile.json` holds everything about your calendar: the calendars to sync,
+the rules that classify events, and the colors and subscriptions you chose.
+Without one, the tool starts from the built-in PoliMi profile and saves it on
+the first sync, so you can see and edit the rules.
+
+```json
+{
+  "version": 1,
+  "name": "Politecnico di Milano",
+  "calendars": { "source": "Calendar", "target": "Calendar Colored" },
+  "rules": [
+    {
+      "kind": "exam",
+      "field": "title",
+      "match": "starts_with",
+      "value": "Esame: ",
+      "ignore_case": false,
+      "title": "{title}"
+    },
+    {
+      "kind": "lecture",
+      "field": "title",
+      "match": "starts_with",
+      "value": "Lezione: Didattica - ",
+      "ignore_case": false,
+      "title": "{name}"
+    }
+  ],
+  "enrollment": {
+    "enrolled": {
+      "field": "description",
+      "match": "starts_with",
+      "value": "Iscritto",
+      "ignore_case": false
+    },
+    "not_enrolled": {
+      "field": "description",
+      "match": "starts_with",
+      "value": "Non iscritto",
+      "ignore_case": false
+    }
+  },
+  "courses": { "Computer Security": "7" },
+  "exams": {
+    "Computer Security (2027-01-20)": { "color": "11", "subscribed": true }
+  },
+  "deadlines": { "Esame di laurea": "4" }
+}
+```
+
+### Rules
+
+Rules are checked in order and the first one that matches decides the kind of
+the event. Events that match no rule are copied without a color. Without a
+`rules` key, the built-in PoliMi rules apply; `"rules": []` means no rules.
+
+| Key           | Values                                                                                     |
+| ------------- | ------------------------------------------------------------------------------------------ |
+| `kind`        | `exam`, `lecture` or `deadline`.                                                           |
+| `field`       | What to look at: `title`, `description`, `location` or `category` (any iCal category).     |
+| `match`       | `starts_with`, `contains`, `equals` or `regex` (a Python regular expression, searched).    |
+| `value`       | The text or regular expression to match.                                                   |
+| `ignore_case` | `true` to ignore upper/lower case. Optional, `false` by default.                           |
+| `title`       | Title in the colored calendar. `{title}` is the original title, `{name}` the event's name. |
+
+The **name** of an event identifies its course, exam or deadline: lectures with
+the same name share a color. It's the title without the matched text when the
+rule looks at the title (`Lezione: Didattica - Algebra` → `Algebra`), and the
+whole title otherwise. With a `regex`, a `(?P<name>…)` group picks it out
+explicitly, e.g. `^\[\w+\] (?P<name>.+) - Lecture$` turns
+`[CS101] Algorithms - Lecture` into `Algorithms`.
+
+`enrollment` is optional: it tells, from an exam event, whether you're enrolled
+(`enrolled`) or not (`not_enrolled`). Each is a condition like the ones of the
+rules, or `null`. Invalid rules are skipped with a warning.
 
 ## Coloring rules
 
 These rules fill in anything you haven't chosen yourself. Your saved choices
 always win.
 
-| Event                                                 | Rule                                                                                                           |
-| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Exam, another session of an exam you're subscribed to | Not subscribed, **Graphite** (grey). Checked first.                                                            |
-| Exam, description starts with `Iscritto`              | Subscribed, **Tomato** (red).                                                                                  |
-| Exam, description starts with `Non iscritto`          | Not subscribed, **Graphite**.                                                                                  |
-| Exam, no information                                  | Left uncolored until you choose.                                                                               |
-| Lecture (`Lezione: Didattica - <course>`)             | A color derived from the course name, so it's the same on every machine. The prefix is removed from the title. |
-| Deadline (`Scadenza: <name>`)                         | A color derived from the name. The title is kept as is.                                                        |
+| Event                                                 | Rule                                                                     |
+| ----------------------------------------------------- | ------------------------------------------------------------------------ |
+| Exam, another session of an exam you're subscribed to | Not subscribed, **Graphite** (grey). Checked first.                      |
+| Exam, the `enrolled` condition matches                | Subscribed, **Tomato** (red).                                            |
+| Exam, the `not_enrolled` condition matches            | Not subscribed, **Graphite**.                                            |
+| Exam, no information                                  | Left uncolored until you choose.                                         |
+| Lecture                                               | A color derived from the course name, so it's the same on every machine. |
+| Deadline                                              | A color derived from the name.                                           |
 
 ### Saved preferences
 
-| File                   | Content                                                                  |
-| ---------------------- | ------------------------------------------------------------------------ |
-| `course_colors.json`   | `{"<course>": "<color id>"}`                                             |
-| `exam_states.json`     | `{"<exam title> (<YYYY-MM-DD>)": {"color": "<id>", "subscribed": true}}` |
-| `deadline_colors.json` | `{"<deadline>": "<color id>"}`                                           |
+| Profile key | Content                                                                 |
+| ----------- | ----------------------------------------------------------------------- |
+| `courses`   | `{"<course>": "<color id>"}`                                            |
+| `exams`     | `{"<exam name> (<YYYY-MM-DD>)": {"color": "<id>", "subscribed": true}}` |
+| `deadlines` | `{"<deadline>": "<color id>"}`                                          |
 
 Color IDs are Google's: 1 Lavender, 2 Sage, 3 Grape, 4 Flamingo, 5 Banana,
 6 Tangerine, 7 Peacock, 8 Graphite, 9 Blueberry, 10 Basil, 11 Tomato. You can
-edit the files by hand. Invalid entries are skipped with a warning, and files
-are written atomically, so an interrupted run can't corrupt them.
+edit the file by hand. Invalid entries are skipped with a warning, and the file
+is written atomically, so an interrupted run can't corrupt it.
 
 ## Configuration
 
-All settings come from environment variables, usually set in `.env`. Relative
-paths are resolved from the directory you run the command in.
+The calendars, rules and colors live in the [profile](#profile-and-rules). The
+optional settings below come from environment variables, usually set in `.env`
+(see `.env.example`). Relative paths are resolved from the directory you run
+the command in.
 
-| Variable               | Default                | Description                                       |
-| ---------------------- | ---------------------- | ------------------------------------------------- |
-| `SOURCE_CALENDAR_NAME` | `Calendar`             | Google calendar to read from.                     |
-| `TARGET_CALENDAR_NAME` | `Calendar Colored`     | Google calendar to write to (created if missing). |
-| `SOURCE_ICAL_URL`      | _(unset)_              | Read from this iCal feed instead of a calendar.   |
-| `CREDENTIALS_PATH`     | `credentials.json`     | OAuth client downloaded from Google Cloud.        |
-| `TOKEN_PATH`           | `token.json`           | Cached Google login.                              |
-| `COURSE_COLORS_PATH`   | `course_colors.json`   | Saved course colors.                              |
-| `EXAM_STATES_PATH`     | `exam_states.json`     | Saved exam subscriptions and colors.              |
-| `DEADLINE_COLORS_PATH` | `deadline_colors.json` | Saved deadline colors.                            |
+| Variable               | Default            | Description                                     |
+| ---------------------- | ------------------ | ----------------------------------------------- |
+| `PROFILE_PATH`         | `profile.json`     | The profile.                                    |
+| `SOURCE_CALENDAR_NAME` | _(the profile's)_  | Overrides the calendar to read from.            |
+| `TARGET_CALENDAR_NAME` | _(the profile's)_  | Overrides the calendar to write to.             |
+| `SOURCE_ICAL_URL`      | _(unset)_          | Read from this iCal feed instead of a calendar. |
+| `CREDENTIALS_PATH`     | `credentials.json` | OAuth client downloaded from Google Cloud.      |
+| `TOKEN_PATH`           | `token.json`       | Cached Google login.                            |
 
 ## Run it in the cloud with GitHub Actions
 
@@ -313,11 +404,11 @@ tab and choose the target, verbose output, or a dry run.
    | ---------------------- | ----------------------------------------------------------- |
    | `GCP_CREDENTIALS_JSON` | Contents of `credentials.json`.                             |
    | `GCP_TOKEN_JSON`       | Contents of `token.json`.                                   |
-   | `SOURCE_CALENDAR_NAME` | Optional, defaults to `Calendar`.                           |
-   | `TARGET_CALENDAR_NAME` | Optional, defaults to `Calendar Colored`.                   |
+   | `SOURCE_CALENDAR_NAME` | Optional, overrides the profile's source calendar.          |
+   | `TARGET_CALENDAR_NAME` | Optional, overrides the profile's target calendar.          |
    | `SOURCE_ICAL_URL`      | Optional. If set, it's used instead of the source calendar. |
 
-After each run, the workflow commits the updated preference files back to the
+After each run, the workflow commits the updated `profile.json` back to the
 repository, so colors you pick locally (and push) and colors the cloud run
 assigns stay in sync.
 
@@ -333,7 +424,7 @@ assigns stay in sync.
 | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `403 access_denied` when logging in                       | Add your Google address as a **Test user** on the OAuth consent screen.                                      |
 | `OAuth client file 'credentials.json' not found`          | Download the Desktop OAuth client JSON and save it as `credentials.json`, or point `CREDENTIALS_PATH` to it. |
-| `Source calendar '…' not found`                           | `SOURCE_CALENDAR_NAME` must match the calendar name exactly as shown in Google Calendar.                     |
+| `Source calendar '…' not found`                           | The source calendar in `profile.json` must match the name exactly as shown in Google Calendar.               |
 | Every event shows up twice                                | Hide the original calendar in Google Calendar.                                                               |
 | `Could not download iCal feed`                            | The iCal URL may have expired or been revoked. Generate a new one.                                           |
 | `The terminal UI needs the optional 'textual' dependency` | Run `pip install ".[tui]"`.                                                                                  |
@@ -366,9 +457,12 @@ discover → preferences → plan → apply phases.
 ```
 src/calendar_coloring/
 ├── palette.py         # GoogleColor: the 11 Google colors (id, name, RGB)
-├── events.py          # Event parsing: title prefixes, iCal categories, enrollment
+├── events.py          # Event accessors and exam sessions
+├── rules.py           # Classification rules: event → exam/lecture/deadline + name
+├── presets.py         # Built-in rules (Politecnico di Milano)
+├── profile.py         # Profile model + JSON repository (atomic writes)
 ├── catalog.py         # Discover: courses, exam sessions and deadlines in the source
-├── preferences.py     # Preferences model + JSON repository (atomic writes)
+├── preferences.py     # Preferences model: colors and exam subscriptions
 ├── suggestions.py     # Pure rules for default colors and subscriptions
 ├── resolution.py      # Fill in preferences the user never chose
 ├── strategies.py      # Pure lookups: event + preferences → color
@@ -383,7 +477,7 @@ src/calendar_coloring/
 ├── ical_source.py     # iCal feed source (standard library parser)
 ├── google_client.py   # Google Calendar adapter (batch requests + retries)
 ├── auth.py            # Google OAuth, Desktop flow, token.json
-├── config.py          # Settings from environment variables
+├── config.py          # Settings and overrides from environment variables
 ├── cli/
 │   ├── main.py        # Argument parsing and wiring of the adapters
 │   ├── prompts.py     # Interactive preference editor (-i)

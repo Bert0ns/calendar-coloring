@@ -15,22 +15,23 @@ from datetime import date
 from typing import Protocol
 
 from calendar_coloring.catalog import Catalog, discover
-from calendar_coloring.events import Event, clean_summary
+from calendar_coloring.events import Event
 from calendar_coloring.preferences import Preferences
+from calendar_coloring.profile import Profile
 from calendar_coloring.reporting import Reporter
 from calendar_coloring.resolution import fill_missing_preferences
 from calendar_coloring.strategies import strategy_for
 from calendar_coloring.sync.models import SyncPlan, SyncResult
-from calendar_coloring.sync.planner import SummaryTransform, SyncPlanner
+from calendar_coloring.sync.planner import SyncPlanner
 from calendar_coloring.sync.service import ProgressCallback, SyncService
 from calendar_coloring.sync.source import EventSource
 from calendar_coloring.targets import SyncTarget
 
 
-class PreferencesRepository(Protocol):
-    def load(self) -> Preferences: ...
+class ProfileRepository(Protocol):
+    def load(self) -> Profile: ...
 
-    def save(self, preferences: Preferences) -> None: ...
+    def save(self, profile: Profile) -> None: ...
 
 
 class PreferenceEditor(Protocol):
@@ -52,14 +53,18 @@ class SyncOptions:
 
 @dataclass(frozen=True)
 class SyncSession:
-    """Result of the discover phase: what is in the source, and the preferences
-    to color it with (mutable, edited in place by frontends)."""
+    """Result of the discover phase: what is in the source, and the profile to
+    classify and color it with (mutable, edited in place by frontends)."""
 
     options: SyncOptions
     target_name: str
     source_events: list[Event]
     catalog: Catalog
-    preferences: Preferences
+    profile: Profile
+
+    @property
+    def preferences(self) -> Preferences:
+        return self.profile.preferences
 
 
 @dataclass(frozen=True)
@@ -77,16 +82,14 @@ class SyncWorkflow:
     def __init__(
         self,
         service: SyncService,
-        repository: PreferencesRepository,
+        repository: ProfileRepository,
         reporter: Reporter,
         editor: PreferenceEditor | None = None,
-        summary_transform: SummaryTransform = clean_summary,
     ) -> None:
         self.service = service
         self.repository = repository
         self.reporter = reporter
         self.editor = editor
-        self.summary_transform = summary_transform
 
     def run(
         self, options: SyncOptions, source: EventSource, target_name: str
@@ -111,20 +114,23 @@ class SyncWorkflow:
     def load(
         self, options: SyncOptions, source: EventSource, target_name: str
     ) -> SyncSession:
-        """Discover phase: fetches the source events and the saved preferences.
+        """Discover phase: fetches the source events and the saved profile.
 
         Raises :class:`SourceError` if the source events cannot be loaded.
         """
         self.reporter.sync_started(source.label, target_name)
         source_events = source.fetch_events()
-        preferences = self.repository.load()
-        catalog = discover(self._planner(options, preferences).syncable(source_events))
+        profile = self.repository.load()
+        catalog = discover(
+            self._planner(options, profile).syncable(source_events),
+            profile.classifier,
+        )
         return SyncSession(
             options=options,
             target_name=target_name,
             source_events=source_events,
             catalog=catalog,
-            preferences=preferences,
+            profile=profile,
         )
 
     def complete_preferences(self, session: SyncSession) -> None:
@@ -134,7 +140,7 @@ class SyncWorkflow:
         )
 
     def save_preferences(self, session: SyncSession) -> None:
-        self.repository.save(session.preferences)
+        self.repository.save(session.profile)
 
     def plan(self, session: SyncSession) -> SyncPlan:
         """Computes the changes for the session preferences, as they are. Read-only."""
@@ -144,7 +150,7 @@ class SyncWorkflow:
                 session.target_name, session.options.dry_run
             )
         plan = self.service.plan(
-            self._planner(session.options, session.preferences),
+            self._planner(session.options, session.profile),
             session.source_events,
             target_id,
         )
@@ -168,17 +174,23 @@ class SyncWorkflow:
         They are completed on a copy, so the session keeps telling apart what
         the user chose from what the automatic rules fill in.
         """
-        draft = replace(session, preferences=copy.deepcopy(session.preferences))
+        draft = replace(
+            session,
+            profile=replace(
+                session.profile, preferences=copy.deepcopy(session.preferences)
+            ),
+        )
         self.complete_preferences(draft)
         return self.plan(draft)
 
     # -- helpers -------------------------------------------------------------
 
-    def _planner(self, options: SyncOptions, preferences: Preferences) -> SyncPlanner:
+    def _planner(self, options: SyncOptions, profile: Profile) -> SyncPlanner:
         # Strategies read preferences lazily, so they see later edits.
+        classifier = profile.classifier
         return SyncPlanner(
-            strategy_for(options.target, preferences),
-            self.summary_transform,
+            strategy_for(options.target, profile.preferences, classifier),
+            classifier.target_title,
             prune_before=options.prune_before,
         )
 

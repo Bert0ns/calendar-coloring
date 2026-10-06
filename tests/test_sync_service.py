@@ -1,7 +1,6 @@
 import pytest
-from conftest import FakeCalendarGateway
+from conftest import POLIMI, FakeCalendarGateway
 
-from calendar_coloring.events import clean_summary
 from calendar_coloring.palette import GoogleColor
 from calendar_coloring.strategies import EventColoringStrategy
 from calendar_coloring.sync import (
@@ -28,7 +27,7 @@ class Banana(EventColoringStrategy):
         return GoogleColor.BANANA
 
 
-PLANNER = SyncPlanner(Banana(), clean_summary)
+PLANNER = SyncPlanner(Banana(), POLIMI.target_title)
 
 
 def test_google_source_fetches_expanded_events() -> None:

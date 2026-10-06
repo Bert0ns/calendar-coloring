@@ -8,14 +8,10 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 
-from calendar_coloring.events import (
-    Event,
-    course_name,
-    deadline_name,
-    exam_occurrence,
-)
+from calendar_coloring.events import Event
 from calendar_coloring.palette import GoogleColor
 from calendar_coloring.preferences import Preferences
+from calendar_coloring.rules import Classifier
 from calendar_coloring.suggestions import suggest_color
 from calendar_coloring.targets import SyncTarget
 
@@ -43,11 +39,12 @@ class CompositeColoringStrategy(EventColoringStrategy):
 class LectureColoringStrategy(EventColoringStrategy):
     """Colors lectures with their course color (or its deterministic suggestion)."""
 
-    def __init__(self, preferences: Preferences) -> None:
+    def __init__(self, preferences: Preferences, classifier: Classifier) -> None:
         self.preferences = preferences
+        self.classifier = classifier
 
     def determine_color(self, event: Event) -> GoogleColor | None:
-        course = course_name(event)
+        course = self.classifier.course_name(event)
         if course is None:
             return None
         return self.preferences.course_color(course) or suggest_color(course)
@@ -56,11 +53,12 @@ class LectureColoringStrategy(EventColoringStrategy):
 class ExamColoringStrategy(EventColoringStrategy):
     """Colors exam sessions with their saved color (``None`` if unknown)."""
 
-    def __init__(self, preferences: Preferences) -> None:
+    def __init__(self, preferences: Preferences, classifier: Classifier) -> None:
         self.preferences = preferences
+        self.classifier = classifier
 
     def determine_color(self, event: Event) -> GoogleColor | None:
-        occurrence = exam_occurrence(event)
+        occurrence = self.classifier.exam_occurrence(event)
         if occurrence is None:
             return None
         preference = self.preferences.exam(occurrence)
@@ -70,22 +68,25 @@ class ExamColoringStrategy(EventColoringStrategy):
 class DeadlineColoringStrategy(EventColoringStrategy):
     """Colors deadlines with their saved color (or its deterministic suggestion)."""
 
-    def __init__(self, preferences: Preferences) -> None:
+    def __init__(self, preferences: Preferences, classifier: Classifier) -> None:
         self.preferences = preferences
+        self.classifier = classifier
 
     def determine_color(self, event: Event) -> GoogleColor | None:
-        deadline = deadline_name(event)
+        deadline = self.classifier.deadline_name(event)
         if deadline is None:
             return None
         return self.preferences.deadline_color(deadline) or suggest_color(deadline)
 
 
-def strategy_for(target: SyncTarget, preferences: Preferences) -> EventColoringStrategy:
+def strategy_for(
+    target: SyncTarget, preferences: Preferences, classifier: Classifier
+) -> EventColoringStrategy:
     strategies: list[EventColoringStrategy] = []
     if target.includes_exams:
-        strategies.append(ExamColoringStrategy(preferences))
+        strategies.append(ExamColoringStrategy(preferences, classifier))
     if target.includes_lectures:
-        strategies.append(LectureColoringStrategy(preferences))
+        strategies.append(LectureColoringStrategy(preferences, classifier))
     if target.includes_deadlines:
-        strategies.append(DeadlineColoringStrategy(preferences))
+        strategies.append(DeadlineColoringStrategy(preferences, classifier))
     return CompositeColoringStrategy(strategies)

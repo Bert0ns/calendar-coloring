@@ -23,11 +23,8 @@ MAX_EVENT_ID_LENGTH = 1024
 _BASE32HEX = frozenset("abcdefghijklmnopqrstuv0123456789")
 _DIGEST_LENGTH = 8
 
-SummaryTransform = Callable[[str], str]
-
-
-def _identity(summary: str) -> str:
-    return summary
+TitleFor = Callable[[Event], str]
+"""Title of a source event in the target calendar."""
 
 
 def sanitize_event_id(raw_id: str) -> str:
@@ -118,7 +115,7 @@ class SyncPlanner:
     def __init__(
         self,
         strategy: EventColoringStrategy,
-        summary_transform: SummaryTransform = _identity,
+        title_for: TitleFor = summary_of,
         prune_before: date | None = None,
     ) -> None:
         """
@@ -126,7 +123,7 @@ class SyncPlanner:
             of the target calendar (their managed copies get deleted).
         """
         self.strategy = strategy
-        self.summary_transform = summary_transform
+        self.title_for = title_for
         self.prune_before = prune_before
 
     def is_pruned(self, event: Event) -> bool:
@@ -215,7 +212,7 @@ class SyncPlanner:
         self, source: Event, event_id: str, existing: Event | None
     ) -> tuple[EventDecision, Mutation | None]:
         source_summary = summary_of(source)
-        summary = self.summary_transform(source_summary)
+        summary = self.title_for(source)
         color_id, origin = self._choose_color(source, existing)
         desired = build_target_event(source, event_id, summary, color_id)
 

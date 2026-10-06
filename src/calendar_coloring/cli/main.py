@@ -23,7 +23,7 @@ from calendar_coloring.cli.prompts import InteractivePreferenceEditor
 from calendar_coloring.config import Config
 from calendar_coloring.google_client import GoogleCalendarClient
 from calendar_coloring.ical_source import IcalFeedSource, mask_url
-from calendar_coloring.preferences import JsonPreferencesRepository
+from calendar_coloring.profile import CalendarSettings, JsonProfileRepository
 from calendar_coloring.reporting import Reporter
 from calendar_coloring.sync.gateway import CalendarGateway
 from calendar_coloring.sync.service import SyncService
@@ -158,20 +158,37 @@ def parse_args(argv: Sequence[str] | None = None) -> CliArgs:
     )
 
 
+def calendars_to_sync(config: Config) -> CalendarSettings:
+    """The profile's calendars, with the overrides of the configuration.
+
+    Read quietly: the workflow reports problems with the profile when it loads it.
+    """
+    return config.calendars(JsonProfileRepository(config.profile_path).load().calendars)
+
+
 def build_source(
-    config: Config, gateway: CalendarGateway, reporter: Reporter
+    config: Config,
+    calendars: CalendarSettings,
+    gateway: CalendarGateway,
+    reporter: Reporter,
 ) -> EventSource:
     if config.source_ical_url:
         return IcalFeedSource(config.source_ical_url, on_warning=reporter.warning)
-    return GoogleCalendarSource(gateway, config.source_calendar_name)
+    return GoogleCalendarSource(gateway, calendars.source)
 
 
-def describe_run(options: SyncOptions, config: Config, reporter: Reporter) -> None:
+def describe_run(
+    options: SyncOptions,
+    config: Config,
+    calendars: CalendarSettings,
+    reporter: Reporter,
+) -> None:
+    reporter.detail(f"Profile: {config.profile_path}")
     if config.source_ical_url:
         reporter.detail(f"Source: iCal feed at {mask_url(config.source_ical_url)}")
     else:
-        reporter.detail(f"Source: Google Calendar '{config.source_calendar_name}'")
-    reporter.detail(f"Target: Google Calendar '{config.target_calendar_name}'")
+        reporter.detail(f"Source: Google Calendar '{calendars.source}'")
+    reporter.detail(f"Target: Google Calendar '{calendars.target}'")
     flags = []
     if options.dry_run:
         flags.append("dry-run")
@@ -187,12 +204,7 @@ def build_workflow(
     reporter: Reporter,
     editor: PreferenceEditor | None = None,
 ) -> SyncWorkflow:
-    repository = JsonPreferencesRepository(
-        config.course_colors_path,
-        config.exam_states_path,
-        config.deadline_colors_path,
-        on_warning=reporter.warning,
-    )
+    repository = JsonProfileRepository(config.profile_path, on_warning=reporter.warning)
     return SyncWorkflow(SyncService(gateway), repository, reporter, editor=editor)
 
 
@@ -208,12 +220,13 @@ def run(
     workflow = build_workflow(
         config, gateway, reporter, editor or InteractivePreferenceEditor()
     )
-    describe_run(options, config, reporter)
+    calendars = calendars_to_sync(config)
+    describe_run(options, config, calendars, reporter)
     try:
         outcome = workflow.run(
             options,
-            source or build_source(config, gateway, reporter),
-            config.target_calendar_name,
+            source or build_source(config, calendars, gateway, reporter),
+            calendars.target,
         )
     except SourceError as exc:
         reporter.error(str(exc))
@@ -231,11 +244,12 @@ def run_tui(
     from calendar_coloring.tui.app import CalendarColoringApp, TuiReporter
 
     reporter = TuiReporter()
+    calendars = calendars_to_sync(config)
     app = CalendarColoringApp(
         build_workflow(config, gateway, reporter),
-        source or build_source(config, gateway, reporter),
+        source or build_source(config, calendars, gateway, reporter),
         options,
-        config.target_calendar_name,
+        calendars.target,
         reporter,
     )
     app.run()
