@@ -207,3 +207,39 @@ def test_deadlines_are_colored_and_saved(config: Config) -> None:
         "Esame di laurea": event["colorId"]
     }
     assert not config.course_colors_path.exists()
+
+
+# -- phase by phase (as driven by the TUI) -----------------------------------
+
+
+def test_preview_completes_preferences_on_a_copy(config: Config) -> None:
+    gateway = FakeCalendarGateway({"Src": SOURCE, "Tgt": []})
+    workflow = make_workflow(config, gateway).workflow
+    session = workflow.load(SyncOptions(), GoogleCalendarSource(gateway, "Src"), "Tgt")
+
+    plan = workflow.preview(session)
+
+    colors = {m.summary: m.body["colorId"] for m in plan.mutations}
+    assert colors == {"CS": "3", "Esame: CS": "11"}
+    assert session.preferences == Preferences()  # untouched
+    assert gateway.batches == []
+    assert not config.course_colors_path.exists()
+
+
+def test_complete_save_and_apply_a_preview(config: Config) -> None:
+    gateway = FakeCalendarGateway({"Src": SOURCE, "Tgt": []})
+    workflow = make_workflow(config, gateway).workflow
+    session = workflow.load(SyncOptions(), GoogleCalendarSource(gateway, "Src"), "Tgt")
+    session.preferences.set_course_color("CS", GoogleColor.BASIL)
+    plan = workflow.preview(session)
+
+    workflow.complete_preferences(session)
+    workflow.save_preferences(session)
+    result = workflow.apply(session, plan)
+
+    assert result.inserted == 2
+    assert workflow.preview(session).is_empty
+    assert json.loads(config.course_colors_path.read_text()) == {"CS": "10"}
+    assert json.loads(config.exam_states_path.read_text()) == {
+        "Esame: CS (2027-01-20)": {"color": "11", "subscribed": True}
+    }

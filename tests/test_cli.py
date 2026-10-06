@@ -312,3 +312,54 @@ def test_ical_mode_never_reads_the_google_source_calendar(config: Config) -> Non
     [event] = gateway.events_of("Tgt")
     assert event["id"] == "1172587polimiit284d64df"
     assert event["summary"] == "CS"
+
+
+# -- terminal UI -------------------------------------------------------------
+
+
+def test_parse_args_tui() -> None:
+    args = cli.parse_args(["exams", "--tui", "--prune-before", "2025-01-01"])
+    assert args.tui
+    assert args.options == SyncOptions(
+        target=SyncTarget.EXAMS, prune_before=date(2025, 1, 1)
+    )
+
+
+@pytest.mark.parametrize("argv", [["--tui", "-i"], ["--tui", "--dry-run"]])
+def test_parse_args_rejects_tui_with_other_modes(argv, capsys) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        cli.parse_args(argv)
+    assert exc_info.value.code == 2
+
+
+def test_main_tui_without_textual_fails_before_login(
+    isolated_env, fake_auth, monkeypatch, capsys
+) -> None:
+    monkeypatch.setattr(cli, "tui_available", lambda: False)
+    assert cli.main(["--tui"]) == cli.EXIT_FAILURE
+    assert "pip install 'polimi-calendar-coloring[tui]'" in capsys.readouterr().out
+    fake_auth.assert_not_called()
+
+
+def test_main_tui_runs_the_app(isolated_env, fake_auth, monkeypatch) -> None:
+    pytest.importorskip("textual")
+    from polimi_calendar_coloring.tui.app import PolimiCalendarApp
+
+    gateway = FakeCalendarGateway({"Polimi Calendar": SOURCE})
+    install_gateway(monkeypatch, gateway)
+    launched: list[PolimiCalendarApp] = []
+    monkeypatch.setattr(PolimiCalendarApp, "run", lambda app: launched.append(app))
+
+    assert cli.main(["lectures", "--tui"]) == cli.EXIT_OK
+
+    [app] = launched
+    assert app.options == SyncOptions(target=SyncTarget.LECTURES)
+    assert app.target_name == "Polimi Calendar Colored"
+    assert isinstance(app.source, GoogleCalendarSource)
+    assert gateway.batches == []
+
+
+def test_tui_available_matches_installed_textual() -> None:
+    import importlib.util
+
+    assert cli.tui_available() is (importlib.util.find_spec("textual") is not None)
