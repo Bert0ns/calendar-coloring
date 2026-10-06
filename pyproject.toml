@@ -1,3 +1,45 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "polimi-calendar-coloring"
+dynamic = ["version"]
+description = "Sync a read-only Polimi calendar into a color-coded Google Calendar."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+dependencies = [
+    "google-api-python-client>=2.150.0,<3.0.0",
+    "google-auth>=2.0.0,<3.0.0",
+    "google-auth-httplib2>=0.2.0,<1.0.0",
+    "google-auth-oauthlib>=1.2.0,<2.0.0",
+    "python-dotenv>=1.0.0,<2.0.0",
+    "tzdata>=2024.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black==25.1.0",
+    "mypy>=1.10",
+    "pre-commit>=3.6.0",
+    "pytest>=8.0.0",
+    "pytest-cov>=5.0.0",
+    "ruff>=0.4.0",
+]
+
+[project.scripts]
+polimi-calendar = "polimi_calendar_coloring.cli.main:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "polimi_calendar_coloring.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+polimi_calendar_coloring = ["py.typed"]
+
 [tool.black]
 line-length = 88
 target-version = ["py310", "py312"]
@@ -7,9 +49,28 @@ line-length = 88
 target-version = "py310"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "B"]
-ignore = ["BLE001", "E501"]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+ignore = ["BLE001", "E501", "RUF001"]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["src"]
+strict = true
+
+[[tool.mypy.overrides]]
+module = ["googleapiclient.*", "google_auth_oauthlib.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
 python_files = ["test_*.py"]
+addopts = "--strict-markers"
+
+[tool.coverage.run]
+source = ["polimi_calendar_coloring"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true

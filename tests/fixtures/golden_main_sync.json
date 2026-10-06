@@ -1,0 +1,3164 @@
+{
+  "fresh-all": {
+    "mutations": [
+      {
+        "action": "update",
+        "event_id": "lec0001",
+        "body": {
+          "id": "lec0001",
+          "summary": "Computer Security",
+          "description": "Aula 3.1.2",
+          "start": {
+            "dateTime": "2026-09-21T08:15:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-21T10:15:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "location": "Edificio 3",
+          "colorId": "3"
+        },
+        "summary": "Computer Security"
+      },
+      {
+        "action": "update",
+        "event_id": "lec0002",
+        "body": {
+          "id": "lec0002",
+          "summary": "Machine Learning",
+          "description": "Aula 26.1.1",
+          "start": {
+            "dateTime": "2026-09-21T10:30:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-21T12:30:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "7"
+        },
+        "summary": "Machine Learning"
+      },
+      {
+        "action": "update",
+        "event_id": "lec0003",
+        "body": {
+          "id": "lec0003",
+          "summary": "Computer Security",
+          "description": "Aula 3.1.2",
+          "start": {
+            "dateTime": "2026-09-22T08:15:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-22T10:15:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "location": "Edificio 3",
+          "colorId": "3"
+        },
+        "summary": "Computer Security"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "lec0004",
+          "summary": "Data Bases 2",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-23T14:15:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-23T16:15:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "7"
+        },
+        "summary": "Data Bases 2"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "lec0005",
+          "summary": "Algoritmi e Principi dell'Informatica",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-24T09:00:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-24T11:00:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "10"
+        },
+        "summary": "Algoritmi e Principi dell'Informatica"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "1172587polimiit284d64df",
+          "summary": "SENSOR SYSTEMS",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-25T10:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "end": {
+            "dateTime": "2026-09-25T12:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "location": "Milano - Aula: 9.1.2",
+          "colorId": "5"
+        },
+        "summary": "SENSOR SYSTEMS"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "lecrec01",
+          "summary": "Recurring Course",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-17T10:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "end": {
+            "dateTime": "2026-09-17T12:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "recurrence": [
+            "RRULE:FREQ=WEEKLY;COUNT=10",
+            "EXDATE:20261001T101500"
+          ],
+          "colorId": "5"
+        },
+        "summary": "Recurring Course"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam00014a815d59",
+          "summary": "Esame: Computer Security",
+          "description": "Non iscritto all'appello",
+          "start": {
+            "dateTime": "2027-01-20T09:00:00+01:00"
+          },
+          "end": {
+            "dateTime": "2027-01-20T12:00:00+01:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "8"
+        },
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam0002f826929e",
+          "summary": "Esame: Computer Security",
+          "description": "Iscritto all'appello",
+          "start": {
+            "dateTime": "2027-02-10T09:00:00+01:00"
+          },
+          "end": {
+            "dateTime": "2027-02-10T12:00:00+01:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "11"
+        },
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam0003a35d0abd",
+          "summary": "Esame: Computer Security",
+          "description": "Non iscritto all'appello",
+          "start": {
+            "dateTime": "2027-06-15T09:00:00+02:00"
+          },
+          "end": {
+            "dateTime": "2027-06-15T12:00:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "8"
+        },
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "update",
+        "event_id": "eam000417cf3868",
+        "body": {
+          "id": "eam000417cf3868",
+          "summary": "Esame: Machine Learning",
+          "description": "Iscritto",
+          "start": {
+            "date": "2027-01-25"
+          },
+          "end": {
+            "date": "2027-01-26"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "11"
+        },
+        "summary": "Esame: Machine Learning"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam000681fa3461",
+          "summary": "Esame: Machine Learning",
+          "description": "Non iscritto",
+          "start": {
+            "date": "2027-07-01"
+          },
+          "end": {
+            "date": "2027-07-02"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "8"
+        },
+        "summary": "Esame: Machine Learning"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam0007699263df",
+          "summary": "Esame: Software Engineering (Prova finale)",
+          "description": "Iscritto",
+          "start": {
+            "dateTime": "2027-02-20T14:00:00+01:00"
+          },
+          "end": {
+            "dateTime": "2027-02-20T17:00:00+01:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "11"
+        },
+        "summary": "Esame: Software Engineering (Prova finale)"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "1144126polimiit9b5ce8a7",
+          "summary": "DESIGN AND IMPLEMENTATION OF MOBILE APPLICATIONS",
+          "description": "Non iscritto\n\nAA: 2025",
+          "start": {
+            "dateTime": "2026-09-08T08:45:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "end": {
+            "dateTime": "2026-09-08T12:45:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "8"
+        },
+        "summary": "DESIGN AND IMPLEMENTATION OF MOBILE APPLICATIONS"
+      },
+      {
+        "action": "update",
+        "event_id": "dead0001",
+        "body": {
+          "id": "dead0001",
+          "summary": "Scadenza: Esame di laurea",
+          "description": "LAUREA MAGISTRALE",
+          "start": {
+            "date": "2026-10-20"
+          },
+          "end": {
+            "date": "2026-10-21"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "9"
+        },
+        "summary": "Scadenza: Esame di laurea"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "dead0002",
+          "summary": "Consegna tesi",
+          "description": "",
+          "start": {
+            "date": "2026-11-02"
+          },
+          "end": {
+            "date": "2026-11-03"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "2"
+        },
+        "summary": "Consegna tesi"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "polimica5ba87c93d42f8a",
+          "summary": "Machine Learning",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-28T10:30:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-28T12:30:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "7"
+        },
+        "summary": "Machine Learning"
+      },
+      {
+        "action": "delete",
+        "event_id": "eam0001",
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "delete",
+        "event_id": "stale0001",
+        "summary": "Old managed lecture"
+      },
+      {
+        "action": "delete",
+        "event_id": "oldsem001",
+        "summary": "Last semester lecture"
+      }
+    ],
+    "files_raw": {
+      "course_colors.json": "{\n    \"Computer Security\": \"3\",\n    \"Machine Learning\": \"7\",\n    \"Data Bases 2\": \"7\",\n    \"Algoritmi e Principi dell'Informatica\": \"10\",\n    \"SENSOR SYSTEMS\": \"5\",\n    \"Recurring Course\": \"5\"\n}",
+      "exam_states.json": "{\n    \"Esame: Computer Security (2027-01-20)\": {\n        \"color\": \"8\",\n        \"subscribed\": false\n    },\n    \"Esame: Computer Security (2027-02-10)\": {\n        \"color\": \"11\",\n        \"subscribed\": true\n    },\n    \"Esame: Computer Security (2027-06-15)\": {\n        \"color\": \"8\",\n        \"subscribed\": false\n    },\n    \"Esame: Machine Learning (2027-01-25)\": {\n        \"color\": \"11\",\n        \"subscribed\": true\n    },\n    \"Esame: Machine Learning (2027-07-01)\": {\n        \"color\": \"8\",\n        \"subscribed\": false\n    },\n    \"Esame: Software Engineering (Prova finale) (2027-02-20)\": {\n        \"color\": \"11\",\n        \"subscribed\": true\n    },\n    \"DESIGN AND IMPLEMENTATION OF MOBILE APPLICATIONS (2026-09-08)\": {\n        \"color\": \"8\",\n        \"subscribed\": false\n    }\n}",
+      "deadline_colors.json": "{\n    \"Esame di laurea\": \"9\",\n    \"Consegna tesi\": \"2\"\n}"
+    }
+  },
+  "fresh-exams": {
+    "mutations": [
+      {
+        "action": "update",
+        "event_id": "lec0002",
+        "body": {
+          "id": "lec0002",
+          "summary": "Machine Learning",
+          "description": "Aula 26.1.1",
+          "start": {
+            "dateTime": "2026-09-21T10:30:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-21T12:30:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "2"
+        },
+        "summary": "Machine Learning"
+      },
+      {
+        "action": "update",
+        "event_id": "lec0003",
+        "body": {
+          "id": "lec0003",
+          "summary": "Computer Security",
+          "description": "Aula 3.1.2",
+          "start": {
+            "dateTime": "2026-09-22T08:15:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-22T10:15:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "location": "Edificio 3"
+        },
+        "summary": "Computer Security"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "lec0004",
+          "summary": "Data Bases 2",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-23T14:15:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-23T16:15:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Data Bases 2"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "lec0005",
+          "summary": "Algoritmi e Principi dell'Informatica",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-24T09:00:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-24T11:00:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Algoritmi e Principi dell'Informatica"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "1172587polimiit284d64df",
+          "summary": "SENSOR SYSTEMS",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-25T10:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "end": {
+            "dateTime": "2026-09-25T12:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "location": "Milano - Aula: 9.1.2"
+        },
+        "summary": "SENSOR SYSTEMS"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "lecrec01",
+          "summary": "Recurring Course",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-17T10:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "end": {
+            "dateTime": "2026-09-17T12:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "recurrence": [
+            "RRULE:FREQ=WEEKLY;COUNT=10",
+            "EXDATE:20261001T101500"
+          ]
+        },
+        "summary": "Recurring Course"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam00014a815d59",
+          "summary": "Esame: Computer Security",
+          "description": "Non iscritto all'appello",
+          "start": {
+            "dateTime": "2027-01-20T09:00:00+01:00"
+          },
+          "end": {
+            "dateTime": "2027-01-20T12:00:00+01:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "8"
+        },
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam0002f826929e",
+          "summary": "Esame: Computer Security",
+          "description": "Iscritto all'appello",
+          "start": {
+            "dateTime": "2027-02-10T09:00:00+01:00"
+          },
+          "end": {
+            "dateTime": "2027-02-10T12:00:00+01:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "11"
+        },
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam0003a35d0abd",
+          "summary": "Esame: Computer Security",
+          "description": "Non iscritto all'appello",
+          "start": {
+            "dateTime": "2027-06-15T09:00:00+02:00"
+          },
+          "end": {
+            "dateTime": "2027-06-15T12:00:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "8"
+        },
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "update",
+        "event_id": "eam000417cf3868",
+        "body": {
+          "id": "eam000417cf3868",
+          "summary": "Esame: Machine Learning",
+          "description": "Iscritto",
+          "start": {
+            "date": "2027-01-25"
+          },
+          "end": {
+            "date": "2027-01-26"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "11"
+        },
+        "summary": "Esame: Machine Learning"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam000681fa3461",
+          "summary": "Esame: Machine Learning",
+          "description": "Non iscritto",
+          "start": {
+            "date": "2027-07-01"
+          },
+          "end": {
+            "date": "2027-07-02"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "8"
+        },
+        "summary": "Esame: Machine Learning"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam0007699263df",
+          "summary": "Esame: Software Engineering (Prova finale)",
+          "description": "Iscritto",
+          "start": {
+            "dateTime": "2027-02-20T14:00:00+01:00"
+          },
+          "end": {
+            "dateTime": "2027-02-20T17:00:00+01:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "11"
+        },
+        "summary": "Esame: Software Engineering (Prova finale)"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "1144126polimiit9b5ce8a7",
+          "summary": "DESIGN AND IMPLEMENTATION OF MOBILE APPLICATIONS",
+          "description": "Non iscritto\n\nAA: 2025",
+          "start": {
+            "dateTime": "2026-09-08T08:45:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "end": {
+            "dateTime": "2026-09-08T12:45:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "8"
+        },
+        "summary": "DESIGN AND IMPLEMENTATION OF MOBILE APPLICATIONS"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "dead0002",
+          "summary": "Consegna tesi",
+          "description": "",
+          "start": {
+            "date": "2026-11-02"
+          },
+          "end": {
+            "date": "2026-11-03"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Consegna tesi"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "polimica5ba87c93d42f8a",
+          "summary": "Machine Learning",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-28T10:30:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-28T12:30:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Machine Learning"
+      },
+      {
+        "action": "delete",
+        "event_id": "eam0001",
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "delete",
+        "event_id": "stale0001",
+        "summary": "Old managed lecture"
+      },
+      {
+        "action": "delete",
+        "event_id": "oldsem001",
+        "summary": "Last semester lecture"
+      }
+    ],
+    "files_raw": {
+      "course_colors.json": null,
+      "exam_states.json": "{\n    \"Esame: Computer Security (2027-01-20)\": {\n        \"color\": \"8\",\n        \"subscribed\": false\n    },\n    \"Esame: Computer Security (2027-02-10)\": {\n        \"color\": \"11\",\n        \"subscribed\": true\n    },\n    \"Esame: Computer Security (2027-06-15)\": {\n        \"color\": \"8\",\n        \"subscribed\": false\n    },\n    \"Esame: Machine Learning (2027-01-25)\": {\n        \"color\": \"11\",\n        \"subscribed\": true\n    },\n    \"Esame: Machine Learning (2027-07-01)\": {\n        \"color\": \"8\",\n        \"subscribed\": false\n    },\n    \"Esame: Software Engineering (Prova finale) (2027-02-20)\": {\n        \"color\": \"11\",\n        \"subscribed\": true\n    },\n    \"DESIGN AND IMPLEMENTATION OF MOBILE APPLICATIONS (2026-09-08)\": {\n        \"color\": \"8\",\n        \"subscribed\": false\n    }\n}",
+      "deadline_colors.json": null
+    }
+  },
+  "fresh-lectures": {
+    "mutations": [
+      {
+        "action": "update",
+        "event_id": "lec0001",
+        "body": {
+          "id": "lec0001",
+          "summary": "Computer Security",
+          "description": "Aula 3.1.2",
+          "start": {
+            "dateTime": "2026-09-21T08:15:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-21T10:15:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "location": "Edificio 3",
+          "colorId": "3"
+        },
+        "summary": "Computer Security"
+      },
+      {
+        "action": "update",
+        "event_id": "lec0002",
+        "body": {
+          "id": "lec0002",
+          "summary": "Machine Learning",
+          "description": "Aula 26.1.1",
+          "start": {
+            "dateTime": "2026-09-21T10:30:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-21T12:30:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "7"
+        },
+        "summary": "Machine Learning"
+      },
+      {
+        "action": "update",
+        "event_id": "lec0003",
+        "body": {
+          "id": "lec0003",
+          "summary": "Computer Security",
+          "description": "Aula 3.1.2",
+          "start": {
+            "dateTime": "2026-09-22T08:15:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-22T10:15:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "location": "Edificio 3",
+          "colorId": "3"
+        },
+        "summary": "Computer Security"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "lec0004",
+          "summary": "Data Bases 2",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-23T14:15:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-23T16:15:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "7"
+        },
+        "summary": "Data Bases 2"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "lec0005",
+          "summary": "Algoritmi e Principi dell'Informatica",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-24T09:00:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-24T11:00:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "10"
+        },
+        "summary": "Algoritmi e Principi dell'Informatica"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "1172587polimiit284d64df",
+          "summary": "SENSOR SYSTEMS",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-25T10:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "end": {
+            "dateTime": "2026-09-25T12:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "location": "Milano - Aula: 9.1.2",
+          "colorId": "5"
+        },
+        "summary": "SENSOR SYSTEMS"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "lecrec01",
+          "summary": "Recurring Course",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-17T10:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "end": {
+            "dateTime": "2026-09-17T12:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "recurrence": [
+            "RRULE:FREQ=WEEKLY;COUNT=10",
+            "EXDATE:20261001T101500"
+          ],
+          "colorId": "5"
+        },
+        "summary": "Recurring Course"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam00014a815d59",
+          "summary": "Esame: Computer Security",
+          "description": "Non iscritto all'appello",
+          "start": {
+            "dateTime": "2027-01-20T09:00:00+01:00"
+          },
+          "end": {
+            "dateTime": "2027-01-20T12:00:00+01:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam0002f826929e",
+          "summary": "Esame: Computer Security",
+          "description": "Iscritto all'appello",
+          "start": {
+            "dateTime": "2027-02-10T09:00:00+01:00"
+          },
+          "end": {
+            "dateTime": "2027-02-10T12:00:00+01:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam0003a35d0abd",
+          "summary": "Esame: Computer Security",
+          "description": "Non iscritto all'appello",
+          "start": {
+            "dateTime": "2027-06-15T09:00:00+02:00"
+          },
+          "end": {
+            "dateTime": "2027-06-15T12:00:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "update",
+        "event_id": "eam000417cf3868",
+        "body": {
+          "id": "eam000417cf3868",
+          "summary": "Esame: Machine Learning",
+          "description": "Iscritto",
+          "start": {
+            "date": "2027-01-25"
+          },
+          "end": {
+            "date": "2027-01-26"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "11"
+        },
+        "summary": "Esame: Machine Learning"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam000681fa3461",
+          "summary": "Esame: Machine Learning",
+          "description": "Non iscritto",
+          "start": {
+            "date": "2027-07-01"
+          },
+          "end": {
+            "date": "2027-07-02"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Esame: Machine Learning"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam0007699263df",
+          "summary": "Esame: Software Engineering (Prova finale)",
+          "description": "Iscritto",
+          "start": {
+            "dateTime": "2027-02-20T14:00:00+01:00"
+          },
+          "end": {
+            "dateTime": "2027-02-20T17:00:00+01:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Esame: Software Engineering (Prova finale)"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "1144126polimiit9b5ce8a7",
+          "summary": "DESIGN AND IMPLEMENTATION OF MOBILE APPLICATIONS",
+          "description": "Non iscritto\n\nAA: 2025",
+          "start": {
+            "dateTime": "2026-09-08T08:45:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "end": {
+            "dateTime": "2026-09-08T12:45:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "DESIGN AND IMPLEMENTATION OF MOBILE APPLICATIONS"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "dead0002",
+          "summary": "Consegna tesi",
+          "description": "",
+          "start": {
+            "date": "2026-11-02"
+          },
+          "end": {
+            "date": "2026-11-03"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Consegna tesi"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "polimica5ba87c93d42f8a",
+          "summary": "Machine Learning",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-28T10:30:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-28T12:30:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "7"
+        },
+        "summary": "Machine Learning"
+      },
+      {
+        "action": "delete",
+        "event_id": "eam0001",
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "delete",
+        "event_id": "stale0001",
+        "summary": "Old managed lecture"
+      },
+      {
+        "action": "delete",
+        "event_id": "oldsem001",
+        "summary": "Last semester lecture"
+      }
+    ],
+    "files_raw": {
+      "course_colors.json": "{\n    \"Computer Security\": \"3\",\n    \"Machine Learning\": \"7\",\n    \"Data Bases 2\": \"7\",\n    \"Algoritmi e Principi dell'Informatica\": \"10\",\n    \"SENSOR SYSTEMS\": \"5\",\n    \"Recurring Course\": \"5\"\n}",
+      "exam_states.json": null,
+      "deadline_colors.json": null
+    }
+  },
+  "fresh-deadlines": {
+    "mutations": [
+      {
+        "action": "update",
+        "event_id": "lec0002",
+        "body": {
+          "id": "lec0002",
+          "summary": "Machine Learning",
+          "description": "Aula 26.1.1",
+          "start": {
+            "dateTime": "2026-09-21T10:30:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-21T12:30:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "2"
+        },
+        "summary": "Machine Learning"
+      },
+      {
+        "action": "update",
+        "event_id": "lec0003",
+        "body": {
+          "id": "lec0003",
+          "summary": "Computer Security",
+          "description": "Aula 3.1.2",
+          "start": {
+            "dateTime": "2026-09-22T08:15:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-22T10:15:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "location": "Edificio 3"
+        },
+        "summary": "Computer Security"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "lec0004",
+          "summary": "Data Bases 2",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-23T14:15:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-23T16:15:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Data Bases 2"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "lec0005",
+          "summary": "Algoritmi e Principi dell'Informatica",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-24T09:00:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-24T11:00:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Algoritmi e Principi dell'Informatica"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "1172587polimiit284d64df",
+          "summary": "SENSOR SYSTEMS",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-25T10:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "end": {
+            "dateTime": "2026-09-25T12:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "location": "Milano - Aula: 9.1.2"
+        },
+        "summary": "SENSOR SYSTEMS"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "lecrec01",
+          "summary": "Recurring Course",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-17T10:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "end": {
+            "dateTime": "2026-09-17T12:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "recurrence": [
+            "RRULE:FREQ=WEEKLY;COUNT=10",
+            "EXDATE:20261001T101500"
+          ]
+        },
+        "summary": "Recurring Course"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam00014a815d59",
+          "summary": "Esame: Computer Security",
+          "description": "Non iscritto all'appello",
+          "start": {
+            "dateTime": "2027-01-20T09:00:00+01:00"
+          },
+          "end": {
+            "dateTime": "2027-01-20T12:00:00+01:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam0002f826929e",
+          "summary": "Esame: Computer Security",
+          "description": "Iscritto all'appello",
+          "start": {
+            "dateTime": "2027-02-10T09:00:00+01:00"
+          },
+          "end": {
+            "dateTime": "2027-02-10T12:00:00+01:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam0003a35d0abd",
+          "summary": "Esame: Computer Security",
+          "description": "Non iscritto all'appello",
+          "start": {
+            "dateTime": "2027-06-15T09:00:00+02:00"
+          },
+          "end": {
+            "dateTime": "2027-06-15T12:00:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "update",
+        "event_id": "eam000417cf3868",
+        "body": {
+          "id": "eam000417cf3868",
+          "summary": "Esame: Machine Learning",
+          "description": "Iscritto",
+          "start": {
+            "date": "2027-01-25"
+          },
+          "end": {
+            "date": "2027-01-26"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "11"
+        },
+        "summary": "Esame: Machine Learning"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam000681fa3461",
+          "summary": "Esame: Machine Learning",
+          "description": "Non iscritto",
+          "start": {
+            "date": "2027-07-01"
+          },
+          "end": {
+            "date": "2027-07-02"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Esame: Machine Learning"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam0007699263df",
+          "summary": "Esame: Software Engineering (Prova finale)",
+          "description": "Iscritto",
+          "start": {
+            "dateTime": "2027-02-20T14:00:00+01:00"
+          },
+          "end": {
+            "dateTime": "2027-02-20T17:00:00+01:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Esame: Software Engineering (Prova finale)"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "1144126polimiit9b5ce8a7",
+          "summary": "DESIGN AND IMPLEMENTATION OF MOBILE APPLICATIONS",
+          "description": "Non iscritto\n\nAA: 2025",
+          "start": {
+            "dateTime": "2026-09-08T08:45:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "end": {
+            "dateTime": "2026-09-08T12:45:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "DESIGN AND IMPLEMENTATION OF MOBILE APPLICATIONS"
+      },
+      {
+        "action": "update",
+        "event_id": "dead0001",
+        "body": {
+          "id": "dead0001",
+          "summary": "Scadenza: Esame di laurea",
+          "description": "LAUREA MAGISTRALE",
+          "start": {
+            "date": "2026-10-20"
+          },
+          "end": {
+            "date": "2026-10-21"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "9"
+        },
+        "summary": "Scadenza: Esame di laurea"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "dead0002",
+          "summary": "Consegna tesi",
+          "description": "",
+          "start": {
+            "date": "2026-11-02"
+          },
+          "end": {
+            "date": "2026-11-03"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "2"
+        },
+        "summary": "Consegna tesi"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "polimica5ba87c93d42f8a",
+          "summary": "Machine Learning",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-28T10:30:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-28T12:30:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Machine Learning"
+      },
+      {
+        "action": "delete",
+        "event_id": "eam0001",
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "delete",
+        "event_id": "stale0001",
+        "summary": "Old managed lecture"
+      },
+      {
+        "action": "delete",
+        "event_id": "oldsem001",
+        "summary": "Last semester lecture"
+      }
+    ],
+    "files_raw": {
+      "course_colors.json": null,
+      "exam_states.json": null,
+      "deadline_colors.json": "{\n    \"Esame di laurea\": \"9\",\n    \"Consegna tesi\": \"2\"\n}"
+    }
+  },
+  "existing-all": {
+    "mutations": [
+      {
+        "action": "update",
+        "event_id": "lec0002",
+        "body": {
+          "id": "lec0002",
+          "summary": "Machine Learning",
+          "description": "Aula 26.1.1",
+          "start": {
+            "dateTime": "2026-09-21T10:30:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-21T12:30:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "7"
+        },
+        "summary": "Machine Learning"
+      },
+      {
+        "action": "update",
+        "event_id": "lec0003",
+        "body": {
+          "id": "lec0003",
+          "summary": "Computer Security",
+          "description": "Aula 3.1.2",
+          "start": {
+            "dateTime": "2026-09-22T08:15:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-22T10:15:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "location": "Edificio 3",
+          "colorId": "7"
+        },
+        "summary": "Computer Security"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "lec0004",
+          "summary": "Data Bases 2",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-23T14:15:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-23T16:15:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "7"
+        },
+        "summary": "Data Bases 2"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "lec0005",
+          "summary": "Algoritmi e Principi dell'Informatica",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-24T09:00:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-24T11:00:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "10"
+        },
+        "summary": "Algoritmi e Principi dell'Informatica"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "1172587polimiit284d64df",
+          "summary": "SENSOR SYSTEMS",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-25T10:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "end": {
+            "dateTime": "2026-09-25T12:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "location": "Milano - Aula: 9.1.2",
+          "colorId": "5"
+        },
+        "summary": "SENSOR SYSTEMS"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "lecrec01",
+          "summary": "Recurring Course",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-17T10:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "end": {
+            "dateTime": "2026-09-17T12:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "recurrence": [
+            "RRULE:FREQ=WEEKLY;COUNT=10",
+            "EXDATE:20261001T101500"
+          ],
+          "colorId": "5"
+        },
+        "summary": "Recurring Course"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam00014a815d59",
+          "summary": "Esame: Computer Security",
+          "description": "Non iscritto all'appello",
+          "start": {
+            "dateTime": "2027-01-20T09:00:00+01:00"
+          },
+          "end": {
+            "dateTime": "2027-01-20T12:00:00+01:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "8"
+        },
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam0002f826929e",
+          "summary": "Esame: Computer Security",
+          "description": "Iscritto all'appello",
+          "start": {
+            "dateTime": "2027-02-10T09:00:00+01:00"
+          },
+          "end": {
+            "dateTime": "2027-02-10T12:00:00+01:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "8"
+        },
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam0003a35d0abd",
+          "summary": "Esame: Computer Security",
+          "description": "Non iscritto all'appello",
+          "start": {
+            "dateTime": "2027-06-15T09:00:00+02:00"
+          },
+          "end": {
+            "dateTime": "2027-06-15T12:00:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "8"
+        },
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "update",
+        "event_id": "eam000417cf3868",
+        "body": {
+          "id": "eam000417cf3868",
+          "summary": "Esame: Machine Learning",
+          "description": "Iscritto",
+          "start": {
+            "date": "2027-01-25"
+          },
+          "end": {
+            "date": "2027-01-26"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "3"
+        },
+        "summary": "Esame: Machine Learning"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam000681fa3461",
+          "summary": "Esame: Machine Learning",
+          "description": "Non iscritto",
+          "start": {
+            "date": "2027-07-01"
+          },
+          "end": {
+            "date": "2027-07-02"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "8"
+        },
+        "summary": "Esame: Machine Learning"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam0007699263df",
+          "summary": "Esame: Software Engineering (Prova finale)",
+          "description": "Iscritto",
+          "start": {
+            "dateTime": "2027-02-20T14:00:00+01:00"
+          },
+          "end": {
+            "dateTime": "2027-02-20T17:00:00+01:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "11"
+        },
+        "summary": "Esame: Software Engineering (Prova finale)"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "1144126polimiit9b5ce8a7",
+          "summary": "DESIGN AND IMPLEMENTATION OF MOBILE APPLICATIONS",
+          "description": "Non iscritto\n\nAA: 2025",
+          "start": {
+            "dateTime": "2026-09-08T08:45:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "end": {
+            "dateTime": "2026-09-08T12:45:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "8"
+        },
+        "summary": "DESIGN AND IMPLEMENTATION OF MOBILE APPLICATIONS"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "dead0002",
+          "summary": "Consegna tesi",
+          "description": "",
+          "start": {
+            "date": "2026-11-02"
+          },
+          "end": {
+            "date": "2026-11-03"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "2"
+        },
+        "summary": "Consegna tesi"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "polimica5ba87c93d42f8a",
+          "summary": "Machine Learning",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-28T10:30:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-28T12:30:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "7"
+        },
+        "summary": "Machine Learning"
+      },
+      {
+        "action": "delete",
+        "event_id": "eam0001",
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "delete",
+        "event_id": "stale0001",
+        "summary": "Old managed lecture"
+      },
+      {
+        "action": "delete",
+        "event_id": "oldsem001",
+        "summary": "Last semester lecture"
+      }
+    ],
+    "files_raw": {
+      "course_colors.json": "{\n    \"Computer Security\": \"7\",\n    \"Old Course\": \"4\",\n    \"Machine Learning\": \"7\",\n    \"Data Bases 2\": \"7\",\n    \"Algoritmi e Principi dell'Informatica\": \"10\",\n    \"SENSOR SYSTEMS\": \"5\",\n    \"Recurring Course\": \"5\"\n}",
+      "exam_states.json": "{\n    \"Esame: Machine Learning (2027-01-25)\": {\n        \"color\": \"3\",\n        \"subscribed\": true\n    },\n    \"Esame: Computer Security (2026-06-15)\": {\n        \"color\": \"11\",\n        \"subscribed\": true\n    },\n    \"Esame: Computer Security (2027-01-20)\": {\n        \"color\": \"8\",\n        \"subscribed\": false\n    },\n    \"Esame: Computer Security (2027-02-10)\": {\n        \"color\": \"8\",\n        \"subscribed\": false\n    },\n    \"Esame: Computer Security (2027-06-15)\": {\n        \"color\": \"8\",\n        \"subscribed\": false\n    },\n    \"Esame: Machine Learning (2027-07-01)\": {\n        \"color\": \"8\",\n        \"subscribed\": false\n    },\n    \"Esame: Software Engineering (Prova finale) (2027-02-20)\": {\n        \"color\": \"11\",\n        \"subscribed\": true\n    },\n    \"DESIGN AND IMPLEMENTATION OF MOBILE APPLICATIONS (2026-09-08)\": {\n        \"color\": \"8\",\n        \"subscribed\": false\n    }\n}",
+      "deadline_colors.json": "{\n    \"Esame di laurea\": \"4\",\n    \"Consegna tesi\": \"2\"\n}"
+    }
+  },
+  "existing-exams": {
+    "mutations": [
+      {
+        "action": "update",
+        "event_id": "lec0002",
+        "body": {
+          "id": "lec0002",
+          "summary": "Machine Learning",
+          "description": "Aula 26.1.1",
+          "start": {
+            "dateTime": "2026-09-21T10:30:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-21T12:30:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "2"
+        },
+        "summary": "Machine Learning"
+      },
+      {
+        "action": "update",
+        "event_id": "lec0003",
+        "body": {
+          "id": "lec0003",
+          "summary": "Computer Security",
+          "description": "Aula 3.1.2",
+          "start": {
+            "dateTime": "2026-09-22T08:15:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-22T10:15:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "location": "Edificio 3"
+        },
+        "summary": "Computer Security"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "lec0004",
+          "summary": "Data Bases 2",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-23T14:15:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-23T16:15:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Data Bases 2"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "lec0005",
+          "summary": "Algoritmi e Principi dell'Informatica",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-24T09:00:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-24T11:00:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Algoritmi e Principi dell'Informatica"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "1172587polimiit284d64df",
+          "summary": "SENSOR SYSTEMS",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-25T10:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "end": {
+            "dateTime": "2026-09-25T12:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "location": "Milano - Aula: 9.1.2"
+        },
+        "summary": "SENSOR SYSTEMS"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "lecrec01",
+          "summary": "Recurring Course",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-17T10:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "end": {
+            "dateTime": "2026-09-17T12:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "recurrence": [
+            "RRULE:FREQ=WEEKLY;COUNT=10",
+            "EXDATE:20261001T101500"
+          ]
+        },
+        "summary": "Recurring Course"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam00014a815d59",
+          "summary": "Esame: Computer Security",
+          "description": "Non iscritto all'appello",
+          "start": {
+            "dateTime": "2027-01-20T09:00:00+01:00"
+          },
+          "end": {
+            "dateTime": "2027-01-20T12:00:00+01:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "8"
+        },
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam0002f826929e",
+          "summary": "Esame: Computer Security",
+          "description": "Iscritto all'appello",
+          "start": {
+            "dateTime": "2027-02-10T09:00:00+01:00"
+          },
+          "end": {
+            "dateTime": "2027-02-10T12:00:00+01:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "8"
+        },
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam0003a35d0abd",
+          "summary": "Esame: Computer Security",
+          "description": "Non iscritto all'appello",
+          "start": {
+            "dateTime": "2027-06-15T09:00:00+02:00"
+          },
+          "end": {
+            "dateTime": "2027-06-15T12:00:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "8"
+        },
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "update",
+        "event_id": "eam000417cf3868",
+        "body": {
+          "id": "eam000417cf3868",
+          "summary": "Esame: Machine Learning",
+          "description": "Iscritto",
+          "start": {
+            "date": "2027-01-25"
+          },
+          "end": {
+            "date": "2027-01-26"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "3"
+        },
+        "summary": "Esame: Machine Learning"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam000681fa3461",
+          "summary": "Esame: Machine Learning",
+          "description": "Non iscritto",
+          "start": {
+            "date": "2027-07-01"
+          },
+          "end": {
+            "date": "2027-07-02"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "8"
+        },
+        "summary": "Esame: Machine Learning"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam0007699263df",
+          "summary": "Esame: Software Engineering (Prova finale)",
+          "description": "Iscritto",
+          "start": {
+            "dateTime": "2027-02-20T14:00:00+01:00"
+          },
+          "end": {
+            "dateTime": "2027-02-20T17:00:00+01:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "11"
+        },
+        "summary": "Esame: Software Engineering (Prova finale)"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "1144126polimiit9b5ce8a7",
+          "summary": "DESIGN AND IMPLEMENTATION OF MOBILE APPLICATIONS",
+          "description": "Non iscritto\n\nAA: 2025",
+          "start": {
+            "dateTime": "2026-09-08T08:45:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "end": {
+            "dateTime": "2026-09-08T12:45:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "8"
+        },
+        "summary": "DESIGN AND IMPLEMENTATION OF MOBILE APPLICATIONS"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "dead0002",
+          "summary": "Consegna tesi",
+          "description": "",
+          "start": {
+            "date": "2026-11-02"
+          },
+          "end": {
+            "date": "2026-11-03"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Consegna tesi"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "polimica5ba87c93d42f8a",
+          "summary": "Machine Learning",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-28T10:30:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-28T12:30:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Machine Learning"
+      },
+      {
+        "action": "delete",
+        "event_id": "eam0001",
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "delete",
+        "event_id": "stale0001",
+        "summary": "Old managed lecture"
+      },
+      {
+        "action": "delete",
+        "event_id": "oldsem001",
+        "summary": "Last semester lecture"
+      }
+    ],
+    "files_raw": {
+      "course_colors.json": "{\n    \"Computer Security\": \"7\",\n    \"Old Course\": \"4\"\n}",
+      "exam_states.json": "{\n    \"Esame: Machine Learning (2027-01-25)\": {\n        \"color\": \"3\",\n        \"subscribed\": true\n    },\n    \"Esame: Computer Security (2026-06-15)\": {\n        \"color\": \"11\",\n        \"subscribed\": true\n    },\n    \"Esame: Computer Security (2027-01-20)\": {\n        \"color\": \"8\",\n        \"subscribed\": false\n    },\n    \"Esame: Computer Security (2027-02-10)\": {\n        \"color\": \"8\",\n        \"subscribed\": false\n    },\n    \"Esame: Computer Security (2027-06-15)\": {\n        \"color\": \"8\",\n        \"subscribed\": false\n    },\n    \"Esame: Machine Learning (2027-07-01)\": {\n        \"color\": \"8\",\n        \"subscribed\": false\n    },\n    \"Esame: Software Engineering (Prova finale) (2027-02-20)\": {\n        \"color\": \"11\",\n        \"subscribed\": true\n    },\n    \"DESIGN AND IMPLEMENTATION OF MOBILE APPLICATIONS (2026-09-08)\": {\n        \"color\": \"8\",\n        \"subscribed\": false\n    }\n}",
+      "deadline_colors.json": "{\n    \"Esame di laurea\": \"4\"\n}"
+    }
+  },
+  "existing-lectures": {
+    "mutations": [
+      {
+        "action": "update",
+        "event_id": "lec0002",
+        "body": {
+          "id": "lec0002",
+          "summary": "Machine Learning",
+          "description": "Aula 26.1.1",
+          "start": {
+            "dateTime": "2026-09-21T10:30:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-21T12:30:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "7"
+        },
+        "summary": "Machine Learning"
+      },
+      {
+        "action": "update",
+        "event_id": "lec0003",
+        "body": {
+          "id": "lec0003",
+          "summary": "Computer Security",
+          "description": "Aula 3.1.2",
+          "start": {
+            "dateTime": "2026-09-22T08:15:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-22T10:15:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "location": "Edificio 3",
+          "colorId": "7"
+        },
+        "summary": "Computer Security"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "lec0004",
+          "summary": "Data Bases 2",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-23T14:15:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-23T16:15:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "7"
+        },
+        "summary": "Data Bases 2"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "lec0005",
+          "summary": "Algoritmi e Principi dell'Informatica",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-24T09:00:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-24T11:00:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "10"
+        },
+        "summary": "Algoritmi e Principi dell'Informatica"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "1172587polimiit284d64df",
+          "summary": "SENSOR SYSTEMS",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-25T10:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "end": {
+            "dateTime": "2026-09-25T12:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "location": "Milano - Aula: 9.1.2",
+          "colorId": "5"
+        },
+        "summary": "SENSOR SYSTEMS"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "lecrec01",
+          "summary": "Recurring Course",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-17T10:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "end": {
+            "dateTime": "2026-09-17T12:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "recurrence": [
+            "RRULE:FREQ=WEEKLY;COUNT=10",
+            "EXDATE:20261001T101500"
+          ],
+          "colorId": "5"
+        },
+        "summary": "Recurring Course"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam00014a815d59",
+          "summary": "Esame: Computer Security",
+          "description": "Non iscritto all'appello",
+          "start": {
+            "dateTime": "2027-01-20T09:00:00+01:00"
+          },
+          "end": {
+            "dateTime": "2027-01-20T12:00:00+01:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam0002f826929e",
+          "summary": "Esame: Computer Security",
+          "description": "Iscritto all'appello",
+          "start": {
+            "dateTime": "2027-02-10T09:00:00+01:00"
+          },
+          "end": {
+            "dateTime": "2027-02-10T12:00:00+01:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam0003a35d0abd",
+          "summary": "Esame: Computer Security",
+          "description": "Non iscritto all'appello",
+          "start": {
+            "dateTime": "2027-06-15T09:00:00+02:00"
+          },
+          "end": {
+            "dateTime": "2027-06-15T12:00:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "update",
+        "event_id": "eam000417cf3868",
+        "body": {
+          "id": "eam000417cf3868",
+          "summary": "Esame: Machine Learning",
+          "description": "Iscritto",
+          "start": {
+            "date": "2027-01-25"
+          },
+          "end": {
+            "date": "2027-01-26"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "11"
+        },
+        "summary": "Esame: Machine Learning"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam000681fa3461",
+          "summary": "Esame: Machine Learning",
+          "description": "Non iscritto",
+          "start": {
+            "date": "2027-07-01"
+          },
+          "end": {
+            "date": "2027-07-02"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Esame: Machine Learning"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam0007699263df",
+          "summary": "Esame: Software Engineering (Prova finale)",
+          "description": "Iscritto",
+          "start": {
+            "dateTime": "2027-02-20T14:00:00+01:00"
+          },
+          "end": {
+            "dateTime": "2027-02-20T17:00:00+01:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Esame: Software Engineering (Prova finale)"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "1144126polimiit9b5ce8a7",
+          "summary": "DESIGN AND IMPLEMENTATION OF MOBILE APPLICATIONS",
+          "description": "Non iscritto\n\nAA: 2025",
+          "start": {
+            "dateTime": "2026-09-08T08:45:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "end": {
+            "dateTime": "2026-09-08T12:45:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "DESIGN AND IMPLEMENTATION OF MOBILE APPLICATIONS"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "dead0002",
+          "summary": "Consegna tesi",
+          "description": "",
+          "start": {
+            "date": "2026-11-02"
+          },
+          "end": {
+            "date": "2026-11-03"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Consegna tesi"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "polimica5ba87c93d42f8a",
+          "summary": "Machine Learning",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-28T10:30:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-28T12:30:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "7"
+        },
+        "summary": "Machine Learning"
+      },
+      {
+        "action": "delete",
+        "event_id": "eam0001",
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "delete",
+        "event_id": "stale0001",
+        "summary": "Old managed lecture"
+      },
+      {
+        "action": "delete",
+        "event_id": "oldsem001",
+        "summary": "Last semester lecture"
+      }
+    ],
+    "files_raw": {
+      "course_colors.json": "{\n    \"Computer Security\": \"7\",\n    \"Old Course\": \"4\",\n    \"Machine Learning\": \"7\",\n    \"Data Bases 2\": \"7\",\n    \"Algoritmi e Principi dell'Informatica\": \"10\",\n    \"SENSOR SYSTEMS\": \"5\",\n    \"Recurring Course\": \"5\"\n}",
+      "exam_states.json": "{\n    \"Esame: Machine Learning (2027-01-25)\": {\n        \"color\": \"3\",\n        \"subscribed\": true\n    },\n    \"Esame: Computer Security (2026-06-15)\": {\n        \"color\": \"11\",\n        \"subscribed\": true\n    }\n}",
+      "deadline_colors.json": "{\n    \"Esame di laurea\": \"4\"\n}"
+    }
+  },
+  "existing-deadlines": {
+    "mutations": [
+      {
+        "action": "update",
+        "event_id": "lec0002",
+        "body": {
+          "id": "lec0002",
+          "summary": "Machine Learning",
+          "description": "Aula 26.1.1",
+          "start": {
+            "dateTime": "2026-09-21T10:30:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-21T12:30:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "2"
+        },
+        "summary": "Machine Learning"
+      },
+      {
+        "action": "update",
+        "event_id": "lec0003",
+        "body": {
+          "id": "lec0003",
+          "summary": "Computer Security",
+          "description": "Aula 3.1.2",
+          "start": {
+            "dateTime": "2026-09-22T08:15:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-22T10:15:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "location": "Edificio 3"
+        },
+        "summary": "Computer Security"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "lec0004",
+          "summary": "Data Bases 2",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-23T14:15:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-23T16:15:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Data Bases 2"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "lec0005",
+          "summary": "Algoritmi e Principi dell'Informatica",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-24T09:00:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-24T11:00:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Algoritmi e Principi dell'Informatica"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "1172587polimiit284d64df",
+          "summary": "SENSOR SYSTEMS",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-25T10:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "end": {
+            "dateTime": "2026-09-25T12:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "location": "Milano - Aula: 9.1.2"
+        },
+        "summary": "SENSOR SYSTEMS"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "lecrec01",
+          "summary": "Recurring Course",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-17T10:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "end": {
+            "dateTime": "2026-09-17T12:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "recurrence": [
+            "RRULE:FREQ=WEEKLY;COUNT=10",
+            "EXDATE:20261001T101500"
+          ]
+        },
+        "summary": "Recurring Course"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam00014a815d59",
+          "summary": "Esame: Computer Security",
+          "description": "Non iscritto all'appello",
+          "start": {
+            "dateTime": "2027-01-20T09:00:00+01:00"
+          },
+          "end": {
+            "dateTime": "2027-01-20T12:00:00+01:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam0002f826929e",
+          "summary": "Esame: Computer Security",
+          "description": "Iscritto all'appello",
+          "start": {
+            "dateTime": "2027-02-10T09:00:00+01:00"
+          },
+          "end": {
+            "dateTime": "2027-02-10T12:00:00+01:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam0003a35d0abd",
+          "summary": "Esame: Computer Security",
+          "description": "Non iscritto all'appello",
+          "start": {
+            "dateTime": "2027-06-15T09:00:00+02:00"
+          },
+          "end": {
+            "dateTime": "2027-06-15T12:00:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "update",
+        "event_id": "eam000417cf3868",
+        "body": {
+          "id": "eam000417cf3868",
+          "summary": "Esame: Machine Learning",
+          "description": "Iscritto",
+          "start": {
+            "date": "2027-01-25"
+          },
+          "end": {
+            "date": "2027-01-26"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "11"
+        },
+        "summary": "Esame: Machine Learning"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam000681fa3461",
+          "summary": "Esame: Machine Learning",
+          "description": "Non iscritto",
+          "start": {
+            "date": "2027-07-01"
+          },
+          "end": {
+            "date": "2027-07-02"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Esame: Machine Learning"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam0007699263df",
+          "summary": "Esame: Software Engineering (Prova finale)",
+          "description": "Iscritto",
+          "start": {
+            "dateTime": "2027-02-20T14:00:00+01:00"
+          },
+          "end": {
+            "dateTime": "2027-02-20T17:00:00+01:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Esame: Software Engineering (Prova finale)"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "1144126polimiit9b5ce8a7",
+          "summary": "DESIGN AND IMPLEMENTATION OF MOBILE APPLICATIONS",
+          "description": "Non iscritto\n\nAA: 2025",
+          "start": {
+            "dateTime": "2026-09-08T08:45:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "end": {
+            "dateTime": "2026-09-08T12:45:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "DESIGN AND IMPLEMENTATION OF MOBILE APPLICATIONS"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "dead0002",
+          "summary": "Consegna tesi",
+          "description": "",
+          "start": {
+            "date": "2026-11-02"
+          },
+          "end": {
+            "date": "2026-11-03"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "2"
+        },
+        "summary": "Consegna tesi"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "polimica5ba87c93d42f8a",
+          "summary": "Machine Learning",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-28T10:30:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-28T12:30:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          }
+        },
+        "summary": "Machine Learning"
+      },
+      {
+        "action": "delete",
+        "event_id": "eam0001",
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "delete",
+        "event_id": "stale0001",
+        "summary": "Old managed lecture"
+      },
+      {
+        "action": "delete",
+        "event_id": "oldsem001",
+        "summary": "Last semester lecture"
+      }
+    ],
+    "files_raw": {
+      "course_colors.json": "{\n    \"Computer Security\": \"7\",\n    \"Old Course\": \"4\"\n}",
+      "exam_states.json": "{\n    \"Esame: Machine Learning (2027-01-25)\": {\n        \"color\": \"3\",\n        \"subscribed\": true\n    },\n    \"Esame: Computer Security (2026-06-15)\": {\n        \"color\": \"11\",\n        \"subscribed\": true\n    }\n}",
+      "deadline_colors.json": "{\n    \"Esame di laurea\": \"4\",\n    \"Consegna tesi\": \"2\"\n}"
+    }
+  },
+  "existing-all-prune": {
+    "mutations": [
+      {
+        "action": "update",
+        "event_id": "lec0003",
+        "body": {
+          "id": "lec0003",
+          "summary": "Computer Security",
+          "description": "Aula 3.1.2",
+          "start": {
+            "dateTime": "2026-09-22T08:15:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-22T10:15:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "location": "Edificio 3",
+          "colorId": "7"
+        },
+        "summary": "Computer Security"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "lec0004",
+          "summary": "Data Bases 2",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-23T14:15:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-23T16:15:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "7"
+        },
+        "summary": "Data Bases 2"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "lec0005",
+          "summary": "Algoritmi e Principi dell'Informatica",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-24T09:00:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-24T11:00:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "10"
+        },
+        "summary": "Algoritmi e Principi dell'Informatica"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "1172587polimiit284d64df",
+          "summary": "SENSOR SYSTEMS",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-25T10:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "end": {
+            "dateTime": "2026-09-25T12:15:00+02:00",
+            "timeZone": "Europe/Rome"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "location": "Milano - Aula: 9.1.2",
+          "colorId": "5"
+        },
+        "summary": "SENSOR SYSTEMS"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam00014a815d59",
+          "summary": "Esame: Computer Security",
+          "description": "Non iscritto all'appello",
+          "start": {
+            "dateTime": "2027-01-20T09:00:00+01:00"
+          },
+          "end": {
+            "dateTime": "2027-01-20T12:00:00+01:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "8"
+        },
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam0002f826929e",
+          "summary": "Esame: Computer Security",
+          "description": "Iscritto all'appello",
+          "start": {
+            "dateTime": "2027-02-10T09:00:00+01:00"
+          },
+          "end": {
+            "dateTime": "2027-02-10T12:00:00+01:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "8"
+        },
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam0003a35d0abd",
+          "summary": "Esame: Computer Security",
+          "description": "Non iscritto all'appello",
+          "start": {
+            "dateTime": "2027-06-15T09:00:00+02:00"
+          },
+          "end": {
+            "dateTime": "2027-06-15T12:00:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "8"
+        },
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "update",
+        "event_id": "eam000417cf3868",
+        "body": {
+          "id": "eam000417cf3868",
+          "summary": "Esame: Machine Learning",
+          "description": "Iscritto",
+          "start": {
+            "date": "2027-01-25"
+          },
+          "end": {
+            "date": "2027-01-26"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "3"
+        },
+        "summary": "Esame: Machine Learning"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam000681fa3461",
+          "summary": "Esame: Machine Learning",
+          "description": "Non iscritto",
+          "start": {
+            "date": "2027-07-01"
+          },
+          "end": {
+            "date": "2027-07-02"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "8"
+        },
+        "summary": "Esame: Machine Learning"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "eam0007699263df",
+          "summary": "Esame: Software Engineering (Prova finale)",
+          "description": "Iscritto",
+          "start": {
+            "dateTime": "2027-02-20T14:00:00+01:00"
+          },
+          "end": {
+            "dateTime": "2027-02-20T17:00:00+01:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "11"
+        },
+        "summary": "Esame: Software Engineering (Prova finale)"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "dead0002",
+          "summary": "Consegna tesi",
+          "description": "",
+          "start": {
+            "date": "2026-11-02"
+          },
+          "end": {
+            "date": "2026-11-03"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "2"
+        },
+        "summary": "Consegna tesi"
+      },
+      {
+        "action": "insert",
+        "body": {
+          "id": "polimica5ba87c93d42f8a",
+          "summary": "Machine Learning",
+          "description": "",
+          "start": {
+            "dateTime": "2026-09-28T10:30:00+02:00"
+          },
+          "end": {
+            "dateTime": "2026-09-28T12:30:00+02:00"
+          },
+          "extendedProperties": {
+            "private": {
+              "polimi_sync_managed": "true"
+            }
+          },
+          "colorId": "7"
+        },
+        "summary": "Machine Learning"
+      },
+      {
+        "action": "delete",
+        "event_id": "lec0001",
+        "summary": "Computer Security"
+      },
+      {
+        "action": "delete",
+        "event_id": "lec0002",
+        "summary": "Lezione: Didattica - Machine Learning"
+      },
+      {
+        "action": "delete",
+        "event_id": "eam0001",
+        "summary": "Esame: Computer Security"
+      },
+      {
+        "action": "delete",
+        "event_id": "stale0001",
+        "summary": "Old managed lecture"
+      },
+      {
+        "action": "delete",
+        "event_id": "oldsem001",
+        "summary": "Last semester lecture"
+      }
+    ],
+    "files_raw": {
+      "course_colors.json": "{\n    \"Computer Security\": \"7\",\n    \"Old Course\": \"4\",\n    \"Data Bases 2\": \"7\",\n    \"Algoritmi e Principi dell'Informatica\": \"10\",\n    \"SENSOR SYSTEMS\": \"5\",\n    \"Machine Learning\": \"7\"\n}",
+      "exam_states.json": "{\n    \"Esame: Machine Learning (2027-01-25)\": {\n        \"color\": \"3\",\n        \"subscribed\": true\n    },\n    \"Esame: Computer Security (2026-06-15)\": {\n        \"color\": \"11\",\n        \"subscribed\": true\n    },\n    \"Esame: Computer Security (2027-01-20)\": {\n        \"color\": \"8\",\n        \"subscribed\": false\n    },\n    \"Esame: Computer Security (2027-02-10)\": {\n        \"color\": \"8\",\n        \"subscribed\": false\n    },\n    \"Esame: Computer Security (2027-06-15)\": {\n        \"color\": \"8\",\n        \"subscribed\": false\n    },\n    \"Esame: Machine Learning (2027-07-01)\": {\n        \"color\": \"8\",\n        \"subscribed\": false\n    },\n    \"Esame: Software Engineering (Prova finale) (2027-02-20)\": {\n        \"color\": \"11\",\n        \"subscribed\": true\n    }\n}",
+      "deadline_colors.json": "{\n    \"Esame di laurea\": \"4\",\n    \"Consegna tesi\": \"2\"\n}"
+    }
+  }
+}
