@@ -1,5 +1,5 @@
-"""Textual application: choose the calendars, edit preferences, preview the
-changes, apply them.
+"""Textual application: choose the calendars, edit the rules and preferences,
+preview the changes, apply them.
 
 The app only talks to the :class:`SyncWorkflow` phases and the
 :class:`PreferencesDraft` view model: no Calendar API calls, no file I/O.
@@ -17,7 +17,7 @@ from rich.text import Text
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding, BindingType
-from textual.containers import Horizontal
+from textual.containers import Horizontal, Vertical
 from textual.message import Message
 from textual.screen import Screen
 from textual.widgets import (
@@ -32,8 +32,10 @@ from textual.widgets import (
     TabPane,
 )
 
+from calendar_coloring.events import Event
 from calendar_coloring.palette import GoogleColor
 from calendar_coloring.profile import Profile
+from calendar_coloring.rules import Condition, Rule
 from calendar_coloring.sync.models import CalendarInfo, SyncPlan, SyncResult
 from calendar_coloring.sync.source import SourceCalendarNotFoundError
 from calendar_coloring.tui.model import (
@@ -42,6 +44,15 @@ from calendar_coloring.tui.model import (
     ItemStatus,
     PreferencesDraft,
 )
+from calendar_coloring.tui.rules import (
+    RuleForm,
+    TitlePreview,
+    count_matches,
+    describe,
+    preview,
+    suggest_prefix,
+    summary,
+)
 from calendar_coloring.tui.setup import (
     CalendarSetup,
     Role,
@@ -49,9 +60,11 @@ from calendar_coloring.tui.setup import (
     target_name_error,
 )
 from calendar_coloring.tui.widgets import (
+    KIND_LABELS,
     CalendarPicker,
     ColorPicker,
     PlanTree,
+    RuleEditor,
     plan_summary,
     swatch,
 )
@@ -59,13 +72,16 @@ from calendar_coloring.workflow import SyncOptions, SyncWorkflow
 
 Level = Literal["detail", "info", "warning", "error"]
 
-COURSES, EXAMS, DEADLINES, SYNC, SETUP = (
+COURSES, EXAMS, DEADLINES, SYNC, RULES, SETUP = (
     "courses",
     "exams",
     "deadlines",
     "sync",
+    "rules",
     "setup",
 )
+ENROLLMENT, EVENTS = "enrollment", "events"
+ENROLLMENT_ROWS = {"enrolled": "Enrolled", "not_enrolled": "Not enrolled"}
 EDITABLE_TABS = (COURSES, EXAMS, DEADLINES)
 
 _LEVEL_STYLES: dict[Level, str] = {
@@ -169,6 +185,23 @@ def _status(status: ItemStatus) -> Text:
     return Text(label, style=style)
 
 
+def _condition(condition: Condition | None) -> Text:
+    if condition is None:
+        return Text("— not detected", style="dim")
+    return Text(describe(condition))
+
+
+def _preview_cells(item: TitlePreview) -> list[Text]:
+    kind = (
+        Text(KIND_LABELS[item.kind])
+        if item.kind is not None
+        else Text("unmatched", style="yellow")
+    )
+    # Unmatched events have no name: their title stands in, dimmed.
+    name = Text(item.name) if item.kind is not None else Text(item.title, style="dim")
+    return [kind, Text(str(item.count), style="dim"), name, Text(item.title)]
+
+
 def _subscribed(subscribed: bool | None) -> Text:
     if subscribed is None:
         return Text("?", style="dim")
@@ -223,6 +256,23 @@ class CalendarColoringApp(App[None]):
     #setup-notes {
         margin-top: 1;
     }
+    #rules-panes {
+        height: 1fr;
+    }
+    #rules-left {
+        width: 2fr;
+    }
+    #rules-right {
+        width: 3fr;
+    }
+    #enrollment-table {
+        height: 4;
+        margin-top: 1;
+    }
+    #rules-summary {
+        height: auto;
+        padding: 0 1;
+    }
     """
 
     BINDINGS: ClassVar[list[BindingType]] = [
@@ -231,6 +281,11 @@ class CalendarColoringApp(App[None]):
         Binding("ctrl+s", "save", "Save"),
         Binding("p", "preview", "Preview"),
         Binding("a", "apply", "Apply"),
+        Binding("n", "new_rule", "New rule"),
+        Binding("e", "edit_rule", "Edit"),
+        Binding("d", "delete_rule", "Delete"),
+        Binding("left_square_bracket", "move_rule(-1)", "Up"),
+        Binding("right_square_bracket", "move_rule(1)", "Down"),
         Binding("q", "quit", "Quit"),
     ]
 
@@ -252,6 +307,9 @@ class CalendarColoringApp(App[None]):
         self.plan: SyncPlan | None = None
         self.busy = False
         self._calendar_list: list[CalendarInfo] | None = None
+        self._events: list[Event] = []
+        """The syncable source events, as shown in the Rules tab."""
+        self._title_previews: list[TitlePreview] = []
         self._quit_requested = False
         self.sub_title = self._base_sub_title
         reporter.connect(self)
@@ -304,6 +362,20 @@ class CalendarColoringApp(App[None]):
                 yield PlanTree(id="plan-tree")
                 yield ProgressBar(id="progress", show_eta=False)
                 yield RichLog(id="log", wrap=True)
+            with TabPane("Rules", id=RULES):
+                yield Static(
+                    "The first rule matching an event decides what it is. "
+                    "n: new rule · e/Enter: edit · d: delete · [ ]: move · "
+                    "Enter on an event: new rule from its title.",
+                    classes="help",
+                )
+                with Horizontal(id="rules-panes"):
+                    with Vertical(id="rules-left"):
+                        yield self._table(RULES, "#", "Kind", "Condition", "Title")
+                        yield self._table(ENROLLMENT, "Exam enrollment", "Condition")
+                    with Vertical(id="rules-right"):
+                        yield Static(id="rules-summary")
+                        yield self._table(EVENTS, "Kind", "×", "Name", "Event title")
             with TabPane("Setup", id=SETUP):
                 yield Static(
                     "The calendar to read your timetable from, and the one to "
@@ -371,6 +443,8 @@ class CalendarColoringApp(App[None]):
             return None if self.busy or self.draft is None else True
         if action == "apply":
             return None if self.busy or self.plan is None else True
+        if action in ("new_rule", "edit_rule", "delete_rule", "move_rule"):
+            return self.draft is not None and tab == RULES
         return True
 
     def on_tabbed_content_tab_activated(self) -> None:
@@ -398,6 +472,7 @@ class CalendarColoringApp(App[None]):
             self._fill(EXAMS, [self._exam_cells(r) for r in draft.exam_rows()])
         if self.options.target.includes_deadlines:
             self._fill(DEADLINES, [self._color_cells(r) for r in draft.deadline_rows()])
+        self._refresh_rules(draft)
         dirty = " • unsaved changes" if draft.is_dirty else ""
         self.sub_title = self._base_sub_title + dirty
 
@@ -425,6 +500,43 @@ class CalendarColoringApp(App[None]):
             _status(row.status),
         ]
 
+    def _refresh_rules(self, draft: PreferencesDraft) -> None:
+        profile = draft.session.profile
+        self._fill(
+            RULES,
+            [
+                (
+                    str(index),
+                    [
+                        Text(str(index + 1), style="dim"),
+                        Text(KIND_LABELS[rule.kind]),
+                        Text(describe(rule.condition)),
+                        Text(rule.title),
+                    ],
+                )
+                for index, rule in enumerate(profile.rules)
+            ],
+        )
+        self._fill(
+            ENROLLMENT,
+            [
+                (key, [Text(label), _condition(getattr(profile.enrollment, key))])
+                for key, label in ENROLLMENT_ROWS.items()
+            ],
+        )
+        self._events = self.workflow.syncable_events(draft.session)
+        self._title_previews = preview(self._events, profile.classifier)
+        self._ui.query_one("#rules-summary", Static).update(
+            summary(self._title_previews)
+        )
+        self._fill(
+            EVENTS,
+            [
+                (str(index), _preview_cells(item))
+                for index, item in enumerate(self._title_previews)
+            ],
+        )
+
     def _cursor_key(self, tab: str) -> str | None:
         table = self._ui.query_one(f"#{tab}-table", DataTable)
         if table.row_count == 0:
@@ -447,8 +559,13 @@ class CalendarColoringApp(App[None]):
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         tab = (event.data_table.id or "").removesuffix("-table")
-        if event.row_key.value is not None:
-            self._pick_color(tab, event.row_key.value)
+        key = event.row_key.value
+        if key is None:
+            return
+        if tab in (RULES, ENROLLMENT, EVENTS):
+            self._edit_rules_row(tab, key)
+        else:
+            self._pick_color(tab, key)
 
     def action_pick_color(self) -> None:
         tab = self._active_tab()
@@ -516,6 +633,122 @@ class CalendarColoringApp(App[None]):
             )
             return
         self.exit()
+
+    # -- rules ---------------------------------------------------------------
+
+    def _rules_table(self) -> str:
+        """The table of the Rules tab the keys act on (the rules by default)."""
+        focused = self.focused.id if self.focused is not None else None
+        for tab in (ENROLLMENT, EVENTS):
+            if focused == f"{tab}-table":
+                return tab
+        return RULES
+
+    def action_new_rule(self) -> None:
+        self._open_rule_editor("New rule", RuleForm(), None)
+
+    def action_edit_rule(self) -> None:
+        tab = self._rules_table()
+        key = self._cursor_key(tab)
+        if key is not None:
+            self._edit_rules_row(tab, key)
+
+    def _edit_rules_row(self, tab: str, key: str) -> None:
+        draft = self.draft
+        if draft is None:
+            return
+        profile = draft.session.profile
+        if tab == RULES:
+            index = int(key)
+            self._open_rule_editor(
+                f"Rule {index + 1}", RuleForm.of(profile.rules[index]), index
+            )
+        elif tab == ENROLLMENT:
+            self.push_screen(
+                RuleEditor(
+                    f"Exams the student is {ENROLLMENT_ROWS[key].lower()} to",
+                    RuleForm.of_condition(getattr(profile.enrollment, key)),
+                    self._match_counter(),
+                    len(self._events),
+                    with_kind=False,
+                ),
+                partial(self._enrollment_saved, key),
+            )
+        else:
+            title = self._title_previews[int(key)].title
+            titles = [item.title for item in self._title_previews]
+            prefix = suggest_prefix(title, titles)
+            self._open_rule_editor("New rule", RuleForm(value=prefix or title), None)
+
+    def _open_rule_editor(self, title: str, form: RuleForm, index: int | None) -> None:
+        draft = self.draft
+        if draft is None:
+            return
+        self.push_screen(
+            RuleEditor(title, form, self._match_counter(), len(self._events)),
+            partial(self._rule_saved, index),
+        )
+
+    def _match_counter(self) -> partial[int]:
+        return partial(count_matches, events=self._events)
+
+    def _rule_saved(self, index: int | None, rule: Rule | None) -> None:
+        if rule is None or self.draft is None:
+            return
+        rules = list(self.draft.session.profile.rules)
+        if index is None:
+            rules.append(rule)
+        else:
+            rules[index] = rule
+        self._set_rules(rules, cursor=len(rules) - 1 if index is None else index)
+
+    def _enrollment_saved(self, key: str, rule: Rule | None) -> None:
+        if rule is None or self.draft is None:
+            return
+        profile = self.draft.session.profile
+        profile.enrollment = replace(profile.enrollment, **{key: rule.condition})
+        self._rules_changed()
+
+    def action_delete_rule(self) -> None:
+        draft = self.draft
+        tab = self._rules_table()
+        key = self._cursor_key(tab)
+        if draft is None or key is None or tab == EVENTS:
+            return
+        profile = draft.session.profile
+        if tab == ENROLLMENT:
+            profile.enrollment = replace(profile.enrollment, **{key: None})
+            self._rules_changed()
+            return
+        rules = list(profile.rules)
+        del rules[int(key)]
+        self._set_rules(rules, cursor=int(key))
+
+    def action_move_rule(self, delta: int) -> None:
+        key = self._cursor_key(RULES)
+        if self.draft is None or key is None or self._rules_table() != RULES:
+            return
+        rules = list(self.draft.session.profile.rules)
+        index = int(key)
+        other = index + delta
+        if not 0 <= other < len(rules):
+            return
+        rules[index], rules[other] = rules[other], rules[index]
+        self._set_rules(rules, cursor=other)
+
+    def _set_rules(self, rules: list[Rule], cursor: int) -> None:
+        assert self.draft is not None
+        self.draft.session.profile.rules = rules
+        self._rules_changed()
+        table = self._ui.query_one(f"#{RULES}-table", DataTable)
+        if rules:
+            table.move_cursor(row=min(cursor, len(rules) - 1))
+
+    def _rules_changed(self) -> None:
+        """Classifies the events again: courses, exams and deadlines change."""
+        assert self.draft is not None
+        self.draft.session = self.workflow.rediscover(self.draft.session)
+        self._preferences_changed()
 
     # -- calendars -----------------------------------------------------------
 

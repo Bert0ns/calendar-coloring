@@ -10,12 +10,14 @@ pytest.importorskip("textual")
 from textual.pilot import Pilot
 from textual.widgets import (
     Button,
+    Checkbox,
     DataTable,
     Input,
     Label,
     OptionList,
     ProgressBar,
     RichLog,
+    Select,
     Static,
     TabbedContent,
 )
@@ -24,12 +26,18 @@ from calendar_coloring.cli.main import build_workflow
 from calendar_coloring.config import Config
 from calendar_coloring.palette import GoogleColor
 from calendar_coloring.profile import CalendarSettings
+from calendar_coloring.rules import EventKind, MatchKind
 from calendar_coloring.suggestions import suggest_color
 from calendar_coloring.sync.source import GoogleCalendarSource
 from calendar_coloring.targets import SyncTarget
 from calendar_coloring.tui.app import CalendarColoringApp, TuiReporter
 from calendar_coloring.tui.setup import CalendarSetup, Role
-from calendar_coloring.tui.widgets import CalendarPicker, ColorPicker, PlanTree
+from calendar_coloring.tui.widgets import (
+    CalendarPicker,
+    ColorPicker,
+    PlanTree,
+    RuleEditor,
+)
 from calendar_coloring.workflow import SyncOptions
 
 SOURCE = [
@@ -161,7 +169,12 @@ def test_target_selects_the_tabs(config: Config) -> None:
 
     async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
         tabs = app.query_one(TabbedContent)
-        assert [pane.id for pane in tabs.query("TabPane")] == ["exams", "sync", "setup"]
+        assert [pane.id for pane in tabs.query("TabPane")] == [
+            "exams",
+            "sync",
+            "rules",
+            "setup",
+        ]
         assert app.check_action("toggle_subscription", ()) is True
 
     drive(app, scenario)
@@ -778,5 +791,277 @@ def test_target_picker_without_calendars_asks_for_a_name(config: Config) -> None
         await pilot.press(*"Mine", "enter")
         await settle(app, pilot)
         assert app.calendars.target == "Mine"
+
+    drive(app, scenario)
+
+
+# -- rules --------------------------------------------------------------------
+
+SEMINAR = {
+    "id": "sem00001",
+    "summary": "Seminario: AI Safety",
+    "start": {"date": "2026-10-10"},
+    "end": {"date": "2026-10-11"},
+}
+
+
+async def open_rules(
+    app: CalendarColoringApp, pilot: Pilot[None], table: str = "rules"
+) -> DataTable[Any]:
+    app.query_one(TabbedContent).active = "rules"
+    await pilot.pause()
+    widget = app.query_one(f"#{table}-table", DataTable)
+    widget.focus()
+    await pilot.pause()
+    return widget
+
+
+def row_texts(app: CalendarColoringApp, table: str) -> list[list[str]]:
+    widget = app.query_one(f"#{table}-table", DataTable)
+    return [
+        [cell.plain for cell in widget.get_row_at(index)]
+        for index in range(widget.row_count)
+    ]
+
+
+def editor(app: CalendarColoringApp) -> RuleEditor:
+    assert isinstance(app.screen, RuleEditor)
+    return app.screen
+
+
+def status_of(form: RuleEditor) -> str:
+    return str(form.query_one("#rule-status", Static).render())
+
+
+def test_rules_tab_shows_rules_enrollment_and_preview(config: Config) -> None:
+    app = make_app(config, FakeCalendarGateway({"Src": [*SOURCE, SEMINAR]}))
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        await open_rules(app, pilot)
+        assert row_texts(app, "rules")[0] == [
+            "1",
+            "Exam",
+            "title starts with 'Esame: '",
+            "{title}",
+        ]
+        assert len(row_texts(app, "rules")) == 6
+        assert row_texts(app, "enrollment") == [
+            ["Enrolled", "description starts with 'Iscritto'"],
+            ["Not enrolled", "description starts with 'Non iscritto'"],
+        ]
+        assert text_of(app, "#rules-summary") == (
+            "2 lectures · 2 exams · 1 deadlines · 1 unmatched"
+        )
+        assert row_texts(app, "events")[-1] == [
+            "unmatched",
+            "1",
+            "Seminario: AI Safety",
+            "Seminario: AI Safety",
+        ]
+        assert app.check_action("new_rule", ()) is True
+        app.set_focus(None)
+        app.query_one(TabbedContent).active = "courses"
+        await pilot.pause()
+        assert app.check_action("new_rule", ()) is False
+
+    drive(app, scenario)
+
+
+def test_new_rule_from_an_unmatched_event(config: Config) -> None:
+    app = make_app(config, FakeCalendarGateway({"Src": [*SOURCE, SEMINAR]}))
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        events = await open_rules(app, pilot, "events")
+        events.move_cursor(row=events.row_count - 1)
+        await pilot.press("enter")
+        await pilot.pause()
+        form = editor(app)
+        assert form.query_one("#rule-value", Input).value == "Seminario: "
+        assert "Matches 1 of 6 events." in status_of(form)
+        form.query_one("#rule-kind", Select).value = EventKind.DEADLINE
+        form.query_one("#rule-title", Input).value = "🎤 {name}"
+        await pilot.pause()
+        await pilot.press("ctrl+s")
+        await pilot.pause()
+
+        assert app.screen is app.screen_stack[0]
+        assert row_texts(app, "rules")[-1] == [
+            "7",
+            "Deadline",
+            "title starts with 'Seminario: '",
+            "🎤 {name}",
+        ]
+        assert "0 unmatched" in text_of(app, "#rules-summary")
+        assert app.draft is not None and app.draft.is_dirty
+        assert cells(app, "deadlines", "AI Safety")[0] == "AI Safety"
+
+        await pilot.press("ctrl+s")
+        await pilot.pause()
+        assert saved(config, "rules")[-1] == {
+            "kind": "deadline",
+            "field": "title",
+            "match": "starts_with",
+            "value": "Seminario: ",
+            "ignore_case": False,
+            "title": "🎤 {name}",
+        }
+
+        app.action_preview()
+        await settle(app, pilot)
+        summaries = {m.summary for m in app.plan.mutations} if app.plan else set()
+        assert "🎤 AI Safety" in summaries
+
+    drive(app, scenario)
+
+
+def test_edit_a_rule_and_discard_the_preview(config: Config) -> None:
+    app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        app.action_preview()
+        await settle(app, pilot)
+        assert app.plan is not None
+
+        await open_rules(app, pilot)
+        await pilot.press("e")
+        await pilot.pause()
+        form = editor(app)
+        assert form.query_one("#rule-value", Input).value == "Esame: "
+        form.query_one("#rule-title", Input).value = "📝 {name}"
+        await pilot.pause()
+        await pilot.click("#save-rule")
+        await pilot.pause()
+
+        assert row_texts(app, "rules")[0][3] == "📝 {name}"
+        assert app.plan is None
+        assert "Preferences changed" in summary_text(app)
+
+    drive(app, scenario)
+
+
+def test_invalid_rule_cannot_be_saved(config: Config) -> None:
+    app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        await open_rules(app, pilot)
+        await pilot.press("n")
+        await pilot.pause()
+        form = editor(app)
+        assert "the value to match is empty" in status_of(form)
+        assert form.query_one("#save-rule", Button).disabled
+        form.query_one("#rule-match", Select).value = MatchKind.REGEX
+        form.query_one("#rule-value", Input).value = "(unclosed"
+        await pilot.pause()
+        assert "invalid regular expression" in status_of(form)
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen is form
+        form.query_one("#rule-ignore-case", Checkbox).value = True
+        await pilot.pause()
+        await pilot.click("#cancel-rule")
+        await pilot.pause()
+
+        assert app.screen is app.screen_stack[0]
+        assert len(row_texts(app, "rules")) == 6
+        assert app.draft is not None and not app.draft.is_dirty
+
+    drive(app, scenario)
+
+
+def test_delete_and_move_rules(config: Config) -> None:
+    app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        rules = await open_rules(app, pilot)
+        rules.move_cursor(row=2)  # lectures by title
+        await pilot.press("d")
+        await pilot.pause()
+        assert len(row_texts(app, "rules")) == 5
+        assert app.draft is not None and app.draft.session.catalog.courses == ()
+        assert rules.cursor_row == 2
+
+        rules.move_cursor(row=0)
+        await pilot.press("right_square_bracket")
+        await pilot.pause()
+        assert [row[2] for row in row_texts(app, "rules")[:2]] == [
+            "a category is 'Esame'",
+            "title starts with 'Esame: '",
+        ]
+        assert rules.cursor_row == 1
+        await pilot.press("left_square_bracket", "left_square_bracket")
+        await pilot.pause()
+        assert row_texts(app, "rules")[0][2] == "title starts with 'Esame: '"
+        assert rules.cursor_row == 0
+
+    drive(app, scenario)
+
+
+def test_edit_and_clear_the_exam_enrollment(config: Config) -> None:
+    app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        assert cells(app, "exams", "CS (2027-01-20)")[2] == "enrolled"
+        await open_rules(app, pilot, "enrollment")
+        await pilot.press("enter")
+        await pilot.pause()
+        form = editor(app)
+        assert not form.query("#rule-kind")
+        assert not form.query("#rule-title")
+        form.query_one("#rule-value", Input).value = "Registered"
+        await pilot.pause()
+        await pilot.press("ctrl+s")
+        await pilot.pause()
+        assert row_texts(app, "enrollment")[0][1] == (
+            "description starts with 'Registered'"
+        )
+        assert cells(app, "exams", "CS (2027-01-20)")[2] == ""
+
+        enrollment = app.query_one("#enrollment-table", DataTable)
+        enrollment.focus()
+        enrollment.move_cursor(row=1)
+        await pilot.press("d")
+        await pilot.pause()
+        assert row_texts(app, "enrollment")[1][1] == "— not detected"
+        # Moving only applies to the rules.
+        await pilot.press("right_square_bracket")
+        await pilot.pause()
+        assert row_texts(app, "rules")[0][2] == "title starts with 'Esame: '"
+
+    drive(app, scenario)
+
+
+def test_rules_keys_on_the_events_table(config: Config) -> None:
+    app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        await open_rules(app, pilot, "events")
+        await pilot.press("d")
+        await pilot.pause()
+        assert len(row_texts(app, "rules")) == 6
+        await pilot.press("e")
+        await pilot.pause()
+        assert editor(app).query_one("#rule-value", Input).value == (
+            "Lezione: Didattica - "
+        )
+        await pilot.press("escape")
+        await pilot.pause()
+        assert len(row_texts(app, "rules")) == 6
+
+    drive(app, scenario)
+
+
+def test_rules_actions_need_a_session(config: Config) -> None:
+    app = make_app(config, FakeCalendarGateway())
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        assert app.draft is None
+        app.action_new_rule()
+        app.action_edit_rule()
+        app.action_delete_rule()
+        app.action_move_rule(1)
+        app._rule_saved(None, None)
+        app._enrollment_saved("enrolled", None)
+        await pilot.pause()
+        assert len(app.screen_stack) == 1
 
     drive(app, scenario)
