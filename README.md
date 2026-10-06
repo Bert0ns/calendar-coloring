@@ -187,7 +187,7 @@ per kind of event:
 | **Deadlines** | Same as Courses, for deadlines.                                                                                                                                                                                                                                         |
 | **Sync**      | **Preview changes** lists the inserts, updates and deletes; expand an event to see its color, time and original title. **Apply** writes them to Google Calendar with a progress bar.                                                                                    |
 | **Rules**     | The [rules](#profile-and-rules) that decide what each event is, and the exam enrollment conditions. A live preview shows how every event title is classified. Add, edit, delete and reorder rules, or press Enter on an unmatched event to start a rule from its title. |
-| **Setup**     | The calendar to read from and the one to write to. Pick them from your Google calendars, or type a new name for the target: it's created when you apply. Saved to the profile right away.                                                                               |
+| **Setup**     | The calendar to read from and the one to write to. Pick them from your Google calendars, or type a new name for the target: it's created when you apply, in the time zone set here. Saved to the profile right away.                                                    |
 
 The **Status** column shows where each value comes from:
 
@@ -284,7 +284,11 @@ the first sync, so you can see and edit the rules.
 {
   "version": 1,
   "name": "Politecnico di Milano",
-  "calendars": { "source": "Calendar", "target": "Calendar Colored" },
+  "calendars": {
+    "source": "Calendar",
+    "target": "Calendar Colored",
+    "time_zone": null
+  },
   "rules": [
     {
       "kind": "exam",
@@ -324,6 +328,11 @@ the first sync, so you can see and edit the rules.
   "deadlines": { "Esame di laurea": "4" }
 }
 ```
+
+When the target calendar doesn't exist, the first sync creates it in
+`time_zone`, an [IANA time zone](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)
+such as `Europe/Rome`. With `null`, it gets the time zone of your primary
+Google calendar.
 
 ### Rules
 

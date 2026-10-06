@@ -16,7 +16,7 @@ from calendar_coloring.sync.models import (
     MutationResult,
 )
 
-DEFAULT_TIME_ZONE = "Europe/Rome"
+FALLBACK_TIME_ZONE = "UTC"
 WRITABLE_ACCESS_ROLES = frozenset({"owner", "writer"})
 MAX_BATCH_SIZE = 50  # Google recommends at most 50 calls per batch
 BATCH_RETRIES = 3
@@ -64,7 +64,12 @@ class GoogleCalendarClient:
             if not page_token:
                 return
 
-    def create_calendar(self, name: str, time_zone: str = DEFAULT_TIME_ZONE) -> str:
+    def create_calendar(self, name: str, time_zone: str | None = None) -> str:
+        """Creates a calendar, in the time zone of the user's primary calendar
+        unless ``time_zone`` is given."""
+        if time_zone is None:
+            primary = self.service.calendars().get(calendarId="primary").execute()
+            time_zone = str(primary.get("timeZone") or FALLBACK_TIME_ZONE)
         body = {"summary": name, "timeZone": time_zone}
         return str(self.service.calendars().insert(body=body).execute()["id"])
 

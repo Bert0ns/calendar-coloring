@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import replace
 from functools import partial
-from typing import ClassVar, Literal
+from typing import Any, ClassVar, Literal
 
 from rich.text import Text
 from textual import work
@@ -34,7 +34,7 @@ from textual.widgets import (
 
 from calendar_coloring.events import Event
 from calendar_coloring.palette import GoogleColor
-from calendar_coloring.profile import Profile
+from calendar_coloring.profile import Profile, time_zone_error
 from calendar_coloring.rules import Condition, Rule
 from calendar_coloring.sync.models import CalendarInfo, SyncPlan, SyncResult
 from calendar_coloring.sync.source import SourceCalendarNotFoundError
@@ -65,6 +65,7 @@ from calendar_coloring.tui.widgets import (
     ColorPicker,
     PlanTree,
     RuleEditor,
+    TextPrompt,
     plan_summary,
     swatch,
 )
@@ -183,6 +184,14 @@ def _result_headline(result: SyncResult) -> Text:
 def _status(status: ItemStatus) -> Text:
     label, style = _STATUS_STYLES[status]
     return Text(label, style=style)
+
+
+def _time_zone_label(time_zone: str | None) -> str:
+    return time_zone or "the time zone of your primary Google calendar"
+
+
+def _optional_time_zone_error(value: str) -> str | None:
+    return time_zone_error(value) if value.strip() else None
 
 
 def _condition(condition: Condition | None) -> Text:
@@ -390,6 +399,10 @@ class CalendarColoringApp(App[None]):
                     yield Static("Target", classes="setup-label")
                     yield Static(id="setup-target", classes="setup-value")
                     yield Button("Change…", id="change-target")
+                with Horizontal(classes="setup-row"):
+                    yield Static("Time zone", classes="setup-label")
+                    yield Static(id="setup-time-zone", classes="setup-value")
+                    yield Button("Change…", id="change-time-zone")
                 yield Static(id="setup-notes", classes="help")
         yield Footer()
 
@@ -425,6 +438,7 @@ class CalendarColoringApp(App[None]):
             no_profile or self.setup.fixed_source is not None
         )
         self._ui.query_one("#change-target", Button).disabled = no_profile
+        self._ui.query_one("#change-time-zone", Button).disabled = no_profile
         self.refresh_bindings()
 
     def _set_plan(self, plan: SyncPlan | None) -> None:
@@ -756,6 +770,12 @@ class CalendarColoringApp(App[None]):
         source = self.setup.fixed_source or f"'{self.calendars.source}'"
         self._ui.query_one("#setup-source", Static).update(source)
         self._ui.query_one("#setup-target", Static).update(f"'{self.calendars.target}'")
+        self._ui.query_one("#setup-time-zone", Static).update(
+            Text.assemble(
+                _time_zone_label(self.calendars.time_zone),
+                (" · used when the target calendar is created", "dim"),
+            )
+        )
         notes = []
         if self.setup.fixed_source is not None:
             notes.append(
@@ -815,11 +835,27 @@ class CalendarColoringApp(App[None]):
             self._commit_calendar(role, name)
 
     def _commit_calendar(self, role: Role, name: str) -> None:
-        """Uses the calendar from now on and saves it in the profile, without
-        the preferences not saved yet."""
+        self._commit_settings(
+            {role.value: name}, f"The {role.value} calendar is now '{name}'."
+        )
+        self._discard_plan("Calendars changed: preview the changes again.")
+
+    def _time_zone_chosen(self, value: str | None) -> None:
+        if value is None:
+            return
+        time_zone = value.strip() or None
+        if time_zone != self.calendars.time_zone:
+            self._commit_settings(
+                {"time_zone": time_zone},
+                f"New calendars use {_time_zone_label(time_zone)}.",
+            )
+
+    def _commit_settings(self, changes: dict[str, Any], message: str) -> None:
+        """Uses the calendar settings from now on and saves them in the profile,
+        without the preferences not saved yet."""
         assert self.profile is not None
-        self.calendars = replace(self.calendars, **{role.value: name})
-        saved = replace(self.profile.calendars, **{role.value: name})
+        self.calendars = replace(self.calendars, **changes)
+        saved = replace(self.profile.calendars, **changes)
         if self.draft is not None:
             profile = self.draft.set_calendars(saved)
             self.draft.session = replace(
@@ -833,8 +869,7 @@ class CalendarColoringApp(App[None]):
         except OSError as exc:
             self._write_log("error", f"Could not save the profile: {exc}")
         else:
-            self.notify(f"The {role.value} calendar is now '{name}'.")
-        self._discard_plan("Calendars changed: preview the changes again.")
+            self.notify(message)
         self._refresh_setup()
 
     # -- phases (run in worker threads) --------------------------------------
@@ -848,6 +883,16 @@ class CalendarColoringApp(App[None]):
             self.choose_calendar(Role.SOURCE)
         elif event.button.id == "change-target":
             self.choose_calendar(Role.TARGET)
+        elif event.button.id == "change-time-zone":
+            self.push_screen(
+                TextPrompt(
+                    "Time zone of the target calendar, when it's created",
+                    self.calendars.time_zone or "",
+                    placeholder="e.g. Europe/Rome · empty: your primary calendar's",
+                    validate=_optional_time_zone_error,
+                ),
+                self._time_zone_chosen,
+            )
 
     def action_preview(self) -> None:
         if not self.busy and self.draft is not None:

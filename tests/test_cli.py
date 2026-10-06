@@ -268,6 +268,7 @@ def test_env_overrides_the_profile_calendars(
     assert saved(Config(profile_path=isolated_env / "profile.json"), "calendars") == {
         "source": "Uni",
         "target": "Uni colored",
+        "time_zone": None,
     }
 
 
