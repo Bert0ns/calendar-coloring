@@ -238,19 +238,37 @@ def run_tui(
     options: SyncOptions,
     config: Config,
     gateway: CalendarGateway,
-    source: EventSource | None = None,
 ) -> int:
     """Runs the terminal UI with already-built adapters."""
     from calendar_coloring.tui.app import CalendarColoringApp, TuiReporter
+    from calendar_coloring.tui.setup import CalendarSetup, Role
 
     reporter = TuiReporter()
     calendars = calendars_to_sync(config)
+
+    def source_for(name: str) -> EventSource:
+        return build_source(config, replace(calendars, source=name), gateway, reporter)
+
+    overrides = {
+        role: variable
+        for role, variable, value in (
+            (Role.SOURCE, "SOURCE_CALENDAR_NAME", config.source_calendar_name),
+            (Role.TARGET, "TARGET_CALENDAR_NAME", config.target_calendar_name),
+        )
+        if value
+    }
+    setup = CalendarSetup(
+        calendars=calendars,
+        source_for=source_for,
+        fixed_source=(
+            f"iCal feed at {mask_url(config.source_ical_url)}"
+            if config.source_ical_url
+            else None
+        ),
+        overrides=overrides,
+    )
     app = CalendarColoringApp(
-        build_workflow(config, gateway, reporter),
-        source or build_source(config, calendars, gateway, reporter),
-        options,
-        calendars.target,
-        reporter,
+        build_workflow(config, gateway, reporter), setup, options, reporter
     )
     app.run()
     return EXIT_OK

@@ -1,4 +1,5 @@
-"""Textual application: edit preferences, preview the changes, apply them.
+"""Textual application: choose the calendars, edit preferences, preview the
+changes, apply them.
 
 The app only talks to the :class:`SyncWorkflow` phases and the
 :class:`PreferencesDraft` view model: no Calendar API calls, no file I/O.
@@ -8,6 +9,7 @@ Slow phases run in worker threads; the reporter posts back thread-safely.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from functools import partial
 from typing import ClassVar, Literal
 
@@ -31,15 +33,23 @@ from textual.widgets import (
 )
 
 from calendar_coloring.palette import GoogleColor
-from calendar_coloring.sync.models import SyncPlan, SyncResult
-from calendar_coloring.sync.source import EventSource
+from calendar_coloring.profile import Profile
+from calendar_coloring.sync.models import CalendarInfo, SyncPlan, SyncResult
+from calendar_coloring.sync.source import SourceCalendarNotFoundError
 from calendar_coloring.tui.model import (
     ColorRow,
     ExamRow,
     ItemStatus,
     PreferencesDraft,
 )
+from calendar_coloring.tui.setup import (
+    CalendarSetup,
+    Role,
+    calendar_choices,
+    target_name_error,
+)
 from calendar_coloring.tui.widgets import (
+    CalendarPicker,
     ColorPicker,
     PlanTree,
     plan_summary,
@@ -49,7 +59,13 @@ from calendar_coloring.workflow import SyncOptions, SyncWorkflow
 
 Level = Literal["detail", "info", "warning", "error"]
 
-COURSES, EXAMS, DEADLINES, SYNC = "courses", "exams", "deadlines", "sync"
+COURSES, EXAMS, DEADLINES, SYNC, SETUP = (
+    "courses",
+    "exams",
+    "deadlines",
+    "sync",
+    "setup",
+)
 EDITABLE_TABS = (COURSES, EXAMS, DEADLINES)
 
 _LEVEL_STYLES: dict[Level, str] = {
@@ -191,6 +207,22 @@ class CalendarColoringApp(App[None]):
         height: 8;
         border: round $panel;
     }
+    .setup-row {
+        height: auto;
+        margin: 1 0 0 0;
+    }
+    .setup-label {
+        width: 10;
+        padding: 1 1;
+        text-style: bold;
+    }
+    .setup-value {
+        width: 1fr;
+        padding: 1 1;
+    }
+    #setup-notes {
+        margin-top: 1;
+    }
     """
 
     BINDINGS: ClassVar[list[BindingType]] = [
@@ -205,23 +237,28 @@ class CalendarColoringApp(App[None]):
     def __init__(
         self,
         workflow: SyncWorkflow,
-        source: EventSource,
+        setup: CalendarSetup,
         options: SyncOptions,
-        target_name: str,
         reporter: TuiReporter,
     ) -> None:
         super().__init__()
         self.workflow = workflow
-        self.source = source
+        self.setup = setup
+        self.calendars = setup.calendars
+        self.source = setup.source_for(setup.calendars.source)
         self.options = options
-        self.target_name = target_name
+        self.profile: Profile | None = None
         self.draft: PreferencesDraft | None = None
         self.plan: SyncPlan | None = None
         self.busy = False
+        self._calendar_list: list[CalendarInfo] | None = None
         self._quit_requested = False
-        self._base_sub_title = f"{source.label} ➔ '{target_name}'"
         self.sub_title = self._base_sub_title
         reporter.connect(self)
+
+    @property
+    def _base_sub_title(self) -> str:
+        return f"{self.source.label} ➔ '{self.calendars.target}'"
 
     # -- layout --------------------------------------------------------------
 
@@ -267,6 +304,21 @@ class CalendarColoringApp(App[None]):
                 yield PlanTree(id="plan-tree")
                 yield ProgressBar(id="progress", show_eta=False)
                 yield RichLog(id="log", wrap=True)
+            with TabPane("Setup", id=SETUP):
+                yield Static(
+                    "The calendar to read your timetable from, and the one to "
+                    "write the colored copy to. Choices are saved right away.",
+                    classes="help",
+                )
+                with Horizontal(classes="setup-row"):
+                    yield Static("Source", classes="setup-label")
+                    yield Static(id="setup-source", classes="setup-value")
+                    yield Button("Change…", id="change-source")
+                with Horizontal(classes="setup-row"):
+                    yield Static("Target", classes="setup-label")
+                    yield Static(id="setup-target", classes="setup-value")
+                    yield Button("Change…", id="change-target")
+                yield Static(id="setup-notes", classes="help")
         yield Footer()
 
     @staticmethod
@@ -279,8 +331,7 @@ class CalendarColoringApp(App[None]):
 
     def on_mount(self) -> None:
         self._ui.query_one("#progress").display = False
-        for table in self._ui.query(DataTable):
-            table.loading = True
+        self._refresh_setup()
         self.load_session()
 
     # -- state ---------------------------------------------------------------
@@ -297,6 +348,11 @@ class CalendarColoringApp(App[None]):
         self.busy = busy
         self._ui.query_one("#preview", Button).disabled = busy or self.draft is None
         self._ui.query_one("#apply", Button).disabled = busy or self.plan is None
+        no_profile = busy or self.profile is None
+        self._ui.query_one("#change-source", Button).disabled = (
+            no_profile or self.setup.fixed_source is not None
+        )
+        self._ui.query_one("#change-target", Button).disabled = no_profile
         self.refresh_bindings()
 
     def _set_plan(self, plan: SyncPlan | None) -> None:
@@ -378,13 +434,14 @@ class CalendarColoringApp(App[None]):
 
     def _preferences_changed(self) -> None:
         self._quit_requested = False
+        self._discard_plan("Preferences changed: preview the changes again.")
+        self._refresh_tables()
+
+    def _discard_plan(self, reason: str) -> None:
         if self.plan is not None:
             self._set_plan(None)
-            self._ui.query_one("#plan-summary", Static).update(
-                "Preferences changed: preview the changes again."
-            )
+            self._ui.query_one("#plan-summary", Static).update(reason)
             self._ui.query_one(PlanTree).clear()
-        self._refresh_tables()
 
     # -- editing -------------------------------------------------------------
 
@@ -460,6 +517,93 @@ class CalendarColoringApp(App[None]):
             return
         self.exit()
 
+    # -- calendars -----------------------------------------------------------
+
+    def _refresh_setup(self) -> None:
+        source = self.setup.fixed_source or f"'{self.calendars.source}'"
+        self._ui.query_one("#setup-source", Static).update(source)
+        self._ui.query_one("#setup-target", Static).update(f"'{self.calendars.target}'")
+        notes = []
+        if self.setup.fixed_source is not None:
+            notes.append(
+                "The events come from an iCal feed, which is set outside the "
+                "profile: the source can't be changed here."
+            )
+        for role, variable in self.setup.overrides.items():
+            notes.append(
+                f"{variable} is set: it replaces the saved {role.value} calendar "
+                "every time the tool starts."
+            )
+        self._ui.query_one("#setup-notes", Static).update("\n".join(notes))
+        self.sub_title = self._base_sub_title + (
+            " • unsaved changes"
+            if self.draft is not None and self.draft.is_dirty
+            else ""
+        )
+
+    @work(exclusive=True, group="calendar")
+    async def choose_calendar(self, role: Role) -> None:
+        if self._calendar_list is None:
+            self._set_busy(True)
+            try:
+                self._calendar_list = await asyncio.to_thread(
+                    self.workflow.list_calendars
+                )
+            except Exception as exc:
+                self._write_log("error", f"Could not list your calendars: {exc}")
+                return
+            finally:
+                self._set_busy(False)
+        calendars = self._calendar_list
+        fixed = self.setup.fixed_source is not None
+        choices = calendar_choices(calendars, role, self.calendars, fixed)
+        if role is Role.SOURCE:
+            picker = CalendarPicker("Calendar to read from", choices)
+        else:
+            picker = CalendarPicker(
+                "Calendar to write to",
+                choices,
+                partial(
+                    target_name_error,
+                    calendars=calendars,
+                    current=self.calendars,
+                    fixed_source=fixed,
+                ),
+            )
+        self.push_screen(picker, partial(self._calendar_chosen, role))
+
+    def _calendar_chosen(self, role: Role, name: str | None) -> None:
+        if name is None or name == getattr(self.calendars, role.value):
+            return
+        if role is Role.SOURCE:
+            # Committed once its events are loaded.
+            self.load_session(source_name=name)
+        else:
+            self._commit_calendar(role, name)
+
+    def _commit_calendar(self, role: Role, name: str) -> None:
+        """Uses the calendar from now on and saves it in the profile, without
+        the preferences not saved yet."""
+        assert self.profile is not None
+        self.calendars = replace(self.calendars, **{role.value: name})
+        saved = replace(self.profile.calendars, **{role.value: name})
+        if self.draft is not None:
+            profile = self.draft.set_calendars(saved)
+            self.draft.session = replace(
+                self.draft.session, target_name=self.calendars.target
+            )
+        else:
+            self.profile.calendars = saved
+            profile = self.profile
+        try:
+            self.workflow.save_profile(profile)
+        except OSError as exc:
+            self._write_log("error", f"Could not save the profile: {exc}")
+        else:
+            self.notify(f"The {role.value} calendar is now '{name}'.")
+        self._discard_plan("Calendars changed: preview the changes again.")
+        self._refresh_setup()
+
     # -- phases (run in worker threads) --------------------------------------
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -467,6 +611,10 @@ class CalendarColoringApp(App[None]):
             self.action_preview()
         elif event.button.id == "apply":
             self.action_apply()
+        elif event.button.id == "change-source":
+            self.choose_calendar(Role.SOURCE)
+        elif event.button.id == "change-target":
+            self.choose_calendar(Role.TARGET)
 
     def action_preview(self) -> None:
         if not self.busy and self.draft is not None:
@@ -479,17 +627,38 @@ class CalendarColoringApp(App[None]):
             self.apply_changes()
 
     @work(exclusive=True, group="calendar")
-    async def load_session(self) -> None:
+    async def load_session(self, source_name: str | None = None) -> None:
+        """Loads the events, from the calendar ``source_name`` if given (then
+        the new source calendar), keeping the edits not saved yet."""
+        source = (
+            self.source if source_name is None else self.setup.source_for(source_name)
+        )
         self._set_busy(True)
+        for table in self._ui.query(DataTable):
+            table.loading = True
         try:
+            if self.profile is None:
+                self.profile = await asyncio.to_thread(self.workflow.load_profile)
             session = await asyncio.to_thread(
-                self.workflow.load, self.options, self.source, self.target_name
+                self.workflow.load,
+                self.options,
+                source,
+                self.calendars.target,
+                self.profile,
             )
+        except SourceCalendarNotFoundError as exc:
+            self._write_log("error", f"{exc} Choose it in the Setup tab.")
+            self._ui.query_one(TabbedContent).active = SETUP
         except Exception as exc:
             self._write_log("error", f"Could not load the source events: {exc}")
         else:
-            self.draft = PreferencesDraft(session)
+            if source_name is not None:
+                self.source = source
+                self._commit_calendar(Role.SOURCE, source_name)
+            saved = self.draft.saved_profile if self.draft is not None else None
+            self.draft = PreferencesDraft(session, saved)
             self._refresh_tables()
+            self._refresh_setup()
         for table in self._ui.query(DataTable):
             table.loading = False
         self._set_busy(False)

@@ -4,11 +4,15 @@ from collections.abc import Sequence
 from typing import Protocol
 
 from calendar_coloring.events import Event
-from calendar_coloring.sync.models import Mutation, MutationResult
+from calendar_coloring.sync.models import CalendarInfo, Mutation, MutationResult
 
 
 class CalendarGateway(Protocol):
     """Port to a calendar backend (implemented by the Google client)."""
+
+    def list_calendars(self) -> list[CalendarInfo]:
+        """The calendars in the user's calendar list."""
+        ...
 
     def get_calendar_id_by_name(self, name: str) -> str | None: ...
 

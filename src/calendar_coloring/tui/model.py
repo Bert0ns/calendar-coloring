@@ -13,6 +13,7 @@ from enum import Enum
 from calendar_coloring.events import Enrollment, ExamOccurrence
 from calendar_coloring.palette import GoogleColor
 from calendar_coloring.preferences import ExamPreference, Preferences
+from calendar_coloring.profile import CalendarSettings, Profile
 from calendar_coloring.resolution import fill_missing_exam_preferences
 from calendar_coloring.suggestions import (
     default_exam_color,
@@ -74,30 +75,47 @@ def _status(current: object, saved: object) -> ItemStatus:
 
 
 class PreferencesDraft:
-    """Edits the preferences of a session, remembering what was saved."""
+    """Edits the profile of a session, remembering what was saved.
 
-    def __init__(self, session: SyncSession) -> None:
+    :param saved: the profile as saved, when the session's profile already
+        has unsaved changes (e.g. the events were reloaded from another source).
+    """
+
+    def __init__(self, session: SyncSession, saved: Profile | None = None) -> None:
         self.session = session
-        self._saved = copy.deepcopy(session.preferences)
+        self._saved = copy.deepcopy(saved if saved is not None else session.profile)
 
     @property
     def preferences(self) -> Preferences:
         return self.session.preferences
 
     @property
+    def saved_profile(self) -> Profile:
+        return copy.deepcopy(self._saved)
+
+    @property
     def is_dirty(self) -> bool:
         """True if there are changes not saved yet."""
-        return self.preferences != self._saved
+        return self.session.profile != self._saved
 
     def mark_saved(self) -> None:
-        self._saved = copy.deepcopy(self.preferences)
+        self._saved = copy.deepcopy(self.session.profile)
+
+    def set_calendars(self, calendars: CalendarSettings) -> Profile:
+        """Changes the calendars, which are saved right away: returns the profile
+        to save, with the new calendars but without the unsaved edits."""
+        self.session.profile.calendars = copy.deepcopy(calendars)
+        self._saved.calendars = copy.deepcopy(calendars)
+        return self.saved_profile
 
     # -- rows ----------------------------------------------------------------
 
     def course_rows(self) -> list[ColorRow]:
         return [
             self._color_row(
-                name, self.preferences.course_colors, self._saved.course_colors
+                name,
+                self.preferences.course_colors,
+                self._saved.preferences.course_colors,
             )
             for name in self.session.catalog.courses
         ]
@@ -105,7 +123,9 @@ class PreferencesDraft:
     def deadline_rows(self) -> list[ColorRow]:
         return [
             self._color_row(
-                name, self.preferences.deadline_colors, self._saved.deadline_colors
+                name,
+                self.preferences.deadline_colors,
+                self._saved.preferences.deadline_colors,
             )
             for name in self.session.catalog.deadlines
         ]
@@ -173,7 +193,7 @@ class PreferencesDraft:
         chosen = self.preferences.exam(exam)
         applied = effective.exam(exam)
         if chosen is not None:
-            status = _status(chosen, self._saved.exam(exam))
+            status = _status(chosen, self._saved.preferences.exam(exam))
         elif applied is not None:
             status = ItemStatus.SUGGESTED
         else:

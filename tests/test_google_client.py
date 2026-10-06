@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from calendar_coloring.google_client import GoogleCalendarClient
-from calendar_coloring.sync.models import Mutation, MutationAction
+from calendar_coloring.sync.models import CalendarInfo, Mutation, MutationAction
 
 
 def make_client(sleeps: list[float] | None = None):
@@ -207,3 +207,28 @@ def test_failed_chunk_does_not_affect_other_chunks() -> None:
     results = client.batch_mutate_events("cal", MUTATIONS, batch_size=2)
 
     assert [r.ok for r in results] == [False, False, True]
+
+
+def test_list_calendars_follows_pagination_and_reads_access() -> None:
+    client, service = make_client()
+    service.calendarList().list().execute.side_effect = [
+        {
+            "items": [
+                {"id": "me", "summary": "Me", "accessRole": "owner", "primary": True},
+                {"id": "uni", "summary": "Polimi", "accessRole": "reader"},
+            ],
+            "nextPageToken": "p2",
+        },
+        {
+            "items": [
+                {"id": "shared", "summary": "Shared", "accessRole": "writer"},
+                {"id": "busy", "accessRole": "freeBusyReader"},
+            ]
+        },
+    ]
+    assert client.list_calendars() == [
+        CalendarInfo("me", "Me", writable=True, primary=True),
+        CalendarInfo("uni", "Polimi", writable=False),
+        CalendarInfo("shared", "Shared", writable=True),
+        CalendarInfo("busy", "busy", writable=False),
+    ]

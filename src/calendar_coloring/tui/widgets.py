@@ -1,7 +1,9 @@
-"""Reusable TUI pieces: color swatches, the color picker and the plan view."""
+"""Reusable TUI pieces: color swatches, the color and calendar pickers and the
+plan view."""
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 from typing import ClassVar
 
 from rich.text import Text
@@ -9,7 +11,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding, BindingType
 from textual.containers import Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Label, OptionList, Tree
+from textual.widgets import Input, Label, OptionList, Tree
 from textual.widgets.option_list import Option
 
 from calendar_coloring.events import Event
@@ -21,6 +23,7 @@ from calendar_coloring.sync.models import (
     MutationAction,
     SyncPlan,
 )
+from calendar_coloring.tui.setup import CalendarChoice
 
 ACTION_STYLES = {
     MutationAction.INSERT: ("+", "Insert", "green"),
@@ -96,6 +99,99 @@ class ColorPicker(ModalScreen[GoogleColor | None]):
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         event.stop()
         self.dismiss(GoogleColor.from_id(str(event.option.id)))
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class CalendarPicker(ModalScreen[str | None]):
+    """Modal list of calendars. With ``validate_new``, a new calendar name can
+    also be typed. Dismisses with the chosen name, or ``None`` when cancelled."""
+
+    BINDINGS: ClassVar[list[BindingType]] = [Binding("escape", "cancel", "Cancel")]
+
+    DEFAULT_CSS = """
+    CalendarPicker {
+        align: center middle;
+    }
+    CalendarPicker > Vertical {
+        width: 64;
+        height: auto;
+        border: thick $accent;
+        background: $surface;
+        padding: 0 1;
+    }
+    CalendarPicker OptionList {
+        height: auto;
+        max-height: 16;
+    }
+    CalendarPicker #calendar-error {
+        color: $error;
+    }
+    """
+
+    def __init__(
+        self,
+        title: str,
+        choices: Sequence[CalendarChoice],
+        validate_new: Callable[[str], str | None] | None = None,
+    ) -> None:
+        super().__init__()
+        self.title_text = title
+        self.choices = list(choices)
+        self.validate_new = validate_new
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label(Text(self.title_text, style="bold"))
+            if self.choices:
+                yield OptionList(
+                    *(
+                        Option(
+                            Text.assemble(
+                                choice.name,
+                                (f"  {choice.note}" if choice.note else "", "dim"),
+                            ),
+                            id=str(index),
+                            disabled=not choice.allowed,
+                        )
+                        for index, choice in enumerate(self.choices)
+                    )
+                )
+            else:
+                yield Label(Text("No calendars found.", style="dim"))
+            if self.validate_new is not None:
+                yield Input(
+                    placeholder="…or type the name of a new calendar",
+                    id="new-calendar",
+                )
+                yield Label("", id="calendar-error")
+
+    def on_mount(self) -> None:
+        current = next(
+            (i for i, c in enumerate(self.choices) if c.note.startswith("current")),
+            None,
+        )
+        if self.choices:
+            options = self.query_one(OptionList)
+            if current is not None:
+                options.highlighted = current
+            options.focus()
+        elif self.validate_new is not None:
+            self.query_one(Input).focus()
+
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        event.stop()
+        self.dismiss(self.choices[int(str(event.option.id))].name)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        event.stop()
+        assert self.validate_new is not None
+        error = self.validate_new(event.value)
+        if error is not None:
+            self.query_one("#calendar-error", Label).update(error)
+            return
+        self.dismiss(event.value.strip())
 
     def action_cancel(self) -> None:
         self.dismiss(None)

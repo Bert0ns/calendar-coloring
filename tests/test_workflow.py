@@ -1,14 +1,16 @@
 from unittest.mock import MagicMock
 
 import pytest
-from conftest import FakeCalendarGateway, profile_repository, saved
+from conftest import FakeCalendarGateway, profile_repository, save_profile, saved
 
 from calendar_coloring.catalog import Catalog
 from calendar_coloring.config import Config
 from calendar_coloring.palette import GoogleColor
 from calendar_coloring.preferences import Preferences
+from calendar_coloring.profile import CalendarSettings, Profile
 from calendar_coloring.reporting import NullReporter
 from calendar_coloring.sync import (
+    CalendarInfo,
     GoogleCalendarSource,
     SourceCalendarNotFoundError,
     SyncService,
@@ -236,3 +238,33 @@ def test_complete_save_and_apply_a_preview(config: Config) -> None:
     assert saved(config, "exams") == {
         "CS (2027-01-20)": {"color": "11", "subscribed": True}
     }
+
+
+def test_load_discovers_with_a_given_profile(config: Config) -> None:
+    save_profile(config, courses={"CS": "3"})
+    gateway = FakeCalendarGateway({"Src": SOURCE})
+    workflow = make_workflow(config, gateway).workflow
+    profile = Profile(rules=[])  # e.g. edited in the TUI, not saved
+
+    session = workflow.load(
+        SyncOptions(), GoogleCalendarSource(gateway, "Src"), "Tgt", profile
+    )
+
+    assert session.profile is profile
+    assert session.catalog == Catalog()
+
+
+def test_profile_and_calendar_list(config: Config) -> None:
+    gateway = FakeCalendarGateway({"Src": SOURCE, "Tgt": []})
+    gateway.read_only = {"Src"}
+    workflow = make_workflow(config, gateway).workflow
+
+    profile = workflow.load_profile()
+    profile.calendars = CalendarSettings(source="Src", target="Tgt")
+    workflow.save_profile(profile)
+
+    assert saved(config, "calendars") == {"source": "Src", "target": "Tgt"}
+    assert workflow.list_calendars() == [
+        CalendarInfo("id::Src", "Src", writable=False),
+        CalendarInfo("id::Tgt", "Tgt", writable=True),
+    ]
