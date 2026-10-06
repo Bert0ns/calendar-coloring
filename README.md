@@ -66,7 +66,7 @@ The sync is safe to repeat:
 
 ## Setup
 
-You need **Python 3.10+** and a Google account. The tool runs under your own
+You need **Python 3.12+** and a Google account. The tool runs under your own
 Google Cloud OAuth client, so nobody else ever sees your calendar.
 
 ### 1. Create Google API credentials
@@ -348,7 +348,7 @@ black .         # formatting
 pre-commit install
 ```
 
-CI runs all of the above on Python 3.10 and 3.12 and requires 95% test
+CI runs all of the above on Python 3.12 and 3.14 and requires 95% test
 coverage.
 
 ## Architecture
