@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import functools
+import importlib.util
 import os
 import sys
 from collections.abc import Sequence
@@ -48,6 +49,7 @@ class CliArgs:
     verbose: bool = False
     quiet: bool = False
     ical_url: str | None = None
+    tui: bool = False
 
 
 def _iso_date(value: str) -> date:
@@ -83,11 +85,18 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Suppress informational output (warnings and errors are still shown).",
     )
-    parser.add_argument(
+    editor = parser.add_mutually_exclusive_group()
+    editor.add_argument(
         "-i",
         "--interactive",
         action="store_true",
         help="Ask interactively about exam subscriptions and pick colors.",
+    )
+    editor.add_argument(
+        "--tui",
+        action="store_true",
+        help="Open the terminal UI to edit preferences, preview and apply the "
+        "sync. Needs the 'tui' extra: pip install '.[tui]'.",
     )
     parser.add_argument(
         "--ical",
@@ -117,7 +126,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def parse_args(argv: Sequence[str] | None = None) -> CliArgs:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.tui and args.dry_run:
+        parser.error("--tui always previews before applying: drop --dry-run")
     return CliArgs(
         options=SyncOptions(
             target=SyncTarget(args.target),
@@ -128,6 +140,7 @@ def parse_args(argv: Sequence[str] | None = None) -> CliArgs:
         verbose=args.verbose,
         quiet=args.quiet,
         ical_url=args.ical_url,
+        tui=args.tui,
     )
 
 
@@ -154,6 +167,21 @@ def describe_run(options: SyncOptions, config: Config, reporter: Reporter) -> No
         reporter.detail(f"Options: {', '.join(flags)}")
 
 
+def build_workflow(
+    config: Config,
+    gateway: CalendarGateway,
+    reporter: Reporter,
+    editor: PreferenceEditor | None = None,
+) -> SyncWorkflow:
+    repository = JsonPreferencesRepository(
+        config.course_colors_path,
+        config.exam_states_path,
+        config.deadline_colors_path,
+        on_warning=reporter.warning,
+    )
+    return SyncWorkflow(SyncService(gateway), repository, reporter, editor=editor)
+
+
 def run(
     options: SyncOptions,
     config: Config,
@@ -163,17 +191,8 @@ def run(
     source: EventSource | None = None,
 ) -> int:
     """Runs the sync with already-built adapters. Returns the process exit code."""
-    repository = JsonPreferencesRepository(
-        config.course_colors_path,
-        config.exam_states_path,
-        config.deadline_colors_path,
-        on_warning=reporter.warning,
-    )
-    workflow = SyncWorkflow(
-        SyncService(gateway),
-        repository,
-        reporter,
-        editor=editor or InteractivePreferenceEditor(),
+    workflow = build_workflow(
+        config, gateway, reporter, editor or InteractivePreferenceEditor()
     )
     describe_run(options, config, reporter)
     try:
@@ -186,6 +205,31 @@ def run(
         reporter.error(str(exc))
         return EXIT_FAILURE
     return EXIT_OK if outcome.succeeded else EXIT_FAILURE
+
+
+def run_tui(
+    options: SyncOptions,
+    config: Config,
+    gateway: CalendarGateway,
+    source: EventSource | None = None,
+) -> int:
+    """Runs the terminal UI with already-built adapters."""
+    from polimi_calendar_coloring.tui.app import PolimiCalendarApp, TuiReporter
+
+    reporter = TuiReporter()
+    app = PolimiCalendarApp(
+        build_workflow(config, gateway, reporter),
+        source or build_source(config, gateway, reporter),
+        options,
+        config.target_calendar_name,
+        reporter,
+    )
+    app.run()
+    return EXIT_OK
+
+
+def tui_available() -> bool:
+    return importlib.util.find_spec("textual") is not None
 
 
 def _can_open_browser_login() -> bool:
@@ -206,6 +250,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         write=functools.partial(print, flush=True),
     )
 
+    if cli.tui and not tui_available():
+        reporter.error(
+            "The terminal UI needs the optional 'textual' dependency. "
+            "Install it with: pip install 'polimi-calendar-coloring[tui]' "
+            "(or pip install '.[tui]' from the project directory)."
+        )
+        return EXIT_FAILURE
+
     authenticator = Authenticator(
         credentials_path=config.credentials_path,
         token_path=config.token_path,
@@ -220,4 +272,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_FAILURE
 
     gateway = GoogleCalendarClient.from_credentials(credentials)
+    if cli.tui:
+        return run_tui(cli.options, config, gateway)
     return run(cli.options, config, gateway, reporter)

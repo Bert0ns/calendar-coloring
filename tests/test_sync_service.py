@@ -117,3 +117,25 @@ def test_apply_reports_failures_and_counts_only_successes() -> None:
     assert not result.succeeded
     assert [f.mutation.event_id for f in result.failures] == ["event00002"]
     assert str(result.failures[0].error) == "boom"
+
+
+def test_apply_reports_progress_per_chunk() -> None:
+    from polimi_calendar_coloring.sync.service import PROGRESS_CHUNK_SIZE
+
+    events = [
+        {**SOURCE[0], "id": f"event{i:05d}"} for i in range(PROGRESS_CHUNK_SIZE + 3)
+    ]
+    gateway = FakeCalendarGateway({"Tgt": []})
+    service = SyncService(gateway)
+    progress: list[tuple[int, int]] = []
+
+    result = service.apply(
+        service.plan(PLANNER, events, service.find_target_calendar("Tgt")),
+        "Tgt",
+        on_progress=lambda done, total: progress.append((done, total)),
+    )
+
+    total = PROGRESS_CHUNK_SIZE + 3
+    assert result.inserted == total
+    assert progress == [(PROGRESS_CHUNK_SIZE, total), (total, total)]
+    assert [len(batch) for _, batch in gateway.batches] == [PROGRESS_CHUNK_SIZE, 3]

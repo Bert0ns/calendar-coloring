@@ -2,10 +2,23 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
+
 from polimi_calendar_coloring.events import Event
 from polimi_calendar_coloring.sync.gateway import CalendarGateway
-from polimi_calendar_coloring.sync.models import SyncPlan, SyncResult
+from polimi_calendar_coloring.sync.models import (
+    Mutation,
+    MutationResult,
+    SyncPlan,
+    SyncResult,
+)
 from polimi_calendar_coloring.sync.planner import SyncPlanner
+
+PROGRESS_CHUNK_SIZE = 50
+"""Mutations sent to the gateway per call, so that progress can be reported."""
+
+ProgressCallback = Callable[[int, int], None]
+"""Called with ``(completed, total)`` mutations while a plan is being applied."""
 
 
 class SyncService:
@@ -31,16 +44,32 @@ class SyncService:
         )
         return planner.plan(source_events, target_events, target_calendar_id)
 
-    def apply(self, plan: SyncPlan, target_name: str) -> SyncResult:
+    def apply(
+        self,
+        plan: SyncPlan,
+        target_name: str,
+        on_progress: ProgressCallback | None = None,
+    ) -> SyncResult:
         """Executes the plan, creating the target calendar if it does not exist."""
         calendar_id = plan.target_calendar_id
         created = False
         if not calendar_id:
             calendar_id = self.gateway.create_calendar(target_name)
             created = True
-        results = (
-            self.gateway.batch_mutate_events(calendar_id, plan.mutations)
-            if plan.mutations
-            else []
-        )
+        results = self._mutate(calendar_id, plan.mutations, on_progress)
         return SyncResult(results=tuple(results), created_target_calendar=created)
+
+    def _mutate(
+        self,
+        calendar_id: str,
+        mutations: Sequence[Mutation],
+        on_progress: ProgressCallback | None,
+    ) -> list[MutationResult]:
+        results: list[MutationResult] = []
+        total = len(mutations)
+        for start in range(0, total, PROGRESS_CHUNK_SIZE):
+            chunk = mutations[start : start + PROGRESS_CHUNK_SIZE]
+            results.extend(self.gateway.batch_mutate_events(calendar_id, chunk))
+            if on_progress is not None:
+                on_progress(len(results), total)
+        return results
