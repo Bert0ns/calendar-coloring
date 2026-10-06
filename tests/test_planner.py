@@ -12,6 +12,7 @@ from calendar_coloring.sync.planner import (
     MANAGED_PROPERTY,
     SyncPlanner,
     build_target_event,
+    has_current_tag,
     is_managed,
     needs_update,
     sanitize_event_id,
@@ -448,3 +449,42 @@ def test_start_day() -> None:
     assert start_day({"start": {"date": "2026-09-20"}}) == date(2026, 9, 20)
     assert start_day({"start": {"date": "garbage"}}) is None
     assert start_day({}) is None
+
+
+# -- legacy tag migration ----------------------------------------------------
+
+LEGACY = {"private": {"polimi_sync_managed": "true"}}
+
+
+def test_legacy_tag_is_managed_but_not_current() -> None:
+    legacy = {"extendedProperties": LEGACY}
+    both = {
+        "extendedProperties": {"private": {**LEGACY["private"], **MANAGED["private"]}}
+    }
+    assert is_managed(legacy)
+    assert not has_current_tag(legacy)
+    assert is_managed(both)
+    assert not has_current_tag(both)
+    assert has_current_tag({"extendedProperties": MANAGED})
+
+
+def test_legacy_tagged_events_are_updated_once_with_the_current_tag() -> None:
+    source = source_event()
+    legacy = synced_target(source)
+    legacy["extendedProperties"] = copy.deepcopy(LEGACY)
+
+    plan = planner().plan([source], [legacy], "cal")
+
+    [mutation] = plan.mutations
+    assert mutation.action is MutationAction.UPDATE
+    assert mutation.body is not None
+    assert mutation.body["extendedProperties"] == MANAGED
+    # Once migrated, nothing changes any more.
+    assert planner().plan([source], [mutation.body], "cal").mutations == ()
+
+
+def test_legacy_tagged_events_removed_from_the_source_are_deleted() -> None:
+    stale = {"id": "stale0001", "summary": "Old", "extendedProperties": LEGACY}
+    plan = planner().plan([], [stale], "cal")
+    assert [m.action for m in plan.mutations] == [MutationAction.DELETE]
+    assert plan.preserved_unmanaged == ()

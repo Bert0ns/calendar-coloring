@@ -440,6 +440,8 @@ assigns stay in sync.
 
 > Upgrading from an older version? `token.pickle` is migrated to `token.json`
 > automatically, and the old `GCP_TOKEN_PICKLE_B64` secret is still accepted.
+> Events synced by older versions carry an older tag: the next sync updates
+> each of them once to the current tag, then they're left alone again.
 
 ## Development
 
