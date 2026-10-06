@@ -1,16 +1,16 @@
 import pytest
 
-from polimi_calendar_coloring.catalog import Catalog, discover
-from polimi_calendar_coloring.events import Enrollment, ExamOccurrence
-from polimi_calendar_coloring.palette import GoogleColor
-from polimi_calendar_coloring.preferences import ExamPreference, Preferences
-from polimi_calendar_coloring.resolution import (
+from calendar_coloring.catalog import Catalog, discover
+from calendar_coloring.events import Enrollment, ExamOccurrence
+from calendar_coloring.palette import GoogleColor
+from calendar_coloring.preferences import ExamPreference, Preferences
+from calendar_coloring.resolution import (
     fill_missing_course_colors,
     fill_missing_exam_preferences,
     fill_missing_preferences,
 )
-from polimi_calendar_coloring.suggestions import suggest_color
-from polimi_calendar_coloring.targets import SyncTarget
+from calendar_coloring.suggestions import suggest_color
+from calendar_coloring.targets import SyncTarget
 
 RED = ExamPreference(GoogleColor.TOMATO, True)
 GREY = ExamPreference(GoogleColor.GRAPHITE, False)

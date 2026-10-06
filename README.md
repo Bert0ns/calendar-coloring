@@ -1,8 +1,8 @@
-# Polimi Calendar Coloring
+# Calendar Coloring
 
-Turn your Politecnico di Milano timetable into a color-coded Google Calendar.
+Turn your university timetable into a color-coded Google Calendar.
 
-The Polimi calendar is read-only and every event in it has the same color.
+The university calendar is read-only and every event in it has the same color.
 This tool copies it into a Google Calendar you own and colors each event:
 
 - **Exams**: red if you are enrolled (_Iscritto_), grey if you are not. Once you
@@ -37,7 +37,7 @@ schedule with GitHub Actions.
 ## How it works
 
 ```
-Polimi calendar ──read──▶ discover ──▶ preferences ──▶ plan ──▶ apply ──write──▶ your colored calendar
+Source calendar ──read──▶ discover ──▶ preferences ──▶ plan ──▶ apply ──write──▶ your colored calendar
 (Google or iCal)          courses,      saved colors,    diff of    batched
                           exams,        rules, or        inserts/   Google API
                           deadlines     your edits       updates/   calls
@@ -61,7 +61,7 @@ The sync is safe to repeat:
   alone.
 - Events removed from the source are removed from the target.
 - If an event isn't covered by the current run (for example, a lecture during
-  `polimi-calendar exams`), its existing color is kept.
+  `calendar-coloring exams`), its existing color is kept.
 - The target calendar is created on the first sync.
 
 ## Setup
@@ -85,12 +85,12 @@ Google Cloud OAuth client, so nobody else ever sees your calendar.
 ### 2. Install
 
 ```bash
-git clone https://github.com/Bert0ns/polimi-calendar-coloring.git
-cd polimi-calendar-coloring
+git clone https://github.com/Bert0ns/calendar-coloring.git
+cd calendar-coloring
 pip install ".[tui]"      # or `pip install .` if you don't want the terminal UI
 ```
 
-This installs the `polimi-calendar` command. `python -m polimi_calendar_coloring`
+This installs the `calendar-coloring` command. `python -m calendar_coloring`
 works too.
 
 ### 3. Configure
@@ -102,18 +102,18 @@ cp .env.example .env
 In `.env`, set the name of the calendar to read and the one to write:
 
 ```bash
-SOURCE_CALENDAR_NAME="Polimi 10123456"        # the Polimi calendar you subscribed to
-TARGET_CALENDAR_NAME="Polimi Colored"         # created on the first sync
+SOURCE_CALENDAR_NAME="My University"          # the calendar you subscribed to
+TARGET_CALENDAR_NAME="Colored Calendar"       # created on the first sync
 ```
 
-If you'd rather not subscribe to the Polimi calendar in Google, give the tool
+If you'd rather not subscribe to the source calendar in Google, give the tool
 your [iCal URL](#use-an-ical-url-as-the-source) instead. All settings are listed
 under [Configuration](#configuration).
 
 ### 4. First run
 
 ```bash
-polimi-calendar --dry-run
+calendar-coloring --dry-run
 ```
 
 Your browser opens so you can log in with Google, and the login is saved to
@@ -122,8 +122,8 @@ open by hand. The dry run then shows what a sync would change without touching
 anything.
 
 > [!IMPORTANT]
-> The colored calendar is a **copy** of the Polimi calendar. In Google Calendar,
-> hide the original Polimi calendar (untick it in the sidebar) to avoid seeing
+> The colored calendar is a **copy** of the original calendar. In Google Calendar,
+> hide the original calendar (untick it in the sidebar) to avoid seeing
 > every event twice. If you use an iCal URL as the source, there is nothing to
 > hide.
 
@@ -132,45 +132,49 @@ anything.
 ### Sync
 
 ```bash
-polimi-calendar             # exams, lectures and deadlines
-polimi-calendar exams       # only (re)color exams
-polimi-calendar lectures
-polimi-calendar deadlines
+calendar-coloring                       # open the terminal UI (the default)
+calendar-coloring --no-tui              # plain sync: exams, lectures and deadlines
+calendar-coloring exams --no-tui        # only (re)color exams
+calendar-coloring lectures --no-tui
+calendar-coloring deadlines --no-tui
 ```
 
-The sync is non-interactive, so it also runs fine from cron or CI. Anything
-new gets a color from the [coloring rules](#coloring-rules), and that color is
-saved for future runs.
+Run from a terminal, `calendar-coloring` opens the [terminal UI](#terminal-ui).
+It falls back to a plain sync when there is no terminal (cron, CI, a pipe),
+when you pass `-i`, `-n`/`--dry-run` or `--no-tui`, or when the optional `tui`
+extra isn't installed. The plain sync is non-interactive. Anything new gets a
+color from the [coloring rules](#coloring-rules), and that color is saved for
+future runs.
 
 Useful flags:
 
 ```bash
-polimi-calendar --dry-run                   # show the changes, write nothing
-polimi-calendar -v                          # explain the decision for every event
-polimi-calendar -q                          # only warnings and errors
-polimi-calendar --prune-before 2026-02-01   # also delete synced events before this date
+calendar-coloring --dry-run                   # plain sync, show the changes, write nothing
+calendar-coloring -v                          # explain the decision for every event
+calendar-coloring -q                          # only warnings and errors
+calendar-coloring --prune-before 2026-02-01   # also delete synced events before this date
 ```
 
 `--prune-before` is handy for dropping past semesters. Flags can be combined,
-e.g. `polimi-calendar lectures --dry-run -v`. The command exits with a non-zero
+e.g. `calendar-coloring lectures --dry-run -v`. The command exits with a non-zero
 status if any calendar operation fails.
 
 ### Terminal UI
 
 ```bash
-polimi-calendar --tui
-polimi-calendar exams --tui    # only the Exams and Sync tabs
+calendar-coloring
+calendar-coloring exams          # only the Exams and Sync tabs
 ```
 
-The TUI needs the `tui` extra (`pip install ".[tui]"`). It opens with one tab
+`--tui` forces it even when the shell doesn't look interactive. The TUI needs the `tui` extra (`pip install ".[tui]"`). It opens with one tab
 per kind of event:
 
-| Tab           | What you can do                                                                                                                                                                                      |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Courses**   | Every course in the source with its color. Pick a new color from the 11 Google colors.                                                                                                               |
-| **Exams**     | Every exam session with its date, what Polimi says (_Iscritto_ / _Non iscritto_), whether you're already subscribed to another date, and your subscription. Toggle the subscription or pick a color. |
-| **Deadlines** | Same as Courses, for deadlines.                                                                                                                                                                      |
-| **Sync**      | **Preview changes** lists the inserts, updates and deletes; expand an event to see its color, time and original title. **Apply** writes them to Google Calendar with a progress bar.                 |
+| Tab           | What you can do                                                                                                                                                                                                   |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Courses**   | Every course in the source with its color. Pick a new color from the 11 Google colors.                                                                                                                            |
+| **Exams**     | Every exam session with its date, what the source calendar says (_Iscritto_ / _Non iscritto_), whether you're already subscribed to another date, and your subscription. Toggle the subscription or pick a color. |
+| **Deadlines** | Same as Courses, for deadlines.                                                                                                                                                                                   |
+| **Sync**      | **Preview changes** lists the inserts, updates and deletes; expand an event to see its color, time and original title. **Apply** writes them to Google Calendar with a progress bar.                              |
 
 The **Status** column shows where each value comes from:
 
@@ -198,8 +202,8 @@ before applying.
 ### Interactive prompts
 
 ```bash
-polimi-calendar -i
-polimi-calendar exams -i
+calendar-coloring -i
+calendar-coloring exams -i
 ```
 
 Without the TUI you get a question-by-question flow before the sync: your
@@ -210,17 +214,17 @@ try choices without saving them.
 
 ### Use an iCal URL as the source
 
-You can read events straight from your personal Polimi iCal feed (e.g. from the
-Polimi app) instead of a Google calendar:
+You can read events straight from your personal iCal feed (e.g. from your
+university app) instead of a Google calendar:
 
 ```bash
-polimi-calendar --ical "https://ical-polimiapp.polimi.it/<id>/<token>"
+calendar-coloring --ical "https://ical.example.com/<id>/<token>"
 ```
 
 Or set it once in `.env`, where it takes precedence over `SOURCE_CALENDAR_NAME`:
 
 ```bash
-SOURCE_ICAL_URL="https://ical-polimiapp.polimi.it/<id>/<token>"
+SOURCE_ICAL_URL="https://ical.example.com/<id>/<token>"
 ```
 
 Recurring events (`RRULE`/`EXDATE`) are passed to Google, which expands them.
@@ -235,19 +239,20 @@ when the title prefixes are missing.
 ### Command reference
 
 ```
-polimi-calendar [all|exams|lectures|deadlines] [options]
+calendar-coloring [all|exams|lectures|deadlines] [options]
 ```
 
-| Option                                            | Description                                                                     |
-| ------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `all` (default), `exams`, `lectures`, `deadlines` | Which kinds of events to color and edit.                                        |
-| `--tui`                                           | Open the terminal UI. Can't be combined with `-i` or `--dry-run`.               |
-| `-i`, `--interactive`                             | Ask about subscriptions and colors before syncing.                              |
-| `-n`, `--dry-run`                                 | Show what would change. Nothing is written to the calendar or the JSON files.   |
-| `--ical URL`                                      | Read from an iCal feed. Overrides `SOURCE_CALENDAR_NAME` and `SOURCE_ICAL_URL`. |
-| `--prune-before YYYY-MM-DD`                       | Also delete synced events starting before this date.                            |
-| `-v`, `--verbose`                                 | Show the decision for every event.                                              |
-| `-q`, `--quiet`                                   | Show only warnings and errors.                                                  |
+| Option                                            | Description                                                                           |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `all` (default), `exams`, `lectures`, `deadlines` | Which kinds of events to color and edit.                                              |
+| `--tui`                                           | Open the terminal UI (default in a terminal). Not with `-i`, `--dry-run`, `--no-tui`. |
+| `--no-tui`                                        | Run a plain sync instead of opening the terminal UI.                                  |
+| `-i`, `--interactive`                             | Ask about subscriptions and colors before syncing.                                    |
+| `-n`, `--dry-run`                                 | Show what would change. Nothing is written to the calendar or the JSON files.         |
+| `--ical URL`                                      | Read from an iCal feed. Overrides `SOURCE_CALENDAR_NAME` and `SOURCE_ICAL_URL`.       |
+| `--prune-before YYYY-MM-DD`                       | Also delete synced events starting before this date.                                  |
+| `-v`, `--verbose`                                 | Show the decision for every event.                                                    |
+| `-q`, `--quiet`                                   | Show only warnings and errors.                                                        |
 
 ## Coloring rules
 
@@ -281,16 +286,16 @@ are written atomically, so an interrupted run can't corrupt them.
 All settings come from environment variables, usually set in `.env`. Relative
 paths are resolved from the directory you run the command in.
 
-| Variable               | Default                   | Description                                       |
-| ---------------------- | ------------------------- | ------------------------------------------------- |
-| `SOURCE_CALENDAR_NAME` | `Polimi Calendar`         | Google calendar to read from.                     |
-| `TARGET_CALENDAR_NAME` | `Polimi Calendar Colored` | Google calendar to write to (created if missing). |
-| `SOURCE_ICAL_URL`      | _(unset)_                 | Read from this iCal feed instead of a calendar.   |
-| `CREDENTIALS_PATH`     | `credentials.json`        | OAuth client downloaded from Google Cloud.        |
-| `TOKEN_PATH`           | `token.json`              | Cached Google login.                              |
-| `COURSE_COLORS_PATH`   | `course_colors.json`      | Saved course colors.                              |
-| `EXAM_STATES_PATH`     | `exam_states.json`        | Saved exam subscriptions and colors.              |
-| `DEADLINE_COLORS_PATH` | `deadline_colors.json`    | Saved deadline colors.                            |
+| Variable               | Default                | Description                                       |
+| ---------------------- | ---------------------- | ------------------------------------------------- |
+| `SOURCE_CALENDAR_NAME` | `Calendar`             | Google calendar to read from.                     |
+| `TARGET_CALENDAR_NAME` | `Calendar Colored`     | Google calendar to write to (created if missing). |
+| `SOURCE_ICAL_URL`      | _(unset)_              | Read from this iCal feed instead of a calendar.   |
+| `CREDENTIALS_PATH`     | `credentials.json`     | OAuth client downloaded from Google Cloud.        |
+| `TOKEN_PATH`           | `token.json`           | Cached Google login.                              |
+| `COURSE_COLORS_PATH`   | `course_colors.json`   | Saved course colors.                              |
+| `EXAM_STATES_PATH`     | `exam_states.json`     | Saved exam subscriptions and colors.              |
+| `DEADLINE_COLORS_PATH` | `deadline_colors.json` | Saved deadline colors.                            |
 
 ## Run it in the cloud with GitHub Actions
 
@@ -300,7 +305,7 @@ syncs **every Monday at 06:00 UTC**. You can also run it from the **Actions**
 tab and choose the target, verbose output, or a dry run.
 
 1. Log in locally once so that `token.json` exists, e.g. with
-   `polimi-calendar --dry-run`.
+   `calendar-coloring --dry-run`.
 2. In your fork, go to **Settings → Secrets and variables → Actions** and add
    these repository secrets:
 
@@ -308,8 +313,8 @@ tab and choose the target, verbose output, or a dry run.
    | ---------------------- | ----------------------------------------------------------- |
    | `GCP_CREDENTIALS_JSON` | Contents of `credentials.json`.                             |
    | `GCP_TOKEN_JSON`       | Contents of `token.json`.                                   |
-   | `SOURCE_CALENDAR_NAME` | Optional, defaults to `Polimi`.                             |
-   | `TARGET_CALENDAR_NAME` | Optional, defaults to `Polimi Colored`.                     |
+   | `SOURCE_CALENDAR_NAME` | Optional, defaults to `Calendar`.                           |
+   | `TARGET_CALENDAR_NAME` | Optional, defaults to `Calendar Colored`.                   |
    | `SOURCE_ICAL_URL`      | Optional. If set, it's used instead of the source calendar. |
 
 After each run, the workflow commits the updated preference files back to the
@@ -329,7 +334,7 @@ assigns stay in sync.
 | `403 access_denied` when logging in                       | Add your Google address as a **Test user** on the OAuth consent screen.                                      |
 | `OAuth client file 'credentials.json' not found`          | Download the Desktop OAuth client JSON and save it as `credentials.json`, or point `CREDENTIALS_PATH` to it. |
 | `Source calendar '…' not found`                           | `SOURCE_CALENDAR_NAME` must match the calendar name exactly as shown in Google Calendar.                     |
-| Every event shows up twice                                | Hide the original Polimi calendar in Google Calendar.                                                        |
+| Every event shows up twice                                | Hide the original calendar in Google Calendar.                                                               |
 | `Could not download iCal feed`                            | The iCal URL may have expired or been revoked. Generate a new one.                                           |
 | `The terminal UI needs the optional 'textual' dependency` | Run `pip install ".[tui]"`.                                                                                  |
 | Login keeps expiring after a week                         | That's Google's Testing mode: log in again locally (and update `GCP_TOKEN_JSON` if you use GitHub Actions).  |
@@ -359,9 +364,9 @@ interactive prompts and the TUI are all thin frontends over the same
 discover → preferences → plan → apply phases.
 
 ```
-src/polimi_calendar_coloring/
+src/calendar_coloring/
 ├── palette.py         # GoogleColor: the 11 Google colors (id, name, RGB)
-├── events.py          # Polimi event parsing: title prefixes, iCal categories, enrollment
+├── events.py          # Event parsing: title prefixes, iCal categories, enrollment
 ├── catalog.py         # Discover: courses, exam sessions and deadlines in the source
 ├── preferences.py     # Preferences model + JSON repository (atomic writes)
 ├── suggestions.py     # Pure rules for default colors and subscriptions

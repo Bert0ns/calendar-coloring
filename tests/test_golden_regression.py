@@ -16,12 +16,12 @@ from typing import Any
 import pytest
 from conftest import FakeCalendarGateway, load_fixture
 
-from polimi_calendar_coloring.cli.main import run
-from polimi_calendar_coloring.config import Config
-from polimi_calendar_coloring.reporting import NullReporter
-from polimi_calendar_coloring.sync.models import Mutation
-from polimi_calendar_coloring.targets import SyncTarget
-from polimi_calendar_coloring.workflow import SyncOptions
+from calendar_coloring.cli.main import run
+from calendar_coloring.config import Config
+from calendar_coloring.reporting import NullReporter
+from calendar_coloring.sync.models import Mutation
+from calendar_coloring.targets import SyncTarget
+from calendar_coloring.workflow import SyncOptions
 
 SCENARIO = load_fixture("scenario_events.json")
 GOLDEN = load_fixture("golden_main_sync.json")

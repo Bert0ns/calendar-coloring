@@ -2,8 +2,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from polimi_calendar_coloring.google_client import GoogleCalendarClient
-from polimi_calendar_coloring.sync.models import Mutation, MutationAction
+from calendar_coloring.google_client import GoogleCalendarClient
+from calendar_coloring.sync.models import Mutation, MutationAction
 
 
 def make_client(sleeps: list[float] | None = None):
@@ -16,9 +16,9 @@ def test_get_calendar_id_by_name_follows_pagination() -> None:
     client, service = make_client()
     service.calendarList().list().execute.side_effect = [
         {"items": [{"summary": "Other", "id": "other"}], "nextPageToken": "p2"},
-        {"items": [{"summary": "Polimi", "id": "polimi"}]},
+        {"items": [{"summary": "School", "id": "school"}]},
     ]
-    assert client.get_calendar_id_by_name("Polimi") == "polimi"
+    assert client.get_calendar_id_by_name("School") == "school"
 
 
 def test_get_calendar_id_by_name_returns_none_when_missing() -> None:
@@ -139,7 +139,7 @@ def test_batch_mutate_events_rejects_invalid_batch_size() -> None:
 def test_from_credentials_builds_calendar_service(monkeypatch) -> None:
     calls = []
     monkeypatch.setattr(
-        "polimi_calendar_coloring.google_client.build",
+        "calendar_coloring.google_client.build",
         lambda *args, **kwargs: calls.append((args, kwargs)) or "service",
     )
     client = GoogleCalendarClient.from_credentials("creds")

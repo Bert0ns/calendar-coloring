@@ -3,11 +3,11 @@ from datetime import date
 
 import pytest
 
-from polimi_calendar_coloring.events import Event, clean_summary
-from polimi_calendar_coloring.palette import GoogleColor
-from polimi_calendar_coloring.strategies import EventColoringStrategy
-from polimi_calendar_coloring.sync.models import ColorOrigin, MutationAction
-from polimi_calendar_coloring.sync.planner import (
+from calendar_coloring.events import Event, clean_summary
+from calendar_coloring.palette import GoogleColor
+from calendar_coloring.strategies import EventColoringStrategy
+from calendar_coloring.sync.models import ColorOrigin, MutationAction
+from calendar_coloring.sync.planner import (
     MANAGED_PROPERTY,
     SyncPlanner,
     build_target_event,

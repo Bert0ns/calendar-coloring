@@ -1,8 +1,8 @@
 import pytest
 
-from polimi_calendar_coloring.palette import GoogleColor
-from polimi_calendar_coloring.preferences import ExamPreference, Preferences
-from polimi_calendar_coloring.strategies import (
+from calendar_coloring.palette import GoogleColor
+from calendar_coloring.preferences import ExamPreference, Preferences
+from calendar_coloring.strategies import (
     CompositeColoringStrategy,
     DeadlineColoringStrategy,
     EventColoringStrategy,
@@ -10,8 +10,8 @@ from polimi_calendar_coloring.strategies import (
     LectureColoringStrategy,
     strategy_for,
 )
-from polimi_calendar_coloring.suggestions import suggest_color
-from polimi_calendar_coloring.targets import SyncTarget
+from calendar_coloring.suggestions import suggest_color
+from calendar_coloring.targets import SyncTarget
 
 LECTURE = {"summary": "Lezione: Didattica - Computer Security"}
 EXAM = {"summary": "Esame: Security", "start": {"date": "2026-06-15"}}

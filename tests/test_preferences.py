@@ -3,9 +3,9 @@ from pathlib import Path
 
 import pytest
 
-from polimi_calendar_coloring.events import ExamOccurrence
-from polimi_calendar_coloring.palette import GoogleColor
-from polimi_calendar_coloring.preferences import (
+from calendar_coloring.events import ExamOccurrence
+from calendar_coloring.palette import GoogleColor
+from calendar_coloring.preferences import (
     ExamPreference,
     JsonPreferencesRepository,
     Preferences,
@@ -161,7 +161,7 @@ def test_failed_write_keeps_previous_file_intact(paths, monkeypatch) -> None:
     def explode(*args, **kwargs):
         raise OSError("disk full")
 
-    monkeypatch.setattr("polimi_calendar_coloring.preferences.json.dump", explode)
+    monkeypatch.setattr("calendar_coloring.preferences.json.dump", explode)
     with pytest.raises(OSError):
         repo.save(prefs)
 

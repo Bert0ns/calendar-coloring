@@ -17,15 +17,15 @@ from textual.widgets import (
     TabbedContent,
 )
 
-from polimi_calendar_coloring.cli.main import build_workflow
-from polimi_calendar_coloring.config import Config
-from polimi_calendar_coloring.palette import GoogleColor
-from polimi_calendar_coloring.suggestions import suggest_color
-from polimi_calendar_coloring.sync.source import GoogleCalendarSource
-from polimi_calendar_coloring.targets import SyncTarget
-from polimi_calendar_coloring.tui.app import PolimiCalendarApp, TuiReporter
-from polimi_calendar_coloring.tui.widgets import ColorPicker, PlanTree
-from polimi_calendar_coloring.workflow import SyncOptions
+from calendar_coloring.cli.main import build_workflow
+from calendar_coloring.config import Config
+from calendar_coloring.palette import GoogleColor
+from calendar_coloring.suggestions import suggest_color
+from calendar_coloring.sync.source import GoogleCalendarSource
+from calendar_coloring.targets import SyncTarget
+from calendar_coloring.tui.app import CalendarColoringApp, TuiReporter
+from calendar_coloring.tui.widgets import ColorPicker, PlanTree
+from calendar_coloring.workflow import SyncOptions
 
 SOURCE = [
     {
@@ -62,16 +62,16 @@ SOURCE = [
     },
 ]
 
-Scenario = Callable[[PolimiCalendarApp, Pilot[None]], Awaitable[None]]
+Scenario = Callable[[CalendarColoringApp, Pilot[None]], Awaitable[None]]
 
 
 def make_app(
     config: Config,
     gateway: FakeCalendarGateway,
     options: SyncOptions | None = None,
-) -> PolimiCalendarApp:
+) -> CalendarColoringApp:
     reporter = TuiReporter()
-    return PolimiCalendarApp(
+    return CalendarColoringApp(
         build_workflow(config, gateway, reporter),
         GoogleCalendarSource(gateway, "Src"),
         options or SyncOptions(),
@@ -80,7 +80,7 @@ def make_app(
     )
 
 
-def drive(app: PolimiCalendarApp, scenario: Scenario) -> None:
+def drive(app: CalendarColoringApp, scenario: Scenario) -> None:
     async def main() -> None:
         async with app.run_test(size=(120, 40)) as pilot:
             await settle(app, pilot)
@@ -89,21 +89,21 @@ def drive(app: PolimiCalendarApp, scenario: Scenario) -> None:
     asyncio.run(main())
 
 
-async def settle(app: PolimiCalendarApp, pilot: Pilot[None]) -> None:
+async def settle(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
     await app.workers.wait_for_complete()
     await pilot.pause()
 
 
-def summary_text(app: PolimiCalendarApp) -> str:
+def summary_text(app: CalendarColoringApp) -> str:
     return str(app.query_one("#plan-summary", Static).render())
 
 
-def cells(app: PolimiCalendarApp, tab: str, key: str) -> list[str]:
+def cells(app: CalendarColoringApp, tab: str, key: str) -> list[str]:
     table = app.query_one(f"#{tab}-table", DataTable)
     return [cell.plain for cell in table.get_row(key)]
 
 
-async def log_text(app: PolimiCalendarApp, pilot: Pilot[None]) -> str:
+async def log_text(app: CalendarColoringApp, pilot: Pilot[None]) -> str:
     """The log is only rendered once its (Sync) tab is visible."""
     app.query_one(TabbedContent).active = "sync"
     await pilot.pause()
@@ -114,7 +114,7 @@ def test_lists_courses_exams_and_deadlines(config: Config) -> None:
     config.course_colors_path.write_text(json.dumps({"CS": "10"}))
     app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
 
-    async def scenario(app: PolimiCalendarApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
         assert cells(app, "courses", "CS")[1:] == ["    Basil", "saved"]
         math = suggest_color("Math").label
         assert cells(app, "courses", "Math")[1:] == [f"    {math}", "suggested"]
@@ -146,7 +146,7 @@ def test_target_selects_the_tabs(config: Config) -> None:
         SyncOptions(target=SyncTarget.EXAMS),
     )
 
-    async def scenario(app: PolimiCalendarApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
         tabs = app.query_one(TabbedContent)
         assert [pane.id for pane in tabs.query("TabPane")] == ["exams", "sync"]
         assert app.check_action("toggle_subscription", ()) is True
@@ -157,7 +157,7 @@ def test_target_selects_the_tabs(config: Config) -> None:
 def test_pick_a_color_and_save(config: Config) -> None:
     app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
 
-    async def scenario(app: PolimiCalendarApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
         await pilot.press("c")
         assert isinstance(app.screen, ColorPicker)
         assert app.screen.subject == "CS"
@@ -183,7 +183,7 @@ def test_pick_a_color_and_save(config: Config) -> None:
 def test_enter_opens_the_picker_and_escape_cancels(config: Config) -> None:
     app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
 
-    async def scenario(app: PolimiCalendarApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
         await pilot.press("down", "enter")
         assert isinstance(app.screen, ColorPicker)
         assert app.screen.subject == "Math"
@@ -198,7 +198,7 @@ def test_enter_opens_the_picker_and_escape_cancels(config: Config) -> None:
 def test_edit_exams_and_deadlines(config: Config) -> None:
     app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
 
-    async def scenario(app: PolimiCalendarApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
         app.query_one(TabbedContent).active = "exams"
         await pilot.pause()
         app.query_one("#exams-table").focus()
@@ -237,7 +237,7 @@ def test_preview_then_apply(config: Config) -> None:
     gateway = FakeCalendarGateway({"Src": SOURCE})
     app = make_app(config, gateway)
 
-    async def scenario(app: PolimiCalendarApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
         assert app.query_one("#apply", Button).disabled
         assert app.check_action("apply", ()) is None
 
@@ -292,7 +292,7 @@ def test_plan_tree_shows_updates_and_deletes(config: Config) -> None:
     gateway = FakeCalendarGateway({"Src": SOURCE[1:2], "Tgt": [stale, outdated]})
     app = make_app(config, gateway, SyncOptions(target=SyncTarget.LECTURES))
 
-    async def scenario(app: PolimiCalendarApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
         await pilot.press("p")
         await settle(app, pilot)
         tree = app.query_one(PlanTree)
@@ -309,7 +309,7 @@ def test_plan_tree_shows_updates_and_deletes(config: Config) -> None:
 def test_editing_discards_a_stale_preview(config: Config) -> None:
     app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
 
-    async def scenario(app: PolimiCalendarApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
         await pilot.press("p")
         await settle(app, pilot)
         assert app.plan is not None
@@ -329,7 +329,7 @@ def test_apply_reports_progress_and_failures(config: Config) -> None:
     gateway.fail_event_ids = {"lec00001"}
     app = make_app(config, gateway)
 
-    async def scenario(app: PolimiCalendarApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
         await pilot.press("p")
         await settle(app, pilot)
         await pilot.press("a")
@@ -346,7 +346,7 @@ def test_apply_reports_progress_and_failures(config: Config) -> None:
 def test_load_failure_is_reported(config: Config) -> None:
     app = make_app(config, FakeCalendarGateway())
 
-    async def scenario(app: PolimiCalendarApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
         assert app.draft is None
         assert "Could not load the source events: Source calendar 'Src' not found." in (
             await log_text(app, pilot)
@@ -372,7 +372,7 @@ def test_preview_and_apply_failures_are_reported(config: Config) -> None:
     def boom(*args: object) -> None:
         raise RuntimeError("network down")
 
-    async def scenario(app: PolimiCalendarApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
         preview = app.workflow.preview
         app.workflow.preview = boom  # type: ignore[method-assign]
         await pilot.press("p")
@@ -400,7 +400,7 @@ def test_save_failure_is_reported(config: Config) -> None:
     def denied(*args: object) -> None:
         raise PermissionError("read-only")
 
-    async def scenario(app: PolimiCalendarApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
         app.workflow.save_preferences = denied  # type: ignore[method-assign]
         await pilot.press("c", "enter", "ctrl+s")
         await pilot.pause()
@@ -414,7 +414,7 @@ def test_quit_asks_to_confirm_unsaved_changes(config: Config) -> None:
     app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
     exits: list[bool] = []
 
-    async def scenario(app: PolimiCalendarApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
         app.exit = lambda *args, **kwargs: exits.append(True)  # type: ignore[method-assign]
         await pilot.press("c", "enter")
         await pilot.press("q")
@@ -430,7 +430,7 @@ def test_quit_asks_to_confirm_unsaved_changes(config: Config) -> None:
 def test_quit_without_changes_exits_immediately(config: Config) -> None:
     app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
 
-    async def scenario(app: PolimiCalendarApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
         await pilot.press("q")
         await pilot.pause()
 
@@ -442,7 +442,7 @@ def test_reporter_messages_reach_the_log(config: Config) -> None:
     config.course_colors_path.write_text("{not json")
     app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
 
-    async def scenario(app: PolimiCalendarApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
         reporter = app.workflow.reporter
         reporter.detail("a detail")
         reporter.dry_run_finished(None)  # type: ignore[arg-type]

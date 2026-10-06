@@ -8,8 +8,8 @@ from typing import Any
 
 import pytest
 
-from polimi_calendar_coloring.config import Config
-from polimi_calendar_coloring.sync.models import (
+from calendar_coloring.config import Config
+from calendar_coloring.sync.models import (
     Mutation,
     MutationAction,
     MutationResult,
