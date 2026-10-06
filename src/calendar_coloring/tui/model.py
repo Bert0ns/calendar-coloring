@@ -57,8 +57,8 @@ class ExamRow:
     def hint(self) -> str:
         """What the source calendar says about the enrollment."""
         hints = {
-            Enrollment.ENROLLED: "Iscritto",
-            Enrollment.NOT_ENROLLED: "Non iscritto",
+            Enrollment.ENROLLED: "enrolled",
+            Enrollment.NOT_ENROLLED: "not enrolled",
             Enrollment.UNKNOWN: "",
         }
         parts = [hints[self.exam.enrollment]]

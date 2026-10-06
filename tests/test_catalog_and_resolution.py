@@ -1,4 +1,5 @@
 import pytest
+from conftest import POLIMI
 
 from calendar_coloring.catalog import Catalog, discover
 from calendar_coloring.events import Enrollment, ExamOccurrence
@@ -34,19 +35,20 @@ def test_discover_collects_courses_and_exams_in_order() -> None:
             {"summary": "Other"},
             exam("Esame: X", "2027-01-01", "Non iscritto"),
             exam("Esame: Y", "2027-02-01"),
-        ]
+        ],
+        POLIMI,
     )
     assert catalog.courses == ("B", "A")
     assert len(catalog.exam_occurrences) == 3
     # Distinct exams: the first occurrence of a session wins.
     assert catalog.exams == (
-        ExamOccurrence("Esame: X", "2027-01-01", Enrollment.ENROLLED),
-        ExamOccurrence("Esame: Y", "2027-02-01", Enrollment.UNKNOWN),
+        ExamOccurrence("X", "2027-01-01", Enrollment.ENROLLED),
+        ExamOccurrence("Y", "2027-02-01", Enrollment.UNKNOWN),
     )
 
 
 def test_discover_empty() -> None:
-    assert discover([]) == Catalog()
+    assert discover([], POLIMI) == Catalog()
 
 
 def test_fill_missing_course_colors_keeps_existing() -> None:
@@ -120,7 +122,8 @@ def test_fill_missing_preferences_respects_target(
     target: SyncTarget, has_courses: bool, has_exams: bool
 ) -> None:
     catalog = discover(
-        [lecture("A"), exam("Esame: X", "1", "Iscritto"), {"summary": "Scadenza: D"}]
+        [lecture("A"), exam("Esame: X", "1", "Iscritto"), {"summary": "Scadenza: D"}],
+        POLIMI,
     )
     prefs = Preferences()
     fill_missing_preferences(catalog, prefs, target)
@@ -137,7 +140,8 @@ def test_discover_deadlines_and_category_events() -> None:
             {"summary": "Scadenza: Esame di laurea"},
             {"summary": "SENSOR SYSTEMS", "categories": ["Lezione"]},
             {"summary": "MOBILE", "categories": ["Esame"], "start": {"date": "d"}},
-        ]
+        ],
+        POLIMI,
     )
     assert catalog.deadlines == ("Esame di laurea", "Tesi")
     assert catalog.courses == ("SENSOR SYSTEMS",)
@@ -146,7 +150,8 @@ def test_discover_deadlines_and_category_events() -> None:
 
 def test_discover_classifies_each_event_once_exam_first() -> None:
     catalog = discover(
-        [{"summary": "Lezione: Didattica - X", "categories": ["Esame", "Scadenza"]}]
+        [{"summary": "Lezione: Didattica - X", "categories": ["Esame", "Scadenza"]}],
+        POLIMI,
     )
     assert [e.title for e in catalog.exams] == ["Lezione: Didattica - X"]
     assert catalog.courses == ()

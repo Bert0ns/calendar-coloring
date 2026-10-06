@@ -1,7 +1,10 @@
+from conftest import POLIMI
+
 from calendar_coloring.catalog import discover
 from calendar_coloring.events import Enrollment, ExamOccurrence
 from calendar_coloring.palette import GoogleColor
 from calendar_coloring.preferences import ExamPreference, Preferences
+from calendar_coloring.profile import Profile
 from calendar_coloring.suggestions import suggest_color
 from calendar_coloring.tui.model import ExamRow, ItemStatus, PreferencesDraft
 from calendar_coloring.workflow import SyncOptions, SyncSession
@@ -33,8 +36,8 @@ def make_draft(preferences: Preferences | None = None) -> PreferencesDraft:
             options=SyncOptions(),
             target_name="Tgt",
             source_events=EVENTS,
-            catalog=discover(EVENTS),
-            preferences=preferences or Preferences(),
+            catalog=discover(EVENTS, POLIMI),
+            profile=Profile(preferences=preferences or Preferences()),
         )
     )
 
@@ -79,20 +82,20 @@ def test_deadline_rows() -> None:
 def test_exam_rows_show_what_the_automatic_rules_would_apply() -> None:
     rows = exam_rows_by_key(make_draft())
 
-    first_cs = rows["Esame: CS (2027-01-20)"]
+    first_cs = rows["CS (2027-01-20)"]
     assert (first_cs.subscribed, first_cs.color) == (True, GoogleColor.TOMATO)
     assert first_cs.status is ItemStatus.SUGGESTED
-    assert first_cs.hint == "Iscritto"
+    assert first_cs.hint == "enrolled"
 
-    other_cs = rows["Esame: CS (2027-02-10)"]
+    other_cs = rows["CS (2027-02-10)"]
     assert (other_cs.subscribed, other_cs.color) == (False, GoogleColor.GRAPHITE)
     assert other_cs.subscribed_to_other_date
     assert other_cs.hint == "another date subscribed"
 
-    math = rows["Esame: Math (2027-01-25)"]
-    assert (math.subscribed, math.hint) == (False, "Non iscritto")
+    math = rows["Math (2027-01-25)"]
+    assert (math.subscribed, math.hint) == (False, "not enrolled")
 
-    physics = rows["Esame: Physics (2027-02-01)"]
+    physics = rows["Physics (2027-02-01)"]
     assert (physics.subscribed, physics.color) == (None, None)
     assert physics.status is ItemStatus.UNSET
     assert physics.hint == ""
@@ -105,7 +108,7 @@ def test_exam_rows_do_not_change_the_preferences() -> None:
 
 
 def test_saved_exam_is_reported_as_saved() -> None:
-    exam = ExamOccurrence("Esame: Physics", "2027-02-01", Enrollment.UNKNOWN)
+    exam = ExamOccurrence("Physics", "2027-02-01", Enrollment.UNKNOWN)
     preferences = Preferences()
     preferences.set_exam(exam, ExamPreference(GoogleColor.SAGE, subscribed=True))
 
@@ -117,7 +120,7 @@ def test_saved_exam_is_reported_as_saved() -> None:
 
 def test_toggle_subscription_moves_default_colors() -> None:
     draft = make_draft()
-    key = "Esame: Physics (2027-02-01)"
+    key = "Physics (2027-02-01)"
 
     draft.toggle_exam_subscription(key)
     row = draft.exam_row(key)
@@ -131,7 +134,7 @@ def test_toggle_subscription_moves_default_colors() -> None:
 
 def test_toggle_subscription_keeps_custom_colors() -> None:
     draft = make_draft()
-    key = "Esame: CS (2027-01-20)"
+    key = "CS (2027-01-20)"
     draft.set_exam_color(key, GoogleColor.PEACOCK)
 
     draft.toggle_exam_subscription(key)
@@ -143,18 +146,18 @@ def test_toggle_subscription_keeps_custom_colors() -> None:
 def test_set_exam_color_keeps_the_subscription() -> None:
     draft = make_draft()
 
-    draft.set_exam_color("Esame: CS (2027-01-20)", GoogleColor.BASIL)
-    draft.set_exam_color("Esame: Physics (2027-02-01)", GoogleColor.BASIL)
+    draft.set_exam_color("CS (2027-01-20)", GoogleColor.BASIL)
+    draft.set_exam_color("Physics (2027-02-01)", GoogleColor.BASIL)
 
     rows = exam_rows_by_key(draft)
-    assert rows["Esame: CS (2027-01-20)"].subscribed is True
-    assert rows["Esame: Physics (2027-02-01)"].subscribed is False
+    assert rows["CS (2027-01-20)"].subscribed is True
+    assert rows["Physics (2027-02-01)"].subscribed is False
 
 
 def test_unsubscribing_frees_the_other_dates() -> None:
     draft = make_draft()
-    draft.toggle_exam_subscription("Esame: CS (2027-01-20)")
+    draft.toggle_exam_subscription("CS (2027-01-20)")
 
-    other = draft.exam_row("Esame: CS (2027-02-10)")
+    other = draft.exam_row("CS (2027-02-10)")
     assert other.status is ItemStatus.UNSET
     assert not other.subscribed_to_other_date

@@ -1,6 +1,7 @@
 import re
 
 import pytest
+from conftest import POLIMI
 
 from calendar_coloring.catalog import discover
 from calendar_coloring.cli.prompts import (
@@ -228,7 +229,8 @@ def test_edit_respects_target(target: SyncTarget, expected_prompts: int) -> None
             {"summary": "Esame: CS", "description": "Iscritto", "start": {"date": "d"}},
             {"summary": "Esame: CS", "description": "Iscritto", "start": {"date": "d"}},
             {"summary": "Scadenza: Tesi"},
-        ]
+        ],
+        POLIMI,
     )
     io = ScriptedIO(*[""] * expected_prompts)
     prefs = Preferences()

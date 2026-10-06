@@ -2,8 +2,9 @@ import copy
 from datetime import date
 
 import pytest
+from conftest import POLIMI
 
-from calendar_coloring.events import Event, clean_summary
+from calendar_coloring.events import Event
 from calendar_coloring.palette import GoogleColor
 from calendar_coloring.strategies import EventColoringStrategy
 from calendar_coloring.sync.models import ColorOrigin, MutationAction
@@ -43,12 +44,12 @@ def source_event(**overrides) -> Event:
 
 def synced_target(source: Event, color_id: str | None = "5") -> Event:
     return build_target_event(
-        source, "event12345", clean_summary(source["summary"]), color_id
+        source, "event12345", POLIMI.target_title(source), color_id
     )
 
 
 def planner(color: GoogleColor | None = GoogleColor.BANANA) -> SyncPlanner:
-    return SyncPlanner(FixedStrategy(color), clean_summary)
+    return SyncPlanner(FixedStrategy(color), POLIMI.target_title)
 
 
 # -- sanitize_event_id -------------------------------------------------------
@@ -210,7 +211,7 @@ def test_plan_inserts_new_events_with_cleaned_title_and_color() -> None:
     assert decision.target_summary == "CS"
 
 
-def test_plan_without_summary_transform_keeps_titles() -> None:
+def test_plan_without_title_function_keeps_titles() -> None:
     plan = SyncPlanner(FixedStrategy()).plan([source_event()], [], "tgt")
     assert plan.mutations[0].summary == "Lezione: Didattica - CS"
 
@@ -377,7 +378,7 @@ class TestPruneBefore:
     CUTOFF = date(2026, 9, 22)
 
     def planner(self) -> SyncPlanner:
-        return SyncPlanner(FixedStrategy(None), clean_summary, self.CUTOFF)
+        return SyncPlanner(FixedStrategy(None), POLIMI.target_title, self.CUTOFF)
 
     def event(self, event_id: str, day: str, managed: bool = True) -> Event:
         event: Event = {

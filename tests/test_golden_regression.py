@@ -4,7 +4,10 @@
 ``CalendarSyncProcessor`` + strategies of ``main`` (commit 94badb6) on
 ``fixtures/scenario_events.json``: fresh/existing preferences for every sync
 target, plus a ``--prune-before`` run. The refactored code must produce exactly
-the same calendar mutations and the same preference files, byte for byte.
+the same calendar mutations and the same preferences.
+
+Preferences now live in one profile file, and exams are keyed by their name
+rather than their full title: the legacy files are translated accordingly.
 """
 
 from __future__ import annotations
@@ -14,7 +17,7 @@ from datetime import date
 from typing import Any
 
 import pytest
-from conftest import FakeCalendarGateway, load_fixture
+from conftest import FakeCalendarGateway, load_fixture, save_profile, saved
 
 from calendar_coloring.cli.main import run
 from calendar_coloring.config import Config
@@ -37,26 +40,36 @@ def as_legacy_operation(mutation: Mutation) -> dict[str, Any]:
     return op
 
 
-def state_files(config: Config) -> dict[str, Any]:
-    return {
-        "course_colors.json": config.course_colors_path,
-        "exam_states.json": config.exam_states_path,
-        "deadline_colors.json": config.deadline_colors_path,
+LEGACY_EXAM_PREFIX = "Esame: "
+SECTIONS = {
+    "courses": "course_colors.json",
+    "exams": "exam_states.json",
+    "deadlines": "deadline_colors.json",
+}
+
+
+def from_legacy_exams(exam_states: dict[str, Any]) -> dict[str, Any]:
+    return {key.removeprefix(LEGACY_EXAM_PREFIX): v for key, v in exam_states.items()}
+
+
+def expected_preferences(files_raw: dict[str, str | None]) -> dict[str, Any]:
+    expected = {
+        section: json.loads(files_raw[name] or "{}")
+        for section, name in SECTIONS.items()
     }
+    expected["exams"] = from_legacy_exams(expected["exams"])
+    return expected
 
 
 def setup(scenario: str, config: Config) -> tuple[SyncOptions, FakeCalendarGateway]:
     state, target, *flags = scenario.split("-")
     if state == "existing":
         existing = SCENARIO["existing_state"]
-        config.course_colors_path.write_text(
-            json.dumps(existing["course_colors"], indent=4)
-        )
-        config.exam_states_path.write_text(
-            json.dumps(existing["exam_states"], indent=4)
-        )
-        config.deadline_colors_path.write_text(
-            json.dumps(existing["deadline_colors"], indent=4)
+        save_profile(
+            config,
+            courses=existing["course_colors"],
+            exams=from_legacy_exams(existing["exam_states"]),
+            deadlines=existing["deadline_colors"],
         )
     prune_before = (
         date.fromisoformat(SCENARIO["prune_before"]) if "prune" in flags else None
@@ -68,11 +81,8 @@ def setup(scenario: str, config: Config) -> tuple[SyncOptions, FakeCalendarGatew
     return options, gateway
 
 
-def snapshot(config: Config) -> dict[str, str | None]:
-    return {
-        name: path.read_text() if path.exists() else None
-        for name, path in state_files(config).items()
-    }
+def snapshot(config: Config) -> dict[str, Any]:
+    return {section: saved(config, section) for section in SECTIONS}
 
 
 @pytest.mark.parametrize("scenario", sorted(GOLDEN))
@@ -85,7 +95,7 @@ def test_matches_legacy_behavior(scenario: str, config: Config) -> None:
     expected = GOLDEN[scenario]
     actual_ops = [as_legacy_operation(m) for m in gateway.all_mutations]
     assert actual_ops == expected["mutations"]
-    assert snapshot(config) == expected["files_raw"]
+    assert snapshot(config) == expected_preferences(expected["files_raw"])
 
 
 @pytest.mark.parametrize("scenario", sorted(GOLDEN))

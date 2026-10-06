@@ -9,6 +9,9 @@ from typing import Any
 import pytest
 
 from calendar_coloring.config import Config
+from calendar_coloring.presets import POLIMI_ENROLLMENT, POLIMI_RULES
+from calendar_coloring.profile import JsonProfileRepository, polimi_profile, serialize
+from calendar_coloring.rules import Classifier
 from calendar_coloring.sync.models import (
     Mutation,
     MutationAction,
@@ -106,7 +109,27 @@ def config(tmp_path: Path) -> Config:
         credentials_path=tmp_path / "credentials.json",
         token_path=tmp_path / "token.json",
         legacy_token_path=tmp_path / "token.pickle",
-        course_colors_path=tmp_path / "course_colors.json",
-        exam_states_path=tmp_path / "exam_states.json",
-        deadline_colors_path=tmp_path / "deadline_colors.json",
+        profile_path=tmp_path / "profile.json",
     )
+
+
+POLIMI = Classifier(POLIMI_RULES, POLIMI_ENROLLMENT)
+"""Classifier of the built-in PoliMi profile."""
+
+
+def saved(config: Config, section: str) -> Any:
+    """A section of the saved profile (``{}`` if there is no profile file)."""
+    if not config.profile_path.exists():
+        return {}
+    return json.loads(config.profile_path.read_text(encoding="utf-8"))[section]
+
+
+def save_profile(config: Config, **sections: Any) -> None:
+    """Writes the PoliMi profile with the given sections (e.g. ``courses``)."""
+    data = serialize(polimi_profile())
+    data.update(sections)
+    config.profile_path.write_text(json.dumps(data, indent=4), encoding="utf-8")
+
+
+def profile_repository(config: Config) -> JsonProfileRepository:
+    return JsonProfileRepository(config.profile_path)

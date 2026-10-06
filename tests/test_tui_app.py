@@ -1,9 +1,8 @@
 import asyncio
-import json
 from collections.abc import Awaitable, Callable
 
 import pytest
-from conftest import FakeCalendarGateway
+from conftest import FakeCalendarGateway, save_profile, saved
 
 pytest.importorskip("textual")
 
@@ -111,22 +110,22 @@ async def log_text(app: CalendarColoringApp, pilot: Pilot[None]) -> str:
 
 
 def test_lists_courses_exams_and_deadlines(config: Config) -> None:
-    config.course_colors_path.write_text(json.dumps({"CS": "10"}))
+    save_profile(config, courses={"CS": "10"})
     app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
 
     async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
         assert cells(app, "courses", "CS")[1:] == ["    Basil", "saved"]
         math = suggest_color("Math").label
         assert cells(app, "courses", "Math")[1:] == [f"    {math}", "suggested"]
-        assert cells(app, "exams", "Esame: CS (2027-01-20)") == [
-            "Esame: CS",
+        assert cells(app, "exams", "CS (2027-01-20)") == [
+            "CS",
             "2027-01-20",
-            "Iscritto",
+            "enrolled",
             "✔ yes",
             "    Tomato",
             "suggested",
         ]
-        assert cells(app, "exams", "Esame: Physics (2027-02-01)")[3:] == [
+        assert cells(app, "exams", "Physics (2027-02-01)")[3:] == [
             "?",
             "   — none",
             "not set",
@@ -166,11 +165,11 @@ def test_pick_a_color_and_save(config: Config) -> None:
 
         assert cells(app, "courses", "CS")[1:] == ["    Lavender", "● modified"]
         assert app.sub_title.endswith("• unsaved changes")
-        assert not config.course_colors_path.exists()
+        assert saved(config, "courses") == {}
 
         await pilot.press("ctrl+s")
         await pilot.pause()
-        assert json.loads(config.course_colors_path.read_text()) == {"CS": "1"}
+        assert saved(config, "courses") == {"CS": "1"}
         assert cells(app, "courses", "CS")[2] == "saved"
         assert app.sub_title == "'Src' ➔ 'Tgt'"
 
@@ -204,12 +203,12 @@ def test_edit_exams_and_deadlines(config: Config) -> None:
         app.query_one("#exams-table").focus()
         await pilot.press("down", "space")
         await pilot.pause()
-        physics = "Esame: Physics (2027-02-01)"
+        physics = "Physics (2027-02-01)"
         assert cells(app, "exams", physics)[3:] == ["✔ yes", "    Tomato", "● modified"]
 
         await pilot.press("c")
         assert isinstance(app.screen, ColorPicker)
-        assert app.screen.subject == "Esame: Physics (2027-02-01)"
+        assert app.screen.subject == "Physics (2027-02-01)"
         await pilot.press("home", "enter")
         await pilot.pause()
         assert cells(app, "exams", physics)[4] == "    Lavender"
@@ -223,12 +222,8 @@ def test_edit_exams_and_deadlines(config: Config) -> None:
 
         await pilot.press("ctrl+s")
         await pilot.pause()
-        assert json.loads(config.exam_states_path.read_text()) == {
-            physics: {"color": "1", "subscribed": True}
-        }
-        assert json.loads(config.deadline_colors_path.read_text()) == {
-            "Piano di studi": "11"
-        }
+        assert saved(config, "exams") == {physics: {"color": "1", "subscribed": True}}
+        assert saved(config, "deadlines") == {"Piano di studi": "11"}
 
     drive(app, scenario)
 
@@ -259,14 +254,14 @@ def test_preview_then_apply(config: Config) -> None:
         assert "Source title: Lezione: Didattica - CS" in details
         assert "Location: Aula 1" in details
         assert gateway.batches == []
-        assert not config.course_colors_path.exists()
+        assert saved(config, "courses") == {}
 
         await pilot.click("#apply")
         await settle(app, pilot)
         assert len(gateway.events_of("Tgt")) == 5
         assert "✔ Sync finished: 5 inserted, 0 updated, 0 deleted." in summary_text(app)
         assert app.plan is None
-        assert json.loads(config.course_colors_path.read_text()).keys() == {
+        assert saved(config, "courses").keys() == {
             "CS",
             "Math",
         }
@@ -439,7 +434,7 @@ def test_quit_without_changes_exits_immediately(config: Config) -> None:
 
 
 def test_reporter_messages_reach_the_log(config: Config) -> None:
-    config.course_colors_path.write_text("{not json")
+    config.profile_path.write_text("{not json")
     app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
 
     async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
@@ -448,7 +443,7 @@ def test_reporter_messages_reach_the_log(config: Config) -> None:
         reporter.dry_run_finished(None)  # type: ignore[arg-type]
         await pilot.pause()
         text = await log_text(app, pilot)
-        assert "is corrupted. Starting fresh." in text
+        assert "corrupted. Starting fresh." in text
         assert "a detail" in text
 
     drive(app, scenario)

@@ -79,8 +79,9 @@ jobs:
 
       - name: Run Sync
         env:
-          SOURCE_CALENDAR_NAME: ${{ secrets.SOURCE_CALENDAR_NAME || 'Calendar' }}
-          TARGET_CALENDAR_NAME: ${{ secrets.TARGET_CALENDAR_NAME || 'Calendar Colored' }}
+          # Optional: override the calendars saved in profile.json.
+          SOURCE_CALENDAR_NAME: ${{ secrets.SOURCE_CALENDAR_NAME }}
+          TARGET_CALENDAR_NAME: ${{ secrets.TARGET_CALENDAR_NAME }}
           SOURCE_ICAL_URL: ${{ secrets.SOURCE_ICAL_URL }}
           # Empty on scheduled runs: fall back to the defaults.
           TARGET: ${{ inputs.target }}
@@ -93,13 +94,11 @@ jobs:
           if [ "$DRY_RUN" == "true" ]; then args+=("--dry-run"); fi
           calendar-coloring --no-tui "${args[@]}"
 
-      - name: Persist color preferences
+      - name: Persist the profile
         if: ${{ inputs.dry_run != true }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          for f in course_colors.json exam_states.json deadline_colors.json; do
-            [ -f "$f" ] && git add "$f"
-          done
+          [ -f profile.json ] && git add profile.json
           git diff --staged --quiet || git commit -m "chore: update sync state [skip ci]"
           git push

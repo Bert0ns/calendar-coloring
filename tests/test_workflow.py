@@ -1,13 +1,12 @@
-import json
 from unittest.mock import MagicMock
 
 import pytest
-from conftest import FakeCalendarGateway
+from conftest import FakeCalendarGateway, profile_repository, saved
 
 from calendar_coloring.catalog import Catalog
 from calendar_coloring.config import Config
 from calendar_coloring.palette import GoogleColor
-from calendar_coloring.preferences import JsonPreferencesRepository, Preferences
+from calendar_coloring.preferences import Preferences
 from calendar_coloring.reporting import NullReporter
 from calendar_coloring.sync import (
     GoogleCalendarSource,
@@ -47,11 +46,7 @@ class Runner:
     """Runs the workflow reading the source from the fake gateway by name."""
 
     def __init__(self, config: Config, gateway: FakeCalendarGateway, editor, reporter):
-        repo = JsonPreferencesRepository(
-            config.course_colors_path,
-            config.exam_states_path,
-            config.deadline_colors_path,
-        )
+        repo = profile_repository(config)
         self.gateway = gateway
         self.workflow = SyncWorkflow(
             SyncService(gateway), repo, reporter or NullReporter(), editor
@@ -85,9 +80,9 @@ def test_full_sync_creates_target_and_saves_preferences(config: Config) -> None:
         "CS": "3",
         "Esame: CS": "11",
     }
-    assert json.loads(config.course_colors_path.read_text()) == {"CS": "3"}
-    assert json.loads(config.exam_states_path.read_text()) == {
-        "Esame: CS (2027-01-20)": {"color": "11", "subscribed": True}
+    assert saved(config, "courses") == {"CS": "3"}
+    assert saved(config, "exams") == {
+        "CS (2027-01-20)": {"color": "11", "subscribed": True}
     }
     assert [name for name, _, _ in reporter.method_calls] == [
         "sync_started",
@@ -115,8 +110,8 @@ def test_dry_run_writes_nothing(config: Config) -> None:
     # ...but nothing is persisted anywhere.
     assert gateway.batches == []
     assert gateway.events_of("Tgt") == []
-    assert not config.course_colors_path.exists()
-    assert not config.exam_states_path.exists()
+    assert saved(config, "courses") == {}
+    assert saved(config, "exams") == {}
 
 
 def test_dry_run_does_not_create_missing_target(config: Config) -> None:
@@ -139,8 +134,8 @@ def test_interactive_uses_editor_instead_of_auto_fill(config: Config) -> None:
     [(catalog, target)] = editor.calls
     assert catalog.courses == ("CS",)
     assert target is SyncTarget.LECTURES
-    assert json.loads(config.course_colors_path.read_text()) == {"CS": "10"}
-    assert not config.exam_states_path.exists()
+    assert saved(config, "courses") == {"CS": "10"}
+    assert saved(config, "exams") == {}
 
 
 def test_interactive_without_editor_is_a_programming_error(config: Config) -> None:
@@ -154,7 +149,7 @@ def test_missing_source_raises_before_touching_anything(config: Config) -> None:
     with pytest.raises(SourceCalendarNotFoundError):
         make_workflow(config, gateway).run(SyncOptions(), "Src", "Tgt")
     assert gateway.created == []
-    assert not config.course_colors_path.exists()
+    assert saved(config, "courses") == {}
 
 
 def test_failures_make_outcome_unsuccessful(config: Config) -> None:
@@ -185,7 +180,7 @@ def test_pruned_and_startless_events_are_not_discovered(config: Config) -> None:
 
     [(catalog, _)] = editor.calls
     assert catalog.courses == ("CS",)
-    assert [e.title for e in catalog.exams] == ["Esame: CS"]
+    assert [e.title for e in catalog.exams] == ["CS"]
 
 
 def test_deadlines_are_colored_and_saved(config: Config) -> None:
@@ -203,10 +198,8 @@ def test_deadlines_are_colored_and_saved(config: Config) -> None:
 
     [event] = gateway.events_of("Tgt")
     assert event["summary"] == "Scadenza: Esame di laurea"  # prefix kept
-    assert json.loads(config.deadline_colors_path.read_text()) == {
-        "Esame di laurea": event["colorId"]
-    }
-    assert not config.course_colors_path.exists()
+    assert saved(config, "deadlines") == {"Esame di laurea": event["colorId"]}
+    assert saved(config, "courses") == {}
 
 
 # -- phase by phase (as driven by the TUI) -----------------------------------
@@ -223,7 +216,7 @@ def test_preview_completes_preferences_on_a_copy(config: Config) -> None:
     assert colors == {"CS": "3", "Esame: CS": "11"}
     assert session.preferences == Preferences()  # untouched
     assert gateway.batches == []
-    assert not config.course_colors_path.exists()
+    assert saved(config, "courses") == {}
 
 
 def test_complete_save_and_apply_a_preview(config: Config) -> None:
@@ -239,7 +232,7 @@ def test_complete_save_and_apply_a_preview(config: Config) -> None:
 
     assert result.inserted == 2
     assert workflow.preview(session).is_empty
-    assert json.loads(config.course_colors_path.read_text()) == {"CS": "10"}
-    assert json.loads(config.exam_states_path.read_text()) == {
-        "Esame: CS (2027-01-20)": {"color": "11", "subscribed": True}
+    assert saved(config, "courses") == {"CS": "10"}
+    assert saved(config, "exams") == {
+        "CS (2027-01-20)": {"color": "11", "subscribed": True}
     }

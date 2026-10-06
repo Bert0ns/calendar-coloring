@@ -5,13 +5,8 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from calendar_coloring.events import (
-    Event,
-    ExamOccurrence,
-    course_name,
-    deadline_name,
-    exam_occurrence,
-)
+from calendar_coloring.events import Event, ExamOccurrence, start_date
+from calendar_coloring.rules import Classifier, EventKind
 
 
 @dataclass(frozen=True)
@@ -35,24 +30,27 @@ class Catalog:
         return tuple(unique)
 
 
-def discover(events: Iterable[Event]) -> Catalog:
-    """Classifies events; the first match wins (exam, then lecture, then deadline),
-    mirroring the order in which coloring strategies are applied."""
+def discover(events: Iterable[Event], classifier: Classifier) -> Catalog:
+    """Lists what the events contain, as classified by the profile's rules."""
     courses: dict[str, None] = {}
     exams: list[ExamOccurrence] = []
     deadlines: dict[str, None] = {}
     for event in events:
-        occurrence = exam_occurrence(event)
-        if occurrence is not None:
-            exams.append(occurrence)
+        classification = classifier.classify(event)
+        if classification is None:
             continue
-        course = course_name(event)
-        if course is not None:
-            courses.setdefault(course, None)
-            continue
-        deadline = deadline_name(event)
-        if deadline is not None:
-            deadlines.setdefault(deadline, None)
+        if classification.kind is EventKind.EXAM:
+            exams.append(
+                ExamOccurrence(
+                    title=classification.name,
+                    date=start_date(event),
+                    enrollment=classifier.enrollment(event),
+                )
+            )
+        elif classification.kind is EventKind.LECTURE:
+            courses.setdefault(classification.name, None)
+        else:
+            deadlines.setdefault(classification.name, None)
     return Catalog(
         courses=tuple(courses),
         exam_occurrences=tuple(exams),
