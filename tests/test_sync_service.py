@@ -1,0 +1,119 @@
+import pytest
+from conftest import FakeCalendarGateway
+
+from polimi_calendar_coloring.events import clean_summary
+from polimi_calendar_coloring.palette import GoogleColor
+from polimi_calendar_coloring.strategies import EventColoringStrategy
+from polimi_calendar_coloring.sync import (
+    GoogleCalendarSource,
+    MutationAction,
+    SourceCalendarNotFoundError,
+    SourceError,
+    SyncPlanner,
+    SyncService,
+)
+
+SOURCE = [
+    {
+        "id": "event12345",
+        "summary": "Lezione: Didattica - CS",
+        "start": {"date": "2026-09-20"},
+        "end": {"date": "2026-09-21"},
+    }
+]
+
+
+class Banana(EventColoringStrategy):
+    def determine_color(self, event):
+        return GoogleColor.BANANA
+
+
+PLANNER = SyncPlanner(Banana(), clean_summary)
+
+
+def test_google_source_fetches_expanded_events() -> None:
+    gateway = FakeCalendarGateway({"Src": SOURCE})
+    source = GoogleCalendarSource(gateway, "Src")
+    assert source.label == "'Src'"
+    assert source.fetch_events() == SOURCE
+    assert gateway.listings == [("id::Src", True)]
+
+
+def test_google_source_raises_when_missing() -> None:
+    source = GoogleCalendarSource(FakeCalendarGateway(), "Nope")
+    with pytest.raises(SourceCalendarNotFoundError) as exc_info:
+        source.fetch_events()
+    assert exc_info.value.name == "Nope"
+    assert str(exc_info.value) == "Source calendar 'Nope' not found."
+    assert isinstance(exc_info.value, SourceError)
+
+
+def test_plan_lists_target_recurring_events_as_masters() -> None:
+    gateway = FakeCalendarGateway({"Tgt": []})
+    service = SyncService(gateway)
+    service.plan(PLANNER, SOURCE, service.find_target_calendar("Tgt"))
+    assert gateway.listings == [("id::Tgt", False)]
+
+
+def test_plan_on_missing_target_is_read_only() -> None:
+    gateway = FakeCalendarGateway({"Src": SOURCE})
+    service = SyncService(gateway)
+
+    plan = service.plan(PLANNER, SOURCE, service.find_target_calendar("Tgt"))
+
+    assert plan.target_calendar_id is None
+    assert [m.action for m in plan.mutations] == [MutationAction.INSERT]
+    assert gateway.created == []
+    assert gateway.batches == []
+
+
+def test_apply_creates_missing_target_calendar() -> None:
+    gateway = FakeCalendarGateway({"Src": SOURCE})
+    service = SyncService(gateway)
+    plan = service.plan(PLANNER, SOURCE, None)
+
+    result = service.apply(plan, "Tgt")
+
+    assert gateway.created == ["Tgt"]
+    assert result.created_target_calendar
+    assert result.inserted == 1
+    assert gateway.events_of("Tgt")[0]["summary"] == "CS"
+
+
+def test_apply_creates_target_even_without_mutations() -> None:
+    gateway = FakeCalendarGateway({"Src": []})
+    service = SyncService(gateway)
+    result = service.apply(service.plan(PLANNER, [], None), "Tgt")
+    assert gateway.created == ["Tgt"]
+    assert gateway.batches == []
+    assert result.succeeded
+
+
+def test_apply_skips_batch_when_nothing_to_do() -> None:
+    gateway = FakeCalendarGateway({"Src": SOURCE, "Tgt": []})
+    service = SyncService(gateway)
+    target_id = service.find_target_calendar("Tgt")
+    service.apply(service.plan(PLANNER, SOURCE, target_id), "Tgt")
+    gateway.batches.clear()
+
+    result = service.apply(service.plan(PLANNER, SOURCE, target_id), "Tgt")
+
+    assert gateway.batches == []
+    assert not result.created_target_calendar
+    assert (result.inserted, result.updated, result.deleted) == (0, 0, 0)
+
+
+def test_apply_reports_failures_and_counts_only_successes() -> None:
+    sources = [dict(SOURCE[0], id="event00001"), dict(SOURCE[0], id="event00002")]
+    gateway = FakeCalendarGateway({"Src": sources, "Tgt": []})
+    gateway.fail_event_ids = {"event00002"}
+    service = SyncService(gateway)
+
+    result = service.apply(
+        service.plan(PLANNER, sources, service.find_target_calendar("Tgt")), "Tgt"
+    )
+
+    assert result.inserted == 1
+    assert not result.succeeded
+    assert [f.mutation.event_id for f in result.failures] == ["event00002"]
+    assert str(result.failures[0].error) == "boom"
