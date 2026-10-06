@@ -4,18 +4,31 @@ Supports the Polimi iCal format (flat VEVENTs, floating Europe/Rome times)
 using only the standard library, so no new dependencies are required.
 """
 
+import urllib.error
 import urllib.request
 from datetime import date, datetime
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 DEFAULT_TIMEZONE = "Europe/Rome"
+
+RECURRENCE_PROPERTIES = ("RRULE", "EXDATE", "RDATE")
+
+
+class ICalError(RuntimeError):
+    """Raised when an iCal feed cannot be downloaded or is unusable."""
 
 
 def fetch_ical(url: str, timeout: int = 30) -> str:
     """Downloads raw iCal text from a URL."""
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return resp.read().decode("utf-8", errors="replace")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.read().decode("utf-8", errors="replace")
+    except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+        raise ICalError(
+            f"Could not download iCal feed. Check the URL (it may have expired "
+            f"or been revoked) and your network connection: {exc}"
+        ) from exc
 
 
 def _unfold_lines(text: str) -> list[str]:
@@ -84,7 +97,7 @@ def _parse_datetime(
     else:
         try:
             dt = dt.replace(tzinfo=ZoneInfo(tzid))
-        except Exception:
+        except ZoneInfoNotFoundError:
             dt = dt.replace(tzinfo=ZoneInfo(default_tz))
             tzid = default_tz
 
@@ -105,10 +118,13 @@ def parse_ical(
             break
 
     events: list[dict[str, object]] = []
+    skipped = 0
     in_event = False
     props: dict[str, tuple[dict[str, str], str]] = {}
+    recurrence: list[str] = []
 
     def flush_event() -> None:
+        nonlocal skipped
         uid_prop = props.get("UID")
         if not uid_prop:
             return
@@ -118,6 +134,19 @@ def parse_ical(
 
         def text_of(name: str) -> str:
             return _unescape(props[name][1]) if name in props else ""
+
+        try:
+            start = end = None
+            if "DTSTART" in props:
+                params, value = props["DTSTART"]
+                start, _ = _parse_datetime(value, params, default_tz)
+            if "DTEND" in props:
+                params, value = props["DTEND"]
+                end, _ = _parse_datetime(value, params, default_tz)
+        except ValueError:
+            skipped += 1
+            print(f"⚠ Skipping malformed event (UID '{uid}'): bad date format.")
+            return
 
         event: dict[str, object] = {
             "id": uid,
@@ -129,13 +158,19 @@ def parse_ical(
         location = text_of("LOCATION")
         if location:
             event["location"] = location
-
-        if "DTSTART" in props:
-            params, value = props["DTSTART"]
-            event["start"], _ = _parse_datetime(value, params, default_tz)
-        if "DTEND" in props:
-            params, value = props["DTEND"]
-            event["end"], _ = _parse_datetime(value, params, default_tz)
+        if start is not None:
+            event["start"] = start
+        if end is not None:
+            event["end"] = end
+        if "CATEGORIES" in props:
+            raw_cats = props["CATEGORIES"][1]
+            event["categories"] = [
+                _unescape(c).strip() for c in raw_cats.split(",") if c.strip()
+            ]
+        if recurrence:
+            # Passed through verbatim: the Google Calendar API natively
+            # understands RRULE/EXDATE/RDATE recurrence rules.
+            event["recurrence"] = list(recurrence)
         events.append(event)
 
     for line in unfolded:
@@ -143,18 +178,25 @@ def parse_ical(
         if upper == "BEGIN:VEVENT":
             in_event = True
             props = {}
+            recurrence = []
         elif upper == "END:VEVENT":
             if in_event:
                 flush_event()
             in_event = False
             props = {}
+            recurrence = []
         elif in_event:
             parsed = _parse_property(line)
             if parsed:
                 name, params, value = parsed
+                if name in RECURRENCE_PROPERTIES:
+                    recurrence.append(line)
                 # Keep first occurrence of each property
-                if name not in props:
+                elif name not in props:
                     props[name] = (params, value)
+
+    if skipped:
+        print(f"⚠ Skipped {skipped} malformed event(s) from the iCal feed.")
 
     return events
 

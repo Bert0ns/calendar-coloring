@@ -1,6 +1,9 @@
+import urllib.error
 from unittest.mock import MagicMock, patch
 
-from ical_source import fetch_ical_events, parse_ical
+import pytest
+
+from ical_source import ICalError, fetch_ical, fetch_ical_events, parse_ical
 from sync_processor import CalendarSyncProcessor
 
 SAMPLE_ICAL = """BEGIN:VCALENDAR
@@ -132,3 +135,86 @@ def test_sync_processor_prefers_ical_over_google_source():
     inserts = [op for op in called_ops if op["action"] == "insert"]
     assert len(inserts) == 1
     assert inserts[0]["body"]["summary"] == "CS"
+
+
+def test_parse_ical_categories():
+    text = """BEGIN:VCALENDAR
+BEGIN:VEVENT
+UID:evt12345
+DTSTART:20260917T101500
+DTEND:20260917T121500
+CATEGORIES:Esame
+SUMMARY:Esame: Something
+END:VEVENT
+END:VCALENDAR
+"""
+    events = parse_ical(text)
+    assert events[0]["categories"] == ["Esame"]
+
+
+def test_parse_ical_rrule_passthrough():
+    text = """BEGIN:VCALENDAR
+BEGIN:VEVENT
+UID:evt12345
+DTSTART:20260917T101500
+DTEND:20260917T121500
+RRULE:FREQ=WEEKLY;COUNT=10
+EXDATE:20261001T101500
+SUMMARY:Lezione: Didattica - Recurring Course
+END:VEVENT
+END:VCALENDAR
+"""
+    events = parse_ical(text)
+    assert events[0]["recurrence"] == [
+        "RRULE:FREQ=WEEKLY;COUNT=10",
+        "EXDATE:20261001T101500",
+    ]
+
+
+def test_parse_ical_skips_malformed_event(capsys):
+    text = """BEGIN:VCALENDAR
+BEGIN:VEVENT
+UID:bad12345
+DTSTART:not-a-date
+DTEND:20260917T121500
+SUMMARY:Broken
+END:VEVENT
+BEGIN:VEVENT
+UID:good12345
+DTSTART:20260917T101500
+DTEND:20260917T121500
+SUMMARY:Fine
+END:VEVENT
+END:VCALENDAR
+"""
+    events = parse_ical(text)
+    assert [e["id"] for e in events] == ["good12345"]
+    assert "Skipping malformed" in capsys.readouterr().out
+
+
+def test_fetch_ical_wraps_network_errors():
+    with patch(
+        "ical_source.urllib.request.urlopen",
+        side_effect=urllib.error.URLError("boom"),
+    ):
+        with pytest.raises(ICalError, match="Could not download"):
+            fetch_ical("https://example.com/feed.ics")
+
+
+def test_sync_processor_exits_cleanly_on_ical_failure():
+    mock_client = MagicMock()
+    processor = CalendarSyncProcessor(
+        client=mock_client,
+        strategy=MagicMock(),
+        source_name="Source",
+        target_name="Target",
+        source_ical_url="https://example.com/feed.ics",
+    )
+    with patch(
+        "sync_processor.fetch_ical_events",
+        side_effect=ICalError("nope"),
+    ):
+        with pytest.raises(SystemExit) as exc_info:
+            processor.process()
+    assert exc_info.value.code == 1
+    mock_client.batch_mutate_events.assert_not_called()

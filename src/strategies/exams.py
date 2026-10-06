@@ -17,6 +17,9 @@ class ExamColoringStrategy(PersistentColoringStrategy):
         super().__init__("exam_states.json", interactive)
         self.subscribed_titles: set[str] = self._derive_subscribed_titles()
         self.prompted_keys: set[str] = set()
+        # Decisions made interactively this run, keyed by exam title so the
+        # user is asked only once per exam even with multiple dates.
+        self.title_decisions: dict[str, dict[str, Any]] = {}
 
     def _derive_subscribed_titles(self) -> set[str]:
         subscribed = set()
@@ -29,8 +32,9 @@ class ExamColoringStrategy(PersistentColoringStrategy):
     def determine_color(self, event: dict[str, Any]) -> str | None:
         title = event.get("summary", "")
         description = event.get("description", "")
+        categories = event.get("categories", [])
 
-        if not title.startswith("Esame: "):
+        if not title.startswith("Esame: ") and "Esame" not in categories:
             return None
 
         start_info = event.get("start", {})
@@ -47,6 +51,23 @@ class ExamColoringStrategy(PersistentColoringStrategy):
             self.prompted_keys.add(cache_key)
 
             existing_entry = self.state.get(cache_key)
+
+            if cache_key not in self.state and title in self.title_decisions:
+                # Reuse this run's decision for another date of the same exam
+                # instead of asking again.
+                decision = self.title_decisions[title]
+                self.state[cache_key] = {
+                    "color": decision["color"],
+                    "subscribed": decision["subscribed"],
+                }
+                if decision["subscribed"]:
+                    self.subscribed_titles.add(title)
+                self._save_state()
+                print(
+                    f"{Colors.OKBLUE} ↳ Reusing '{title}' decision for {date_str} "
+                    f"(color {decision['color']}).{Colors.ENDC}"
+                )
+                return decision["color"]
 
             # Determine suggestion/default for subscription
             default_ans: str | None = None
@@ -130,6 +151,10 @@ class ExamColoringStrategy(PersistentColoringStrategy):
             }
             if is_subscribed:
                 self.subscribed_titles.add(title)
+            self.title_decisions[title] = {
+                "color": chosen_color,
+                "subscribed": is_subscribed,
+            }
             self._save_state()
             return chosen_color
 

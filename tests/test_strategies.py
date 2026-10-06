@@ -142,3 +142,101 @@ def test_lecture_strategy_interactive_defaults(tmp_path):
 
     assert color == "4"
     assert strategy.state["Computer Security"] == "4"
+
+
+def test_deadline_strategy_deterministic_coloring():
+    from strategies.deadlines import DeadlineColoringStrategy
+
+    strategy = DeadlineColoringStrategy()
+    strategy.state_file = "deadlines.json"
+    strategy.state = {}
+
+    color = strategy.determine_color({"summary": "Scadenza: Esame di laurea"})
+    assert color in DeadlineColoringStrategy.AVAILABLE_DEADLINE_COLORS
+
+    # Non-deadline events are ignored
+    assert strategy.determine_color({"summary": "Lezione: Didattica - X"}) is None
+    assert strategy.determine_color({"summary": "Esame: Something"}) is None
+
+
+def test_deadline_strategy_interactive_defaults(tmp_path):
+    from strategies.deadlines import DeadlineColoringStrategy
+
+    state_file = tmp_path / "deadlines.json"
+    state_file.write_text(json.dumps({"Esame di laurea": "5"}))
+
+    strategy = DeadlineColoringStrategy(interactive=True)
+    strategy.state_file = str(state_file)
+    strategy.state = strategy._load_state()
+
+    event = {"summary": "Scadenza: Esame di laurea"}
+
+    # Simulate pressing Enter to keep existing default color "5"
+    with patch("builtins.input", return_value=""):
+        color = strategy.determine_color(event)
+
+    assert color == "5"
+    assert strategy.state["Esame di laurea"] == "5"
+
+
+def test_strategies_match_ical_categories_without_prefix():
+    from strategies.deadlines import DeadlineColoringStrategy
+
+    exam_strategy = ExamColoringStrategy()
+    exam_strategy.state_file = "exams_cat.json"
+    exam_strategy.state = {}
+    exam_strategy.subscribed_titles = set()
+
+    # Exam recognized via CATEGORIES even without the "Esame: " prefix
+    color = exam_strategy.determine_color(
+        {
+            "summary": "DESIGN AND IMPLEMENTATION OF MOBILE APPLICATIONS",
+            "description": "Non iscritto",
+            "start": {"date": "2026-09-08"},
+            "categories": ["Esame"],
+        }
+    )
+    assert color == ExamColoringStrategy.COLOR_GREY
+
+    lecture_strategy = LectureColoringStrategy()
+    lecture_strategy.state_file = "courses_cat.json"
+    lecture_strategy.state = {}
+    color = lecture_strategy.determine_color(
+        {"summary": "SENSOR SYSTEMS", "categories": ["Lezione"]}
+    )
+    assert color in LectureColoringStrategy.AVAILABLE_LECTURE_COLORS
+
+    deadline_strategy = DeadlineColoringStrategy()
+    deadline_strategy.state_file = "deadlines_cat.json"
+    deadline_strategy.state = {}
+    color = deadline_strategy.determine_color(
+        {"summary": "Esame di laurea", "categories": ["Scadenza"]}
+    )
+    assert color in DeadlineColoringStrategy.AVAILABLE_DEADLINE_COLORS
+
+
+def test_exam_strategy_interactive_asks_once_per_title():
+    strategy = ExamColoringStrategy(interactive=True)
+    strategy.state_file = "exams_memo.json"
+    strategy.state = {}
+    strategy.subscribed_titles = set()
+
+    first = {
+        "summary": "Esame: Security",
+        "description": "Iscritto",
+        "start": {"date": "2026-06-15"},
+    }
+    second = {
+        "summary": "Esame: Security",
+        "description": "Non iscritto",
+        "start": {"date": "2026-07-15"},
+    }
+
+    # First date: two prompts (subscription + color). Second date: reused, no prompts.
+    with patch("builtins.input", side_effect=["y", ""]) as mock_input:
+        color1 = strategy.determine_color(first)
+        color2 = strategy.determine_color(second)
+
+    assert mock_input.call_count == 2
+    assert color1 == color2 == ExamColoringStrategy.COLOR_RED
+    assert strategy.state["Esame: Security (2026-07-15)"]["subscribed"] is True
