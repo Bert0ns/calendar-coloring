@@ -20,13 +20,17 @@ from datetime import date
 from typing import Any
 
 import pytest
-from conftest import FakeCalendarGateway, load_fixture, save_profile, saved
+from conftest import POLIMI, FakeCalendarGateway, load_fixture, save_profile, saved
 
 from calendar_coloring.cli.main import run
 from calendar_coloring.config import Config
 from calendar_coloring.reporting import NullReporter
 from calendar_coloring.sync.models import Mutation
-from calendar_coloring.sync.planner import LEGACY_MANAGED_PROPERTIES, MANAGED_PROPERTY
+from calendar_coloring.sync.planner import (
+    LEGACY_MANAGED_PROPERTIES,
+    MANAGED_PROPERTY,
+    sanitize_event_id,
+)
 from calendar_coloring.targets import SyncTarget
 from calendar_coloring.workflow import SyncOptions
 
@@ -93,6 +97,26 @@ def setup(scenario: str, config: Config) -> tuple[SyncOptions, FakeCalendarGatew
     return options, gateway
 
 
+def in_scope_operations(
+    target: SyncTarget, operations: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """The legacy implementation copied every event whatever the target. Now
+    events out of the target are ignored, and nothing is deleted unless
+    everything is synced (the kind of a deleted event is unknown)."""
+    if target is SyncTarget.ALL:
+        return operations
+    kinds = {
+        sanitize_event_id(event["id"]): POLIMI.kind_of(event)
+        for event in SCENARIO["source"]
+        if "id" in event
+    }
+    return [
+        op
+        for op in operations
+        if op["action"] != "delete" and target.covers(kinds.get(op["body"]["id"]))
+    ]
+
+
 def snapshot(config: Config) -> dict[str, Any]:
     return {section: saved(config, section) for section in SECTIONS}
 
@@ -106,7 +130,7 @@ def test_matches_legacy_behavior(scenario: str, config: Config) -> None:
     assert exit_code == 0
     expected = GOLDEN[scenario]
     actual_ops = [as_legacy_operation(m) for m in gateway.all_mutations]
-    assert actual_ops == expected["mutations"]
+    assert actual_ops == in_scope_operations(options.target, expected["mutations"])
     assert snapshot(config) == expected_preferences(expected["files_raw"])
 
 

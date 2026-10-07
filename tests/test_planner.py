@@ -18,6 +18,7 @@ from calendar_coloring.sync.planner import (
     sanitize_event_id,
     start_day,
 )
+from calendar_coloring.targets import SyncTarget
 
 MANAGED = {"private": {MANAGED_PROPERTY: "true"}}
 
@@ -488,3 +489,45 @@ def test_legacy_tagged_events_removed_from_the_source_are_deleted() -> None:
     plan = planner().plan([], [stale], "cal")
     assert [m.action for m in plan.mutations] == [MutationAction.DELETE]
     assert plan.preserved_unmanaged == ()
+
+
+class TestScope:
+    """Source events out of scope are ignored: their target copies are left as is."""
+
+    @staticmethod
+    def scoped(target: SyncTarget) -> SyncPlanner:
+        return SyncPlanner(
+            FixedStrategy(),
+            POLIMI.target_title,
+            in_scope=lambda event: target.covers(POLIMI.kind_of(event)),
+        )
+
+    LECTURE = source_event(id="lecture111", summary="Lezione: Didattica - CS")
+    EXAM = source_event(id="esame1111", summary="Esame: CS")
+    OTHER = source_event(id="other1111", summary="Seminario: AI")
+
+    def test_out_of_scope_events_are_not_inserted(self) -> None:
+        plan = self.scoped(SyncTarget.EXAMS).plan(
+            [self.LECTURE, self.EXAM, self.OTHER], [], "tgt"
+        )
+        assert [m.event_id for m in plan.mutations] == ["esame1111"]
+
+    def test_out_of_scope_copies_are_not_updated_nor_deleted(self) -> None:
+        stale = {**synced_target(self.LECTURE, "9"), "id": "lecture111"}
+        gone = {**synced_target(self.OTHER, "9"), "id": "other1111"}
+        plan = self.scoped(SyncTarget.EXAMS).plan([self.LECTURE], [stale, gone], "tgt")
+        assert plan.mutations == ()
+
+    def test_events_gone_from_the_source_are_only_deleted_by_a_full_sync(self) -> None:
+        gone = {**synced_target(self.EXAM), "id": "gone11111"}
+        assert self.scoped(SyncTarget.EXAMS).plan([], [gone], "tgt").mutations == ()
+        full = SyncPlanner(FixedStrategy(), POLIMI.target_title).plan([], [gone], "tgt")
+        assert [m.action for m in full.mutations] == [MutationAction.DELETE]
+
+    def test_in_scope_events_are_still_synced(self) -> None:
+        plan = self.scoped(SyncTarget.LECTURES).plan([self.LECTURE], [], "tgt")
+        assert [m.action for m in plan.mutations] == [MutationAction.INSERT]
+
+    def test_everything_covers_unclassified_events(self) -> None:
+        assert SyncTarget.ALL.covers(None)
+        assert not SyncTarget.EXAMS.covers(None)

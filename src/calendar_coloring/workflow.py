@@ -229,6 +229,11 @@ class SyncWorkflow:
             strategy_for(options.target, profile.preferences, classifier),
             classifier.target_title,
             prune_before=options.prune_before,
+            in_scope=(
+                None
+                if options.target is SyncTarget.ALL
+                else lambda event: options.target.covers(classifier.kind_of(event))
+            ),
         )
 
     def _update_preferences(self, session: SyncSession) -> None:

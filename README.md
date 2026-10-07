@@ -66,7 +66,9 @@ The sync is safe to repeat:
   alone.
 - Events removed from the source are removed from the target.
 - If an event isn't covered by the current run (for example, a lecture during
-  `calendar-coloring exams`), its existing color is kept.
+  `calendar-coloring exams`), it is ignored: its copy in the target calendar is
+  never inserted, updated or deleted. Events removed from the source are only
+  deleted by a run that covers everything.
 - The target calendar is created on the first sync.
 
 ## Setup
@@ -195,7 +197,7 @@ per kind of event:
 | **Courses**   | Every course in the source with its color. Pick a new color from the 11 Google colors.                                                                                                                                                                                  |
 | **Exams**     | Every exam session with its date, what the source calendar says (_enrolled_ / _not enrolled_), whether you're already subscribed to another date, and your subscription. Toggle the subscription or pick a color.                                                       |
 | **Deadlines** | Same as Courses, for deadlines.                                                                                                                                                                                                                                         |
-| **Sync**      | **Preview changes** lists the inserts, updates and deletes; expand an event to see its color, time and original title. **Apply** writes them to Google Calendar with a progress bar.                                                                                    |
+| **Sync**      | Choose what to color: everything, lectures only, exams only or deadlines only (the other tabs follow). **Preview changes** lists the inserts, updates and deletes; expand an event to see its color, time and original title. **Apply** writes them to Google Calendar with a progress bar.                                                                                    |
 | **Rules**     | The [rules](#profile-and-rules) that decide what each event is, and the exam enrollment conditions. A live preview shows how every event title is classified. Add, edit, delete and reorder rules, or press Enter on an unmatched event to start a rule from its title. |
 
 The **Status** column shows where each value comes from:
@@ -272,7 +274,7 @@ calendar-coloring [all|exams|lectures|deadlines] [options]
 
 | Option                                            | Description                                                                           |
 | ------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `all` (default), `exams`, `lectures`, `deadlines` | Which kinds of events to color and edit.                                              |
+| `all` (default), `exams`, `lectures`, `deadlines` | Which kinds of events to sync; the others are left untouched.                                           |
 | `--tui`                                           | Open the terminal UI (default in a terminal). Not with `-i`, `--dry-run`, `--no-tui`. |
 | `--no-tui`                                        | Run a plain sync instead of opening the terminal UI.                                  |
 | `-i`, `--interactive`                             | Ask about subscriptions and colors before syncing.                                    |

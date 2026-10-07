@@ -3,7 +3,8 @@
     "name": "Politecnico di Milano",
     "calendars": {
         "source": "Polimi",
-        "target": "test Polimi Colored"
+        "target": "Polimi Colored test",
+        "time_zone": null
     },
     "rules": [
         {
@@ -197,5 +198,9 @@
             "subscribed": true
         }
     },
-    "deadlines": {}
+    "deadlines": {
+        "Fine della presentazione del piano degli studi": "5",
+        "Esame di laurea": "5",
+        "Inizia la presentazione del piano degli studi fuori tempo": "5"
+    }
 }

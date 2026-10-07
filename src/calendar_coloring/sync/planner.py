@@ -28,6 +28,8 @@ _DIGEST_LENGTH = 8
 
 TitleFor = Callable[[Event], str]
 """Title of a source event in the target calendar."""
+InScope = Callable[[Event], bool]
+"""True if a source event is part of the sync. The others are left alone."""
 
 
 def sanitize_event_id(raw_id: str) -> str:
@@ -138,14 +140,19 @@ class SyncPlanner:
         strategy: EventColoringStrategy,
         title_for: TitleFor = summary_of,
         prune_before: date | None = None,
+        in_scope: InScope | None = None,
     ) -> None:
         """
         :param prune_before: source events starting before this day are left out
             of the target calendar (their managed copies get deleted).
+        :param in_scope: tells the source events the sync covers. The others are
+            ignored: their copies in the target calendar are never inserted,
+            updated nor deleted. Without it, every event is covered.
         """
         self.strategy = strategy
         self.title_for = title_for
         self.prune_before = prune_before
+        self.in_scope = in_scope
 
     def is_pruned(self, event: Event) -> bool:
         if self.prune_before is None:
@@ -174,6 +181,7 @@ class SyncPlanner:
             if "id" in e and not is_recurring_instance(e)
         }
         source_ids: set[str] = set()
+        ignored_ids: set[str] = set()
         pruned_ids: set[str] = set()
         skipped_without_start: list[str] = []
         mutations: list[Mutation] = []
@@ -187,6 +195,9 @@ class SyncPlanner:
                 skipped_without_start.append(summary_of(source) or raw_id)
                 continue
             event_id = sanitize_event_id(raw_id)
+            if self.in_scope is not None and not self.in_scope(source):
+                ignored_ids.add(event_id)
+                continue
             if self.is_pruned(source):
                 pruned_ids.add(event_id)
                 continue
@@ -202,10 +213,14 @@ class SyncPlanner:
         preserved_unmanaged: list[str] = []
         pruned_count = 0
         for event_id, existing in targets_by_id.items():
-            if event_id in source_ids:
+            if event_id in source_ids or event_id in ignored_ids:
                 continue
             if not is_managed(existing):
                 preserved_unmanaged.append(summary_of(existing) or event_id)
+                continue
+            if self.in_scope is not None and event_id not in pruned_ids:
+                # Gone from the source: its kind is unknown, so it may be out
+                # of scope. Only a sync of everything cleans it up.
                 continue
             if event_id in pruned_ids or self.is_pruned(existing):
                 pruned_count += 1

@@ -162,6 +162,11 @@ def test_lists_courses_exams_and_deadlines(config: Config) -> None:
     drive(app, scenario)
 
 
+def visible_tabs(app: CalendarColoringApp) -> list[str | None]:
+    tabs = app.query_one(TabbedContent)
+    return [pane.id for pane in tabs.query("TabPane") if tabs.get_tab(pane).display]
+
+
 def test_target_selects_the_tabs(config: Config) -> None:
     app = make_app(
         config,
@@ -170,14 +175,65 @@ def test_target_selects_the_tabs(config: Config) -> None:
     )
 
     async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
-        tabs = app.query_one(TabbedContent)
-        assert [pane.id for pane in tabs.query("TabPane")] == [
+        assert visible_tabs(app) == ["setup", "exams", "sync", "rules"]
+        assert app.query_one("#scope", Select).value is SyncTarget.EXAMS
+        assert app.check_action("toggle_subscription", ()) is True
+
+    drive(app, scenario)
+
+
+def planned(app: CalendarColoringApp) -> list[str]:
+    assert app.plan is not None
+    return [m.summary for m in app.plan.mutations]
+
+
+def test_the_sync_tab_limits_the_sync_to_lectures_exams_or_all(
+    config: Config,
+) -> None:
+    app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        scope = app.query_one("#scope", Select)
+        assert scope.value is SyncTarget.ALL
+        await pilot.press("p")
+        await settle(app, pilot)
+        assert planned(app) == [
+            "CS",
+            "Math",
+            "Esame: CS",
+            "Esame: Physics",
+            "Scadenza: Piano di studi",
+        ]
+
+        scope.value = SyncTarget.LECTURES
+        await pilot.pause()
+        assert app.options.target is SyncTarget.LECTURES
+        assert visible_tabs(app) == ["setup", "courses", "sync", "rules"]
+        assert app.plan is None
+        await pilot.press("p")
+        await settle(app, pilot)
+        assert planned(app) == ["CS", "Math"]
+
+        scope.value = SyncTarget.EXAMS
+        await pilot.pause()
+        assert visible_tabs(app) == ["setup", "exams", "sync", "rules"]
+        await pilot.press("p")
+        await settle(app, pilot)
+        assert planned(app) == ["Esame: CS", "Esame: Physics"]
+
+        scope.value = SyncTarget.ALL
+        await pilot.pause()
+        assert visible_tabs(app) == [
             "setup",
+            "courses",
             "exams",
+            "deadlines",
             "sync",
             "rules",
         ]
-        assert app.check_action("toggle_subscription", ()) is True
+        await pilot.press("p")
+        await settle(app, pilot)
+        assert len(planned(app)) == 5
 
     drive(app, scenario)
 
@@ -314,7 +370,7 @@ def test_plan_tree_shows_updates_and_deletes(config: Config) -> None:
     }
     outdated = {**SOURCE[1], "summary": "Math (old title)", "recurrence": None}
     gateway = FakeCalendarGateway({"Src": SOURCE[1:2], "Tgt": [stale, outdated]})
-    app = make_app(config, gateway, SyncOptions(target=SyncTarget.LECTURES))
+    app = make_app(config, gateway)
 
     async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
         await pilot.press("p")
