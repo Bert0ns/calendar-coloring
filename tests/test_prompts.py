@@ -3,17 +3,17 @@ import re
 import pytest
 from conftest import POLIMI
 
-from calendar_coloring.catalog import discover
-from calendar_coloring.cli.prompts import (
+from unical.catalog import discover
+from unical.cli.prompts import (
     InteractivePreferenceEditor,
     parse_color,
     parse_yes_no,
 )
-from calendar_coloring.events import Enrollment, ExamOccurrence
-from calendar_coloring.palette import GoogleColor
-from calendar_coloring.preferences import ExamPreference, Preferences
-from calendar_coloring.suggestions import suggest_color
-from calendar_coloring.targets import SyncTarget
+from unical.events import Enrollment, ExamOccurrence
+from unical.palette import GoogleColor
+from unical.preferences import ExamPreference, Preferences
+from unical.suggestions import suggest_color
+from unical.targets import SyncTarget
 
 ANSI = re.compile(r"\033\[[0-9;]*m")
 

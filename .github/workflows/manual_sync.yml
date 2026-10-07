@@ -92,7 +92,7 @@ jobs:
           if [ -n "$TARGET" ]; then args+=("$TARGET"); fi
           if [ "$VERBOSE" == "true" ]; then args+=("--verbose"); fi
           if [ "$DRY_RUN" == "true" ]; then args+=("--dry-run"); fi
-          calendar-coloring --no-tui "${args[@]}"
+          unical --no-tui "${args[@]}"
 
       - name: Persist the profile
         if: ${{ inputs.dry_run != true }}

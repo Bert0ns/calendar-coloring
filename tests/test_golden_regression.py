@@ -22,17 +22,17 @@ from typing import Any
 import pytest
 from conftest import POLIMI, FakeCalendarGateway, load_fixture, save_profile, saved
 
-from calendar_coloring.cli.main import run
-from calendar_coloring.config import Config
-from calendar_coloring.reporting import NullReporter
-from calendar_coloring.sync.models import Mutation
-from calendar_coloring.sync.planner import (
+from unical.cli.main import run
+from unical.config import Config
+from unical.reporting import NullReporter
+from unical.sync.models import Mutation
+from unical.sync.planner import (
     LEGACY_MANAGED_PROPERTIES,
     MANAGED_PROPERTY,
     sanitize_event_id,
 )
-from calendar_coloring.targets import SyncTarget
-from calendar_coloring.workflow import SyncOptions
+from unical.targets import SyncTarget
+from unical.workflow import SyncOptions
 
 
 def with_current_tag(data: Any) -> Any:

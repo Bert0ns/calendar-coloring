@@ -8,11 +8,11 @@ from typing import Any
 
 import pytest
 
-from calendar_coloring.config import Config
-from calendar_coloring.presets import POLIMI_ENROLLMENT, POLIMI_RULES
-from calendar_coloring.profile import JsonProfileRepository, polimi_profile, serialize
-from calendar_coloring.rules import Classifier
-from calendar_coloring.sync.models import (
+from unical.config import Config
+from unical.presets import POLIMI_ENROLLMENT, POLIMI_RULES
+from unical.profile import JsonProfileRepository, polimi_profile, serialize
+from unical.rules import Classifier
+from unical.sync.models import (
     CalendarInfo,
     Mutation,
     MutationAction,

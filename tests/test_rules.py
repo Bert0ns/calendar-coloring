@@ -1,8 +1,8 @@
 import pytest
 from conftest import POLIMI
 
-from calendar_coloring.events import Enrollment, ExamOccurrence
-from calendar_coloring.rules import (
+from unical.events import Enrollment, ExamOccurrence
+from unical.rules import (
     Classification,
     Classifier,
     Condition,

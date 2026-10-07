@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "calendar-coloring"
+name = "uni-calendar-coloring"
 dynamic = ["version"]
 description = "Sync a read-only university calendar into a color-coded Google Calendar."
 readme = "README.md"
@@ -30,16 +30,16 @@ dev = [
 ]
 
 [project.scripts]
-calendar-coloring = "calendar_coloring.cli.main:main"
+unical = "unical.cli.main:main"
 
 [tool.setuptools.dynamic]
-version = { attr = "calendar_coloring.__version__" }
+version = { attr = "unical.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-calendar_coloring = ["py.typed"]
+unical = ["py.typed"]
 
 [tool.black]
 line-length = 88
@@ -69,7 +69,7 @@ python_files = ["test_*.py"]
 addopts = "--strict-markers"
 
 [tool.coverage.run]
-source = ["calendar_coloring"]
+source = ["unical"]
 branch = true
 
 [tool.coverage.report]

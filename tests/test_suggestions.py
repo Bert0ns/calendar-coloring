@@ -1,9 +1,9 @@
 import pytest
 
-from calendar_coloring.events import Enrollment, ExamOccurrence
-from calendar_coloring.palette import GoogleColor
-from calendar_coloring.preferences import ExamPreference
-from calendar_coloring.suggestions import (
+from unical.events import Enrollment, ExamOccurrence
+from unical.palette import GoogleColor
+from unical.preferences import ExamPreference
+from unical.suggestions import (
     auto_exam_preference,
     default_exam_color,
     is_subscribed_to_other_session,

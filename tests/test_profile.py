@@ -4,11 +4,11 @@ from typing import Any
 
 import pytest
 
-from calendar_coloring.events import ExamOccurrence
-from calendar_coloring.palette import GoogleColor
-from calendar_coloring.preferences import ExamPreference, Preferences
-from calendar_coloring.presets import POLIMI_ENROLLMENT, POLIMI_NAME, POLIMI_RULES
-from calendar_coloring.profile import (
+from unical.events import ExamOccurrence
+from unical.palette import GoogleColor
+from unical.preferences import ExamPreference, Preferences
+from unical.presets import POLIMI_ENROLLMENT, POLIMI_NAME, POLIMI_RULES
+from unical.profile import (
     CalendarSettings,
     JsonProfileRepository,
     Profile,
@@ -16,7 +16,7 @@ from calendar_coloring.profile import (
     serialize,
     time_zone_error,
 )
-from calendar_coloring.rules import (
+from unical.rules import (
     Condition,
     EnrollmentRules,
     EventKind,
@@ -333,7 +333,7 @@ def test_failed_write_keeps_previous_file_intact(
     def explode(*args: object, **kwargs: object) -> None:
         raise OSError("disk full")
 
-    monkeypatch.setattr("calendar_coloring.profile.json.dump", explode)
+    monkeypatch.setattr("unical.profile.json.dump", explode)
     with pytest.raises(OSError):
         repo.save(profile)
 

@@ -22,18 +22,18 @@ from textual.widgets import (
     TabbedContent,
 )
 
-from calendar_coloring.cli.main import build_workflow
-from calendar_coloring.config import Config
-from calendar_coloring.palette import GoogleColor
-from calendar_coloring.profile import CalendarSettings
-from calendar_coloring.rules import EventKind, MatchKind
-from calendar_coloring.suggestions import suggest_color
-from calendar_coloring.sync.models import Mutation, MutationAction, SyncPlan
-from calendar_coloring.sync.source import GoogleCalendarSource
-from calendar_coloring.targets import SyncTarget
-from calendar_coloring.tui.app import CalendarColoringApp, TuiReporter
-from calendar_coloring.tui.setup import CalendarSetup, Role
-from calendar_coloring.tui.widgets import (
+from unical.cli.main import build_workflow
+from unical.config import Config
+from unical.palette import GoogleColor
+from unical.profile import CalendarSettings
+from unical.rules import EventKind, MatchKind
+from unical.suggestions import suggest_color
+from unical.sync.models import Mutation, MutationAction, SyncPlan
+from unical.sync.source import GoogleCalendarSource
+from unical.targets import SyncTarget
+from unical.tui.app import TuiReporter, UnicalApp
+from unical.tui.setup import CalendarSetup, Role
+from unical.tui.widgets import (
     CalendarPicker,
     ColorPicker,
     PlanTree,
@@ -42,8 +42,8 @@ from calendar_coloring.tui.widgets import (
     TextPrompt,
     progress_text,
 )
-from calendar_coloring.tui.wizard import WizardIntro, WizardRules
-from calendar_coloring.workflow import SyncOptions
+from unical.tui.wizard import WizardIntro, WizardRules
+from unical.workflow import SyncOptions
 
 SOURCE = [
     {
@@ -80,7 +80,7 @@ SOURCE = [
     },
 ]
 
-Scenario = Callable[[CalendarColoringApp, Pilot[None]], Awaitable[None]]
+Scenario = Callable[[UnicalApp, Pilot[None]], Awaitable[None]]
 
 
 def make_app(
@@ -88,9 +88,9 @@ def make_app(
     gateway: FakeCalendarGateway,
     options: SyncOptions | None = None,
     setup: CalendarSetup | None = None,
-) -> CalendarColoringApp:
+) -> UnicalApp:
     reporter = TuiReporter()
-    return CalendarColoringApp(
+    return UnicalApp(
         build_workflow(config, gateway, reporter),
         setup or make_setup(gateway),
         options or SyncOptions(),
@@ -106,7 +106,7 @@ def make_setup(gateway: FakeCalendarGateway, **kwargs: Any) -> CalendarSetup:
     )
 
 
-def drive(app: CalendarColoringApp, scenario: Scenario) -> None:
+def drive(app: UnicalApp, scenario: Scenario) -> None:
     async def main() -> None:
         async with app.run_test(size=(120, 40)) as pilot:
             await settle(app, pilot)
@@ -115,21 +115,21 @@ def drive(app: CalendarColoringApp, scenario: Scenario) -> None:
     asyncio.run(main())
 
 
-async def settle(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+async def settle(app: UnicalApp, pilot: Pilot[None]) -> None:
     await app.workers.wait_for_complete()
     await pilot.pause()
 
 
-def summary_text(app: CalendarColoringApp) -> str:
+def summary_text(app: UnicalApp) -> str:
     return str(app.query_one("#plan-summary", Static).render())
 
 
-def cells(app: CalendarColoringApp, tab: str, key: str) -> list[str]:
+def cells(app: UnicalApp, tab: str, key: str) -> list[str]:
     table = app.query_one(f"#{tab}-table", DataTable)
     return [cell.plain for cell in table.get_row(key)]
 
 
-async def show_tab(app: CalendarColoringApp, pilot: Pilot[None], tab: str) -> None:
+async def show_tab(app: UnicalApp, pilot: Pilot[None], tab: str) -> None:
     """The app opens on the Setup tab: goes to a table and focuses it."""
     app.query_one(TabbedContent).active = tab
     await pilot.pause()
@@ -137,7 +137,7 @@ async def show_tab(app: CalendarColoringApp, pilot: Pilot[None], tab: str) -> No
     await pilot.pause()
 
 
-async def log_text(app: CalendarColoringApp, pilot: Pilot[None]) -> str:
+async def log_text(app: UnicalApp, pilot: Pilot[None]) -> str:
     """The log is only rendered once its (Sync) tab is visible."""
     app.query_one(TabbedContent).active = "sync"
     await pilot.pause()
@@ -148,7 +148,7 @@ def test_lists_courses_exams_and_deadlines(config: Config) -> None:
     save_profile(config, courses={"CS": "10"})
     app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         assert app.query_one(TabbedContent).active == "setup"
         await show_tab(app, pilot, "courses")
         assert cells(app, "courses", "CS")[1:] == ["    Basil", "saved"]
@@ -175,7 +175,7 @@ def test_lists_courses_exams_and_deadlines(config: Config) -> None:
     drive(app, scenario)
 
 
-def visible_tabs(app: CalendarColoringApp) -> list[str | None]:
+def visible_tabs(app: UnicalApp) -> list[str | None]:
     tabs = app.query_one(TabbedContent)
     return [pane.id for pane in tabs.query("TabPane") if tabs.get_tab(pane).display]
 
@@ -187,7 +187,7 @@ def test_target_selects_the_tabs(config: Config) -> None:
         SyncOptions(target=SyncTarget.EXAMS),
     )
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         assert visible_tabs(app) == ["setup", "exams", "sync", "rules"]
         await show_tab(app, pilot, "exams")
         assert app.query_one("#scope-sync", Select).value is SyncTarget.EXAMS
@@ -197,7 +197,7 @@ def test_target_selects_the_tabs(config: Config) -> None:
     drive(app, scenario)
 
 
-def planned(app: CalendarColoringApp) -> list[str]:
+def planned(app: UnicalApp) -> list[str]:
     assert app.plan is not None
     return [m.summary for m in app.plan.mutations]
 
@@ -207,7 +207,7 @@ def test_the_sync_tab_limits_the_sync_to_lectures_exams_or_all(
 ) -> None:
     app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         scope = app.query_one("#scope-sync", Select)
         setup_scope = app.query_one("#scope-setup", Select)
         assert scope.value is SyncTarget.ALL
@@ -259,7 +259,7 @@ def test_the_sync_tab_limits_the_sync_to_lectures_exams_or_all(
 def test_pick_a_color_and_save(config: Config) -> None:
     app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         await show_tab(app, pilot, "courses")
         await pilot.press("c")
         assert isinstance(app.screen, ColorPicker)
@@ -286,7 +286,7 @@ def test_pick_a_color_and_save(config: Config) -> None:
 def test_enter_opens_the_picker_and_escape_cancels(config: Config) -> None:
     app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         await show_tab(app, pilot, "courses")
         await pilot.press("down", "enter")
         assert isinstance(app.screen, ColorPicker)
@@ -302,7 +302,7 @@ def test_enter_opens_the_picker_and_escape_cancels(config: Config) -> None:
 def test_edit_exams_and_deadlines(config: Config) -> None:
     app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         app.query_one(TabbedContent).active = "exams"
         await pilot.pause()
         app.query_one("#exams-table").focus()
@@ -337,7 +337,7 @@ def test_preview_then_apply(config: Config) -> None:
     gateway = FakeCalendarGateway({"Src": SOURCE})
     app = make_app(config, gateway)
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         assert app.query_one("#apply", Button).disabled
         assert app.check_action("apply", ()) is None
 
@@ -392,7 +392,7 @@ def test_plan_tree_shows_updates_and_deletes(config: Config) -> None:
     gateway = FakeCalendarGateway({"Src": SOURCE[1:2], "Tgt": [stale, outdated]})
     app = make_app(config, gateway)
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         await pilot.press("p")
         await settle(app, pilot)
         tree = app.query_one(PlanTree)
@@ -409,7 +409,7 @@ def test_plan_tree_shows_updates_and_deletes(config: Config) -> None:
 def test_editing_discards_a_stale_preview(config: Config) -> None:
     app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         await pilot.press("p")
         await settle(app, pilot)
         assert app.plan is not None
@@ -429,7 +429,7 @@ def test_apply_reports_progress_and_failures(config: Config) -> None:
     gateway.fail_event_ids = {"lec00001"}
     app = make_app(config, gateway)
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         await pilot.press("p")
         await settle(app, pilot)
         await pilot.press("a")
@@ -488,7 +488,7 @@ def test_the_progress_is_shown_while_applying(config: Config) -> None:
     halfway = threading.Event()
     resume = threading.Event()
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         apply = app.workflow.apply
 
         def slow_apply(session: Any, plan: Any, on_progress: Any) -> Any:
@@ -528,7 +528,7 @@ def test_the_progress_is_shown_while_applying(config: Config) -> None:
 def test_missing_source_calendar_opens_the_setup(config: Config) -> None:
     app = make_app(config, FakeCalendarGateway())
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         assert app.draft is None
         assert app.query_one(TabbedContent).active == "setup"
         assert not app.query_one("#change-source", Button).disabled
@@ -549,7 +549,7 @@ def test_load_failure_is_reported(config: Config) -> None:
     gateway.get_all_events = boom  # type: ignore[method-assign]
     app = make_app(config, gateway)
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         assert app.draft is None
         assert "Could not load the source events: network down" in (
             await log_text(app, pilot)
@@ -575,7 +575,7 @@ def test_preview_and_apply_failures_are_reported(config: Config) -> None:
     def boom(*args: object) -> None:
         raise RuntimeError("network down")
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         preview = app.workflow.preview
         app.workflow.preview = boom  # type: ignore[method-assign]
         await pilot.press("p")
@@ -603,7 +603,7 @@ def test_save_failure_is_reported(config: Config) -> None:
     def denied(*args: object) -> None:
         raise PermissionError("read-only")
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         app.workflow.save_preferences = denied  # type: ignore[method-assign]
         await show_tab(app, pilot, "courses")
         await pilot.press("c", "enter", "ctrl+s")
@@ -618,7 +618,7 @@ def test_quit_asks_to_confirm_unsaved_changes(config: Config) -> None:
     app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
     exits: list[bool] = []
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         app.exit = lambda *args, **kwargs: exits.append(True)  # type: ignore[method-assign]
         await show_tab(app, pilot, "courses")
         await pilot.press("c", "enter")
@@ -635,7 +635,7 @@ def test_quit_asks_to_confirm_unsaved_changes(config: Config) -> None:
 def test_quit_without_changes_exits_immediately(config: Config) -> None:
     app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         await pilot.press("q")
         await pilot.pause()
 
@@ -647,7 +647,7 @@ def test_reporter_messages_reach_the_log(config: Config) -> None:
     config.profile_path.write_text("{not json")
     app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         reporter = app.workflow.reporter
         reporter.detail("a detail")
         reporter.dry_run_finished(None)  # type: ignore[arg-type]
@@ -666,9 +666,7 @@ def test_reporter_without_app_drops_messages() -> None:
 # -- setup --------------------------------------------------------------------
 
 
-async def open_picker(
-    app: CalendarColoringApp, pilot: Pilot[None], role: str
-) -> CalendarPicker:
+async def open_picker(app: UnicalApp, pilot: Pilot[None], role: str) -> CalendarPicker:
     app.query_one(TabbedContent).active = "setup"
     await pilot.pause()
     await pilot.click(f"#change-{role}")
@@ -678,7 +676,7 @@ async def open_picker(
 
 
 async def pick_calendar(
-    app: CalendarColoringApp, pilot: Pilot[None], role: str, name: str
+    app: UnicalApp, pilot: Pilot[None], role: str, name: str
 ) -> None:
     picker = await open_picker(app, pilot, role)
     picker.query_one(OptionList).highlighted = [c.name for c in picker.choices].index(
@@ -688,7 +686,7 @@ async def pick_calendar(
     await settle(app, pilot)
 
 
-def text_of(app: CalendarColoringApp, selector: str) -> str:
+def text_of(app: UnicalApp, selector: str) -> str:
     return str(app.query_one(selector, Static).render())
 
 
@@ -697,7 +695,7 @@ def test_setup_shows_the_calendars_and_overrides(config: Config) -> None:
     setup = make_setup(gateway, overrides={Role.TARGET: "TARGET_CALENDAR_NAME"})
     app = make_app(config, gateway, setup=setup)
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         app.query_one(TabbedContent).active = "setup"
         await pilot.pause()
         assert text_of(app, "#setup-source") == "'Src'"
@@ -714,7 +712,7 @@ def test_change_the_target_to_an_existing_calendar(config: Config) -> None:
     save_profile(config, calendars={"source": "Src", "target": "Tgt"})
     app = make_app(config, gateway)
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         assert app.draft is not None
         app.draft.set_course_color("CS", GoogleColor.BASIL)
         app._preferences_changed()
@@ -759,7 +757,7 @@ def test_a_new_target_calendar_is_created_on_apply(config: Config) -> None:
     gateway = FakeCalendarGateway({"Src": SOURCE, "Tgt": []})
     app = make_app(config, gateway)
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         picker = await open_picker(app, pilot, "target")
         field = picker.query_one(Input)
         field.focus()
@@ -790,7 +788,7 @@ def test_picking_the_current_calendar_changes_nothing(config: Config) -> None:
     gateway = FakeCalendarGateway({"Src": SOURCE, "Tgt": []})
     app = make_app(config, gateway)
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         await pick_calendar(app, pilot, "target", "Tgt")
         await pick_calendar(app, pilot, "source", "Src")
         assert app.calendars == CalendarSettings(source="Src", target="Tgt")
@@ -812,7 +810,7 @@ def test_change_the_source_reloads_and_keeps_unsaved_edits(config: Config) -> No
     save_profile(config, calendars={"source": "Src", "target": "Tgt"})
     app = make_app(config, gateway)
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         assert app.draft is not None
         app.draft.set_course_color("CS", GoogleColor.BASIL)
         app._preferences_changed()
@@ -838,7 +836,7 @@ def test_a_source_that_fails_to_load_is_not_kept(config: Config) -> None:
     gateway = FakeCalendarGateway({"Src": SOURCE, "Other": []})
     app = make_app(config, gateway)
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         def boom(*args: object, **kwargs: object) -> None:
             raise RuntimeError("network down")
 
@@ -861,7 +859,7 @@ def test_choose_the_source_when_it_is_missing(config: Config) -> None:
     save_profile(config, calendars={"source": "Src", "target": "Tgt"})
     app = make_app(config, gateway)
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         assert app.draft is None
         await pick_calendar(app, pilot, "source", "Uni")
 
@@ -884,7 +882,7 @@ def test_only_the_chosen_calendar_is_saved_over_the_profile(config: Config) -> N
     gateway = FakeCalendarGateway({"Uni": SOURCE})
     app = make_app(config, gateway)
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         picker = await open_picker(app, pilot, "target")
         picker.query_one(Input).value = "Mine"
         picker.query_one(Input).focus()
@@ -910,7 +908,7 @@ def test_calendar_list_failure_is_reported(config: Config) -> None:
     gateway.list_calendars = boom  # type: ignore[assignment,method-assign]
     app = make_app(config, gateway)
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         app.query_one(TabbedContent).active = "setup"
         await pilot.pause()
         await pilot.click("#change-source")
@@ -932,7 +930,7 @@ def test_profile_save_failure_on_calendar_change(
 
     monkeypatch.setattr(app.workflow, "save_profile", boom)
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         await pick_calendar(app, pilot, "target", "Other")
         assert app.calendars.target == "Other"
         assert "Could not save the profile: read-only file system" in (
@@ -947,7 +945,7 @@ def test_an_ical_source_cannot_be_changed(config: Config) -> None:
     setup = make_setup(gateway, fixed_source="iCal feed at https://x/<redacted>")
     app = make_app(config, gateway, setup=setup)
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         app.query_one(TabbedContent).active = "setup"
         await pilot.pause()
         assert app.query_one("#change-source", Button).disabled
@@ -962,7 +960,7 @@ def test_target_picker_without_calendars_asks_for_a_name(config: Config) -> None
     gateway = FakeCalendarGateway()
     app = make_app(config, gateway)
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         picker = await open_picker(app, pilot, "target")
         assert not picker.query(OptionList)
         assert picker.query_one(Input).has_focus
@@ -984,7 +982,7 @@ SEMINAR = {
 
 
 async def open_rules(
-    app: CalendarColoringApp, pilot: Pilot[None], table: str = "rules"
+    app: UnicalApp, pilot: Pilot[None], table: str = "rules"
 ) -> DataTable[Any]:
     app.query_one(TabbedContent).active = "rules"
     await pilot.pause()
@@ -994,7 +992,7 @@ async def open_rules(
     return widget
 
 
-def row_texts(app: CalendarColoringApp, table: str) -> list[list[str]]:
+def row_texts(app: UnicalApp, table: str) -> list[list[str]]:
     widget = app.query_one(f"#{table}-table", DataTable)
     return [
         [cell.plain for cell in widget.get_row_at(index)]
@@ -1002,7 +1000,7 @@ def row_texts(app: CalendarColoringApp, table: str) -> list[list[str]]:
     ]
 
 
-def editor(app: CalendarColoringApp) -> RuleEditor:
+def editor(app: UnicalApp) -> RuleEditor:
     assert isinstance(app.screen, RuleEditor)
     return app.screen
 
@@ -1014,7 +1012,7 @@ def status_of(form: RuleEditor) -> str:
 def test_rules_tab_shows_rules_enrollment_and_preview(config: Config) -> None:
     app = make_app(config, FakeCalendarGateway({"Src": [*SOURCE, SEMINAR]}))
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         await open_rules(app, pilot)
         assert row_texts(app, "rules")[0] == [
             "1",
@@ -1048,7 +1046,7 @@ def test_rules_tab_shows_rules_enrollment_and_preview(config: Config) -> None:
 def test_new_rule_from_an_unmatched_event(config: Config) -> None:
     app = make_app(config, FakeCalendarGateway({"Src": [*SOURCE, SEMINAR]}))
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         events = await open_rules(app, pilot, "events")
         events.move_cursor(row=events.row_count - 1)
         await pilot.press("enter")
@@ -1095,7 +1093,7 @@ def test_new_rule_from_an_unmatched_event(config: Config) -> None:
 def test_edit_a_rule_and_discard_the_preview(config: Config) -> None:
     app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         app.action_preview()
         await settle(app, pilot)
         assert app.plan is not None
@@ -1120,7 +1118,7 @@ def test_edit_a_rule_and_discard_the_preview(config: Config) -> None:
 def test_invalid_rule_cannot_be_saved(config: Config) -> None:
     app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         await open_rules(app, pilot)
         await pilot.press("n")
         await pilot.pause()
@@ -1149,7 +1147,7 @@ def test_invalid_rule_cannot_be_saved(config: Config) -> None:
 def test_delete_and_move_rules(config: Config) -> None:
     app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         rules = await open_rules(app, pilot)
         rules.move_cursor(row=2)  # lectures by title
         await pilot.press("d")
@@ -1177,7 +1175,7 @@ def test_delete_and_move_rules(config: Config) -> None:
 def test_edit_and_clear_the_exam_enrollment(config: Config) -> None:
     app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         assert cells(app, "exams", "CS (2027-01-20)")[2] == "enrolled"
         await open_rules(app, pilot, "enrollment")
         await pilot.press("enter")
@@ -1211,7 +1209,7 @@ def test_edit_and_clear_the_exam_enrollment(config: Config) -> None:
 def test_rules_keys_on_the_events_table(config: Config) -> None:
     app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         await open_rules(app, pilot, "events")
         await pilot.press("d")
         await pilot.pause()
@@ -1231,7 +1229,7 @@ def test_rules_keys_on_the_events_table(config: Config) -> None:
 def test_rules_actions_need_a_session(config: Config) -> None:
     app = make_app(config, FakeCalendarGateway())
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         assert app.draft is None
         app.action_new_rule()
         app.action_edit_rule()
@@ -1249,7 +1247,7 @@ def test_change_the_time_zone_of_new_calendars(config: Config) -> None:
     gateway = FakeCalendarGateway({"Src": SOURCE})
     app = make_app(config, gateway)
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         app.action_preview()
         await settle(app, pilot)
         app.query_one(TabbedContent).active = "setup"
@@ -1305,7 +1303,7 @@ def test_change_the_time_zone_of_new_calendars(config: Config) -> None:
 # -- first run ----------------------------------------------------------------
 
 
-def drive_wizard(app: CalendarColoringApp, scenario: Scenario) -> None:
+def drive_wizard(app: UnicalApp, scenario: Scenario) -> None:
     """Like ``drive``, without waiting for the workers: the guide waits for us."""
 
     async def main() -> None:
@@ -1326,14 +1324,14 @@ async def until(
     raise AssertionError("condition not reached")
 
 
-async def screen_of(app: CalendarColoringApp, pilot: Pilot[None], kind: type) -> Any:
+async def screen_of(app: UnicalApp, pilot: Pilot[None], kind: type) -> Any:
     await until(pilot, lambda: isinstance(app.screen, kind))
     return app.screen
 
 
 def first_run_app(
     config: Config, gateway: FakeCalendarGateway, **kwargs: Any
-) -> CalendarColoringApp:
+) -> UnicalApp:
     return make_app(
         config, gateway, setup=make_setup(gateway, first_run=True, **kwargs)
     )
@@ -1344,7 +1342,7 @@ def test_first_run_guide_keeping_the_rules(config: Config) -> None:
     gateway.read_only = {"Uni"}
     app = first_run_app(config, gateway)
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         await screen_of(app, pilot, WizardIntro)
         await pilot.press("enter")
 
@@ -1389,7 +1387,7 @@ def test_first_run_guide_adjusting_the_rules(
     gateway = FakeCalendarGateway({"Src": [*SOURCE, SEMINAR]})
     app = first_run_app(config, gateway)
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         await screen_of(app, pilot, WizardIntro)
         await pilot.press("enter")
         await screen_of(app, pilot, CalendarPicker)
@@ -1419,7 +1417,7 @@ def test_first_run_guide_adjusting_the_rules(
 def test_first_run_guide_can_be_skipped(config: Config) -> None:
     app = first_run_app(config, FakeCalendarGateway({"Src": SOURCE}))
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         await screen_of(app, pilot, WizardIntro)
         await pilot.press("escape")
         await until(pilot, lambda: app.draft is not None)
@@ -1432,7 +1430,7 @@ def test_first_run_guide_can_be_skipped(config: Config) -> None:
 def test_leaving_the_source_step_loads_the_current_source(config: Config) -> None:
     app = first_run_app(config, FakeCalendarGateway({"Other": SOURCE}))
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         await screen_of(app, pilot, WizardIntro)
         await pilot.press("enter")
         await screen_of(app, pilot, CalendarPicker)
@@ -1449,7 +1447,7 @@ def test_leaving_the_source_step_loads_the_current_source(config: Config) -> Non
 def test_leaving_the_target_step_ends_the_guide(config: Config) -> None:
     app = first_run_app(config, FakeCalendarGateway({"Src": SOURCE}))
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         await screen_of(app, pilot, WizardIntro)
         await pilot.press("enter")
         await screen_of(app, pilot, CalendarPicker)
@@ -1470,7 +1468,7 @@ def test_first_run_guide_with_an_ical_source(config: Config) -> None:
     gateway = FakeCalendarGateway({"Src": SOURCE})
     app = first_run_app(config, gateway, fixed_source="iCal feed at x")
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         await screen_of(app, pilot, WizardIntro)
         await pilot.press("enter")
         picker = await screen_of(app, pilot, CalendarPicker)
@@ -1491,7 +1489,7 @@ def test_first_run_guide_without_the_calendar_list(config: Config) -> None:
     gateway.list_calendars = boom  # type: ignore[assignment,method-assign]
     app = first_run_app(config, gateway)
 
-    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
         await screen_of(app, pilot, WizardIntro)
         await pilot.press("enter")
         await until(pilot, lambda: app.draft is not None and not app.busy)

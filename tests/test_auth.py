@@ -5,8 +5,8 @@ from unittest.mock import MagicMock
 import pytest
 from google.auth.exceptions import RefreshError
 
-from calendar_coloring import auth
-from calendar_coloring.auth import (
+from unical import auth
+from unical.auth import (
     Authenticator,
     CredentialsFileNotFoundError,
     LoginRequiredError,

@@ -1,6 +1,6 @@
 import pytest
 
-from calendar_coloring.events import exam_key, start_date, title_from_exam_key
+from unical.events import exam_key, start_date, title_from_exam_key
 
 
 @pytest.mark.parametrize(

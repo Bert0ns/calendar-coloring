@@ -4,20 +4,20 @@ from unittest.mock import MagicMock
 import pytest
 from conftest import FakeCalendarGateway, profile_repository, save_profile, saved
 
-from calendar_coloring.catalog import Catalog
-from calendar_coloring.config import Config
-from calendar_coloring.palette import GoogleColor
-from calendar_coloring.preferences import Preferences
-from calendar_coloring.profile import CalendarSettings, Profile
-from calendar_coloring.reporting import NullReporter
-from calendar_coloring.sync import (
+from unical.catalog import Catalog
+from unical.config import Config
+from unical.palette import GoogleColor
+from unical.preferences import Preferences
+from unical.profile import CalendarSettings, Profile
+from unical.reporting import NullReporter
+from unical.sync import (
     CalendarInfo,
     GoogleCalendarSource,
     SourceCalendarNotFoundError,
     SyncService,
 )
-from calendar_coloring.targets import SyncTarget
-from calendar_coloring.workflow import SyncOptions, SyncWorkflow
+from unical.targets import SyncTarget
+from unical.workflow import SyncOptions, SyncWorkflow
 
 SOURCE = [
     {

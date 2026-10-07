@@ -1,8 +1,8 @@
 import pytest
 
-from calendar_coloring.profile import CalendarSettings
-from calendar_coloring.sync.models import CalendarInfo
-from calendar_coloring.tui.setup import (
+from unical.profile import CalendarSettings
+from unical.sync.models import CalendarInfo
+from unical.tui.setup import (
     CalendarChoice,
     Role,
     calendar_choices,

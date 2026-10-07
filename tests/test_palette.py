@@ -1,6 +1,6 @@
 import pytest
 
-from calendar_coloring.palette import (
+from unical.palette import (
     EXAM_NOT_SUBSCRIBED_COLOR,
     EXAM_SUBSCRIBED_COLOR,
     GoogleColor,

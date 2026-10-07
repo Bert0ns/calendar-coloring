@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from calendar_coloring.config import Config
-from calendar_coloring.profile import CalendarSettings
+from unical.config import Config
+from unical.profile import CalendarSettings
 
 
 def test_defaults() -> None:

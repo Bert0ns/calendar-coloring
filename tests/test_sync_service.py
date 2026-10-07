@@ -1,9 +1,9 @@
 import pytest
 from conftest import POLIMI, FakeCalendarGateway
 
-from calendar_coloring.palette import GoogleColor
-from calendar_coloring.strategies import EventColoringStrategy
-from calendar_coloring.sync import (
+from unical.palette import GoogleColor
+from unical.strategies import EventColoringStrategy
+from unical.sync import (
     GoogleCalendarSource,
     MutationAction,
     SourceCalendarNotFoundError,
@@ -119,7 +119,7 @@ def test_apply_reports_failures_and_counts_only_successes() -> None:
 
 
 def test_apply_reports_progress_per_chunk() -> None:
-    from calendar_coloring.sync.service import PROGRESS_CHUNK_SIZE
+    from unical.sync.service import PROGRESS_CHUNK_SIZE
 
     events = [
         {**SOURCE[0], "id": f"event{i:05d}"} for i in range(PROGRESS_CHUNK_SIZE + 3)

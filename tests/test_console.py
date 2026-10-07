@@ -1,8 +1,8 @@
 import re
 
-from calendar_coloring.cli.ansi import palette_lines
-from calendar_coloring.cli.console import ConsoleReporter
-from calendar_coloring.sync.models import (
+from unical.cli.ansi import palette_lines
+from unical.cli.console import ConsoleReporter
+from unical.sync.models import (
     ColorOrigin,
     EventDecision,
     Mutation,

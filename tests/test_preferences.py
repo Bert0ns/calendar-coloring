@@ -1,5 +1,5 @@
-from calendar_coloring.palette import GoogleColor
-from calendar_coloring.preferences import ExamPreference, Preferences
+from unical.palette import GoogleColor
+from unical.preferences import ExamPreference, Preferences
 
 
 def test_subscribed_exam_titles() -> None:

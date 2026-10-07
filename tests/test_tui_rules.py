@@ -1,7 +1,7 @@
 import pytest
 from conftest import POLIMI
 
-from calendar_coloring.rules import (
+from unical.rules import (
     Classifier,
     Condition,
     EventKind,
@@ -9,7 +9,7 @@ from calendar_coloring.rules import (
     MatchKind,
     Rule,
 )
-from calendar_coloring.tui.rules import (
+from unical.tui.rules import (
     RuleForm,
     TitlePreview,
     count_matches,

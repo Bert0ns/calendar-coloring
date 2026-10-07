@@ -3,13 +3,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from calendar_coloring.ical_source import (
+from unical.ical_source import (
     ICalError,
     IcalFeedSource,
     fetch_ical,
     parse_ical,
 )
-from calendar_coloring.sync.source import SourceError
+from unical.sync.source import SourceError
 
 SAMPLE_ICAL = """BEGIN:VCALENDAR
 X-WR-TIMEZONE:Europe/Rome
@@ -198,7 +198,7 @@ def test_fetch_ical_downloads_and_decodes() -> None:
     response = MagicMock()
     response.__enter__.return_value.read.return_value = "Caffè".encode()
     with patch(
-        "calendar_coloring.ical_source.urllib.request.urlopen",
+        "unical.ical_source.urllib.request.urlopen",
         return_value=response,
     ) as urlopen:
         assert fetch_ical("https://example.com/feed.ics", timeout=5) == "Caffè"
@@ -213,7 +213,7 @@ def test_fetch_ical_downloads_and_decodes() -> None:
 def test_fetch_ical_wraps_network_errors(error: Exception) -> None:
     with (
         patch(
-            "calendar_coloring.ical_source.urllib.request.urlopen",
+            "unical.ical_source.urllib.request.urlopen",
             side_effect=error,
         ),
         pytest.raises(ICalError, match="Could not download") as exc_info,

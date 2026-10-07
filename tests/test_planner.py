@@ -4,11 +4,11 @@ from datetime import date
 import pytest
 from conftest import POLIMI
 
-from calendar_coloring.events import Event
-from calendar_coloring.palette import GoogleColor
-from calendar_coloring.strategies import EventColoringStrategy
-from calendar_coloring.sync.models import ColorOrigin, MutationAction
-from calendar_coloring.sync.planner import (
+from unical.events import Event
+from unical.palette import GoogleColor
+from unical.strategies import EventColoringStrategy
+from unical.sync.models import ColorOrigin, MutationAction
+from unical.sync.planner import (
     MANAGED_PROPERTY,
     SyncPlanner,
     build_target_event,
@@ -18,7 +18,7 @@ from calendar_coloring.sync.planner import (
     sanitize_event_id,
     start_day,
 )
-from calendar_coloring.targets import SyncTarget
+from unical.targets import SyncTarget
 
 MANAGED = {"private": {MANAGED_PROPERTY: "true"}}
 

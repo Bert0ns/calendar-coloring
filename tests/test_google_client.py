@@ -2,8 +2,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from calendar_coloring.google_client import GoogleCalendarClient
-from calendar_coloring.sync.models import CalendarInfo, Mutation, MutationAction
+from unical.google_client import GoogleCalendarClient
+from unical.sync.models import CalendarInfo, Mutation, MutationAction
 
 
 def make_client(sleeps: list[float] | None = None):
@@ -157,7 +157,7 @@ def test_batch_mutate_events_rejects_invalid_batch_size() -> None:
 def test_from_credentials_builds_calendar_service(monkeypatch) -> None:
     calls = []
     monkeypatch.setattr(
-        "calendar_coloring.google_client.build",
+        "unical.google_client.build",
         lambda *args, **kwargs: calls.append((args, kwargs)) or "service",
     )
     client = GoogleCalendarClient.from_credentials("creds")

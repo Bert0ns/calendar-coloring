@@ -7,19 +7,19 @@ from unittest.mock import MagicMock
 import pytest
 from conftest import FakeCalendarGateway, save_profile, saved
 
-from calendar_coloring.auth import (
+from unical.auth import (
     CredentialsFileNotFoundError,
     LoginRequiredError,
 )
-from calendar_coloring.cli import main as cli
-from calendar_coloring.config import Config
-from calendar_coloring.ical_source import IcalFeedSource, mask_url
-from calendar_coloring.profile import CalendarSettings
-from calendar_coloring.reporting import NullReporter
-from calendar_coloring.suggestions import suggest_color
-from calendar_coloring.sync.source import GoogleCalendarSource
-from calendar_coloring.targets import SyncTarget
-from calendar_coloring.workflow import SyncOptions
+from unical.cli import main as cli
+from unical.config import Config
+from unical.ical_source import IcalFeedSource, mask_url
+from unical.profile import CalendarSettings
+from unical.reporting import NullReporter
+from unical.suggestions import suggest_color
+from unical.sync.source import GoogleCalendarSource
+from unical.targets import SyncTarget
+from unical.workflow import SyncOptions
 
 SOURCE = [
     {
@@ -124,7 +124,7 @@ def test_run_reports_missing_source(config: Config) -> None:
 
 
 def test_run_reports_ical_failure_without_touching_calendar(config: Config) -> None:
-    from calendar_coloring.ical_source import ICalError
+    from unical.ical_source import ICalError
 
     def broken_fetch(url: str) -> str:
         raise ICalError("Could not download iCal feed.")
@@ -288,9 +288,7 @@ def test_main_ical_flag_overrides_env(
         )
         return response
 
-    monkeypatch.setattr(
-        "calendar_coloring.ical_source.urllib.request.urlopen", fake_urlopen
-    )
+    monkeypatch.setattr("unical.ical_source.urllib.request.urlopen", fake_urlopen)
 
     assert cli.main(["--ical", "https://cli/feed", "-v"]) == cli.EXIT_OK
     assert fetched == ["https://cli/feed"]
@@ -352,9 +350,9 @@ def test_main_quiet_prints_nothing_on_success(
 
 
 def test_module_entry_point_shows_help(capsys, monkeypatch) -> None:
-    monkeypatch.setattr(sys, "argv", ["calendar-coloring", "--help"])
+    monkeypatch.setattr(sys, "argv", ["unical", "--help"])
     with pytest.raises(SystemExit) as exc_info:
-        runpy.run_module("calendar_coloring", run_name="__main__")
+        runpy.run_module("unical", run_name="__main__")
     assert exc_info.value.code == 0
     assert "--prune-before" in capsys.readouterr().out
 
@@ -399,18 +397,18 @@ def test_main_tui_without_textual_fails_before_login(
 ) -> None:
     monkeypatch.setattr(cli, "tui_available", lambda: False)
     assert cli.main(["--tui"]) == cli.EXIT_FAILURE
-    assert "pip install 'calendar-coloring[tui]'" in capsys.readouterr().out
+    assert "pip install 'uni-calendar-coloring[tui]'" in capsys.readouterr().out
     fake_auth.assert_not_called()
 
 
 def test_main_tui_runs_the_app(isolated_env, fake_auth, monkeypatch) -> None:
     pytest.importorskip("textual")
-    from calendar_coloring.tui.app import CalendarColoringApp
+    from unical.tui.app import UnicalApp
 
     gateway = FakeCalendarGateway({"Calendar": SOURCE})
     install_gateway(monkeypatch, gateway)
-    launched: list[CalendarColoringApp] = []
-    monkeypatch.setattr(CalendarColoringApp, "run", lambda app: launched.append(app))
+    launched: list[UnicalApp] = []
+    monkeypatch.setattr(UnicalApp, "run", lambda app: launched.append(app))
 
     assert cli.main(["lectures", "--tui"]) == cli.EXIT_OK
 
@@ -468,11 +466,11 @@ def test_default_tui_without_textual_falls_back_to_plain_sync(
 
 def test_run_tui_builds_the_calendar_setup(config: Config, monkeypatch) -> None:
     pytest.importorskip("textual")
-    from calendar_coloring.tui.app import CalendarColoringApp
-    from calendar_coloring.tui.setup import Role
+    from unical.tui.app import UnicalApp
+    from unical.tui.setup import Role
 
-    apps: list[CalendarColoringApp] = []
-    monkeypatch.setattr(CalendarColoringApp, "run", lambda self: apps.append(self))
+    apps: list[UnicalApp] = []
+    monkeypatch.setattr(UnicalApp, "run", lambda self: apps.append(self))
     save_profile(config, calendars={"source": "Uni", "target": "Mine"})
     gateway = FakeCalendarGateway()
 
@@ -498,10 +496,10 @@ def test_run_tui_starts_the_guide_without_a_profile(
     config: Config, monkeypatch
 ) -> None:
     pytest.importorskip("textual")
-    from calendar_coloring.tui.app import CalendarColoringApp
+    from unical.tui.app import UnicalApp
 
-    apps: list[CalendarColoringApp] = []
-    monkeypatch.setattr(CalendarColoringApp, "run", lambda self: apps.append(self))
+    apps: list[UnicalApp] = []
+    monkeypatch.setattr(UnicalApp, "run", lambda self: apps.append(self))
 
     cli.run_tui(SyncOptions(), config, FakeCalendarGateway())
 

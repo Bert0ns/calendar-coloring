@@ -1,13 +1,13 @@
 from conftest import POLIMI
 
-from calendar_coloring.catalog import discover
-from calendar_coloring.events import Enrollment, ExamOccurrence
-from calendar_coloring.palette import GoogleColor
-from calendar_coloring.preferences import ExamPreference, Preferences
-from calendar_coloring.profile import CalendarSettings, Profile
-from calendar_coloring.suggestions import suggest_color
-from calendar_coloring.tui.model import ExamRow, ItemStatus, PreferencesDraft
-from calendar_coloring.workflow import SyncOptions, SyncSession
+from unical.catalog import discover
+from unical.events import Enrollment, ExamOccurrence
+from unical.palette import GoogleColor
+from unical.preferences import ExamPreference, Preferences
+from unical.profile import CalendarSettings, Profile
+from unical.suggestions import suggest_color
+from unical.tui.model import ExamRow, ItemStatus, PreferencesDraft
+from unical.workflow import SyncOptions, SyncSession
 
 
 def event(i: int, summary: str, day: str, description: str = "") -> dict:

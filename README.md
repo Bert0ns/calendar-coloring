@@ -1,4 +1,4 @@
-# Calendar Coloring
+# Uni Calendar Coloring
 
 Turn your university timetable into a color-coded Google Calendar.
 
@@ -66,7 +66,7 @@ The sync is safe to repeat:
   alone.
 - Events removed from the source are removed from the target.
 - If an event isn't covered by the current run (for example, a lecture during
-  `calendar-coloring exams`), it is ignored: its copy in the target calendar is
+  `unical exams`), it is ignored: its copy in the target calendar is
   never inserted, updated or deleted. Events removed from the source are only
   deleted by a run that covers everything.
 - The target calendar is created on the first sync.
@@ -92,18 +92,18 @@ Google Cloud OAuth client, so nobody else ever sees your calendar.
 ### 2. Install
 
 ```bash
-git clone https://github.com/Bert0ns/calendar-coloring.git
-cd calendar-coloring
+git clone https://github.com/Bert0ns/uni-calendar-coloring.git
+cd uni-calendar-coloring
 pip install ".[tui]"      # or `pip install .` if you don't want the terminal UI
 ```
 
-This installs the `calendar-coloring` command. `python -m calendar_coloring`
+This installs the `unical` command. `python -m unical`
 works too.
 
 ### 3. First run
 
 ```bash
-calendar-coloring
+unical
 ```
 
 Your browser opens so you can log in with Google, and the login is saved to
@@ -136,7 +136,7 @@ Without the terminal UI, create `profile.json` yourself with the two calendars
 ```
 
 ```bash
-calendar-coloring --dry-run
+unical --dry-run
 ```
 
 If you'd rather not subscribe to the source calendar in Google, give the tool
@@ -154,14 +154,14 @@ under [Configuration](#configuration).
 ### Sync
 
 ```bash
-calendar-coloring                       # open the terminal UI (the default)
-calendar-coloring --no-tui              # plain sync: exams, lectures and deadlines
-calendar-coloring exams --no-tui        # only (re)color exams
-calendar-coloring lectures --no-tui
-calendar-coloring deadlines --no-tui
+unical                       # open the terminal UI (the default)
+unical --no-tui              # plain sync: exams, lectures and deadlines
+unical exams --no-tui        # only (re)color exams
+unical lectures --no-tui
+unical deadlines --no-tui
 ```
 
-Run from a terminal, `calendar-coloring` opens the [terminal UI](#terminal-ui).
+Run from a terminal, `unical` opens the [terminal UI](#terminal-ui).
 It falls back to a plain sync when there is no terminal (cron, CI, a pipe),
 when you pass `-i`, `-n`/`--dry-run` or `--no-tui`, or when the optional `tui`
 extra isn't installed. The plain sync is non-interactive. Anything new gets a
@@ -171,21 +171,21 @@ future runs.
 Useful flags:
 
 ```bash
-calendar-coloring --dry-run                   # plain sync, show the changes, write nothing
-calendar-coloring -v                          # explain the decision for every event
-calendar-coloring -q                          # only warnings and errors
-calendar-coloring --prune-before 2026-02-01   # also delete synced events before this date
+unical --dry-run                   # plain sync, show the changes, write nothing
+unical -v                          # explain the decision for every event
+unical -q                          # only warnings and errors
+unical --prune-before 2026-02-01   # also delete synced events before this date
 ```
 
 `--prune-before` is handy for dropping past semesters. Flags can be combined,
-e.g. `calendar-coloring lectures --dry-run -v`. The command exits with a non-zero
+e.g. `unical lectures --dry-run -v`. The command exits with a non-zero
 status if any calendar operation fails.
 
 ### Terminal UI
 
 ```bash
-calendar-coloring
-calendar-coloring exams          # only the Exams and Sync tabs
+unical
+unical exams          # only the Exams and Sync tabs
 ```
 
 `--tui` forces it even when the shell doesn't look interactive. The TUI needs the `tui` extra (`pip install ".[tui]"`). It opens with one tab
@@ -230,8 +230,8 @@ before applying.
 ### Interactive prompts
 
 ```bash
-calendar-coloring -i
-calendar-coloring exams -i
+unical -i
+unical exams -i
 ```
 
 Without the TUI you get a question-by-question flow before the sync: your
@@ -246,7 +246,7 @@ You can read events straight from your personal iCal feed (e.g. from your
 university app) instead of a Google calendar:
 
 ```bash
-calendar-coloring --ical "https://ical.example.com/<id>/<token>"
+unical --ical "https://ical.example.com/<id>/<token>"
 ```
 
 Or set it once in `.env`, where it takes precedence over the source calendar:
@@ -269,7 +269,7 @@ missing.
 ### Command reference
 
 ```
-calendar-coloring [all|exams|lectures|deadlines] [options]
+unical [all|exams|lectures|deadlines] [options]
 ```
 
 | Option                                            | Description                                                                           |
@@ -424,7 +424,7 @@ syncs **every Monday at 06:00 UTC**. You can also run it from the **Actions**
 tab and choose the target, verbose output, or a dry run.
 
 1. Log in locally once so that `token.json` exists, e.g. with
-   `calendar-coloring --dry-run`.
+   `unical --dry-run`.
 2. In your fork, go to **Settings → Secrets and variables → Actions** and add
    these repository secrets:
 
@@ -485,7 +485,7 @@ interactive prompts and the TUI are all thin frontends over the same
 discover → preferences → plan → apply phases.
 
 ```
-src/calendar_coloring/
+src/unical/
 ├── palette.py         # GoogleColor: the 11 Google colors (id, name, RGB)
 ├── events.py          # Event accessors and exam sessions
 ├── rules.py           # Classification rules: event → exam/lecture/deadline + name

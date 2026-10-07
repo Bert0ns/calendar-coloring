@@ -1,17 +1,17 @@
 import pytest
 from conftest import POLIMI
 
-from calendar_coloring.catalog import Catalog, discover
-from calendar_coloring.events import Enrollment, ExamOccurrence
-from calendar_coloring.palette import GoogleColor
-from calendar_coloring.preferences import ExamPreference, Preferences
-from calendar_coloring.resolution import (
+from unical.catalog import Catalog, discover
+from unical.events import Enrollment, ExamOccurrence
+from unical.palette import GoogleColor
+from unical.preferences import ExamPreference, Preferences
+from unical.resolution import (
     fill_missing_course_colors,
     fill_missing_exam_preferences,
     fill_missing_preferences,
 )
-from calendar_coloring.suggestions import suggest_color
-from calendar_coloring.targets import SyncTarget
+from unical.suggestions import suggest_color
+from unical.targets import SyncTarget
 
 RED = ExamPreference(GoogleColor.TOMATO, True)
 GREY = ExamPreference(GoogleColor.GRAPHITE, False)

@@ -1,9 +1,9 @@
 import pytest
 from conftest import POLIMI
 
-from calendar_coloring.palette import GoogleColor
-from calendar_coloring.preferences import ExamPreference, Preferences
-from calendar_coloring.strategies import (
+from unical.palette import GoogleColor
+from unical.preferences import ExamPreference, Preferences
+from unical.strategies import (
     CompositeColoringStrategy,
     DeadlineColoringStrategy,
     EventColoringStrategy,
@@ -11,8 +11,8 @@ from calendar_coloring.strategies import (
     LectureColoringStrategy,
     strategy_for,
 )
-from calendar_coloring.suggestions import suggest_color
-from calendar_coloring.targets import SyncTarget
+from unical.suggestions import suggest_color
+from unical.targets import SyncTarget
 
 LECTURE = {"summary": "Lezione: Didattica - Computer Security"}
 EXAM = {"summary": "Esame: Security", "start": {"date": "2026-06-15"}}
