@@ -8,7 +8,7 @@
 class Unical < Formula
   desc "Sync a read-only university calendar into a color-coded Google Calendar"
   homepage "https://github.com/Bert0ns/uni-calendar-coloring"
-  version "0.3.0"
+  version "1.0.0"
   license "MIT"
 
   on_macos do
