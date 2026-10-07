@@ -39,6 +39,7 @@ from calendar_coloring.tui.widgets import (
     RuleEditor,
     TextPrompt,
 )
+from calendar_coloring.tui.wizard import WizardIntro, WizardRules
 from calendar_coloring.workflow import SyncOptions
 
 SOURCE = [
@@ -1139,3 +1140,203 @@ def test_change_the_time_zone_of_new_calendars(config: Config) -> None:
         assert saved(config, "calendars")["time_zone"] is None
 
     drive(app, scenario)
+
+
+# -- first run ----------------------------------------------------------------
+
+
+def drive_wizard(app: CalendarColoringApp, scenario: Scenario) -> None:
+    """Like ``drive``, without waiting for the workers: the guide waits for us."""
+
+    async def main() -> None:
+        async with app.run_test(size=(120, 40)) as pilot:
+            await pilot.pause()
+            await scenario(app, pilot)
+
+    asyncio.run(main())
+
+
+async def until(
+    pilot: Pilot[None], condition: Callable[[], object], timeout: float = 5
+) -> None:
+    for _ in range(int(timeout / 0.02)):
+        if condition():
+            return
+        await pilot.pause(0.02)
+    raise AssertionError("condition not reached")
+
+
+async def screen_of(app: CalendarColoringApp, pilot: Pilot[None], kind: type) -> Any:
+    await until(pilot, lambda: isinstance(app.screen, kind))
+    return app.screen
+
+
+def first_run_app(
+    config: Config, gateway: FakeCalendarGateway, **kwargs: Any
+) -> CalendarColoringApp:
+    return make_app(
+        config, gateway, setup=make_setup(gateway, first_run=True, **kwargs)
+    )
+
+
+def test_first_run_guide_keeping_the_rules(config: Config) -> None:
+    gateway = FakeCalendarGateway({"Me": [], "Uni": SOURCE})
+    gateway.read_only = {"Uni"}
+    app = first_run_app(config, gateway)
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        await screen_of(app, pilot, WizardIntro)
+        await pilot.press("enter")
+
+        source = await screen_of(app, pilot, CalendarPicker)
+        assert source.title_text.startswith("Step 1")
+        source.query_one(OptionList).highlighted = 1
+        await pilot.press("enter")
+
+        target = await screen_of(app, pilot, CalendarPicker)
+        assert target is not source and target.title_text.startswith("Step 2")
+        assert app.calendars.source == "Uni"
+        assert saved(config, "calendars")["source"] == "Uni"
+        assert [(c.name, c.allowed) for c in target.choices] == [
+            ("Me", True),
+            ("Uni", False),
+        ]
+        field = target.query_one(Input)
+        assert field.value == "Uni Colored"
+        field.focus()
+        await pilot.press("enter")
+
+        rules = await screen_of(app, pilot, WizardRules)
+        assert app.calendars.target == "Uni Colored"
+        assert "2 lectures · 2 exams · 1 deadlines · 0 unmatched" in str(
+            rules.query_one(".wizard-text", Static).render()
+        )
+        await pilot.press("enter")
+
+        await until(pilot, lambda: app.plan is not None)
+        assert app.query_one(TabbedContent).active == "sync"
+        assert saved(config, "calendars")["target"] == "Uni Colored"
+        assert gateway.created == []  # nothing written before applying
+        assert gateway.batches == []
+
+    drive_wizard(app, scenario)
+
+
+@pytest.mark.parametrize(("button", "rules"), [("#rules-edit", 6), ("#rules-empty", 0)])
+def test_first_run_guide_adjusting_the_rules(
+    config: Config, button: str, rules: int
+) -> None:
+    gateway = FakeCalendarGateway({"Src": [*SOURCE, SEMINAR]})
+    app = first_run_app(config, gateway)
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        await screen_of(app, pilot, WizardIntro)
+        await pilot.press("enter")
+        await screen_of(app, pilot, CalendarPicker)
+        await pilot.press("enter")  # the current source
+        target = await screen_of(app, pilot, CalendarPicker)
+        target.query_one(OptionList).highlighted = None
+        target.query_one(Input).value = "Tgt"
+        target.query_one(Input).focus()
+        await pilot.press("enter")
+
+        wizard = await screen_of(app, pilot, WizardRules)
+        assert "1 event(s) match no rule" in str(
+            wizard.query_one(".wizard-text", Static).render()
+        )
+        assert wizard.query_one(DataTable).get_row_at(0)[0].plain == "unmatched"
+        await pilot.click(button)
+
+        await until(pilot, lambda: app.query_one(TabbedContent).active == "rules")
+        assert app.draft is not None
+        assert len(app.draft.session.profile.rules) == rules
+        assert app.draft.is_dirty is (rules == 0)
+        assert app.plan is None
+
+    drive_wizard(app, scenario)
+
+
+def test_first_run_guide_can_be_skipped(config: Config) -> None:
+    app = first_run_app(config, FakeCalendarGateway({"Src": SOURCE}))
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        await screen_of(app, pilot, WizardIntro)
+        await pilot.press("escape")
+        await until(pilot, lambda: app.draft is not None)
+        assert len(app.screen_stack) == 1
+        assert not config.profile_path.exists()
+
+    drive_wizard(app, scenario)
+
+
+def test_leaving_the_source_step_loads_the_current_source(config: Config) -> None:
+    app = first_run_app(config, FakeCalendarGateway({"Other": SOURCE}))
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        await screen_of(app, pilot, WizardIntro)
+        await pilot.press("enter")
+        await screen_of(app, pilot, CalendarPicker)
+        await pilot.press("escape")
+        # "Src" doesn't exist: the guide ends on the Setup tab.
+        await until(pilot, lambda: app.query_one(TabbedContent).active == "setup")
+        await until(pilot, lambda: not app.busy)
+        assert app.draft is None
+        assert len(app.screen_stack) == 1
+
+    drive_wizard(app, scenario)
+
+
+def test_leaving_the_target_step_ends_the_guide(config: Config) -> None:
+    app = first_run_app(config, FakeCalendarGateway({"Src": SOURCE}))
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        await screen_of(app, pilot, WizardIntro)
+        await pilot.press("enter")
+        await screen_of(app, pilot, CalendarPicker)
+        await pilot.press("enter")
+        target = await screen_of(app, pilot, CalendarPicker)
+        await until(pilot, lambda: app.draft is not None)
+        await pilot.press("escape")
+        await until(pilot, lambda: app.screen is not target)
+        await pilot.pause()
+        assert len(app.screen_stack) == 1
+        assert app.calendars.target == "Tgt"
+        assert app.plan is None
+
+    drive_wizard(app, scenario)
+
+
+def test_first_run_guide_with_an_ical_source(config: Config) -> None:
+    gateway = FakeCalendarGateway({"Src": SOURCE})
+    app = first_run_app(config, gateway, fixed_source="iCal feed at x")
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        await screen_of(app, pilot, WizardIntro)
+        await pilot.press("enter")
+        picker = await screen_of(app, pilot, CalendarPicker)
+        assert picker.title_text.startswith("Step 2")
+        await pilot.press("escape")
+        await until(pilot, lambda: len(app.screen_stack) == 1)
+        assert app.draft is not None
+
+    drive_wizard(app, scenario)
+
+
+def test_first_run_guide_without_the_calendar_list(config: Config) -> None:
+    gateway = FakeCalendarGateway({"Src": SOURCE})
+
+    def boom() -> None:
+        raise RuntimeError("offline")
+
+    gateway.list_calendars = boom  # type: ignore[assignment,method-assign]
+    app = first_run_app(config, gateway)
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        await screen_of(app, pilot, WizardIntro)
+        await pilot.press("enter")
+        await until(pilot, lambda: app.draft is not None and not app.busy)
+        await pilot.pause()
+        assert len(app.screen_stack) == 1
+        assert "Could not list your calendars: offline" in (await log_text(app, pilot))
+
+    drive_wizard(app, scenario)

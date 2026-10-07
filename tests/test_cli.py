@@ -304,7 +304,21 @@ def test_main_reports_missing_credentials(isolated_env, fake_auth, capsys) -> No
         isolated_env / "credentials.json"
     )
     assert cli.main([]) == cli.EXIT_FAILURE
-    assert "credentials.json' not found" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "credentials.json' not found" in out
+    # ...and how to get it.
+    assert "enable the Google Calendar API" in out
+    assert "Desktop app" in out
+
+
+def test_main_reports_login_required_without_credentials_help(
+    isolated_env, fake_auth, capsys
+) -> None:
+    fake_auth.return_value.get_credentials.side_effect = LoginRequiredError()
+    assert cli.main([]) == cli.EXIT_FAILURE
+    out = capsys.readouterr().out
+    assert "Google login required" in out
+    assert "Desktop app" not in out
 
 
 @pytest.mark.parametrize(
@@ -468,6 +482,7 @@ def test_run_tui_builds_the_calendar_setup(config: Config, monkeypatch) -> None:
     assert setup.calendars == CalendarSettings(source="Uni", target="Tgt")
     assert setup.overrides == {Role.TARGET: "TARGET_CALENDAR_NAME"}
     assert setup.fixed_source is None
+    assert not setup.first_run
     source = setup.source_for("Other")
     assert isinstance(source, GoogleCalendarSource)
     assert source.name == "Other"
@@ -477,3 +492,17 @@ def test_run_tui_builds_the_calendar_setup(config: Config, monkeypatch) -> None:
     setup = apps[-1].setup
     assert setup.fixed_source == "iCal feed at https://ical.example/<redacted>"
     assert isinstance(setup.source_for("Other"), IcalFeedSource)
+
+
+def test_run_tui_starts_the_guide_without_a_profile(
+    config: Config, monkeypatch
+) -> None:
+    pytest.importorskip("textual")
+    from calendar_coloring.tui.app import CalendarColoringApp
+
+    apps: list[CalendarColoringApp] = []
+    monkeypatch.setattr(CalendarColoringApp, "run", lambda self: apps.append(self))
+
+    cli.run_tui(SyncOptions(), config, FakeCalendarGateway())
+
+    assert apps[-1].setup.first_run

@@ -98,11 +98,31 @@ pip install ".[tui]"      # or `pip install .` if you don't want the terminal UI
 This installs the `calendar-coloring` command. `python -m calendar_coloring`
 works too.
 
-### 3. Configure
+### 3. First run
 
-Create `profile.json` with the name of the calendar to read and the one to
-write. Everything else (the event rules and your colors) starts from the
-built-in PoliMi profile and is filled in by the first sync:
+```bash
+calendar-coloring
+```
+
+Your browser opens so you can log in with Google, and the login is saved to
+`token.json`. Without a browser (WSL, SSH), the login URL is printed for you to
+open by hand.
+
+The [terminal UI](#terminal-ui) then guides you through the setup:
+
+1. **The calendar with your timetable**: pick it from your Google calendars.
+2. **The calendar to write to**: pick one, or keep the suggested new name. A
+   new calendar is only created when you apply the changes.
+3. **Recognizing your events**: see how the built-in Politecnico di Milano
+   rules classify your events, then keep them, adjust them, or start from
+   scratch in the Rules tab.
+
+The guide ends on a preview of the changes. Nothing is written to Google
+Calendar until you apply them. Your choices are saved in `profile.json`, and
+the guide only runs while that file doesn't exist.
+
+Without the terminal UI, create `profile.json` yourself with the two calendars
+(the rules and colors start from the built-in profile), then try a dry run:
 
 ```json
 {
@@ -113,24 +133,13 @@ built-in PoliMi profile and is filled in by the first sync:
 }
 ```
 
-The source is the calendar you subscribed to; the target is created on the
-first sync. If your university doesn't use the PoliMi format, copy the
-[rules](#profile-and-rules) into the file and adapt them.
-
-If you'd rather not subscribe to the source calendar in Google, give the tool
-your [iCal URL](#use-an-ical-url-as-the-source) instead. All settings are listed
-under [Configuration](#configuration).
-
-### 4. First run
-
 ```bash
 calendar-coloring --dry-run
 ```
 
-Your browser opens so you can log in with Google, and the login is saved to
-`token.json`. Without a browser (WSL, SSH), the login URL is printed for you to
-open by hand. The dry run then shows what a sync would change without touching
-anything.
+If you'd rather not subscribe to the source calendar in Google, give the tool
+your [iCal URL](#use-an-ical-url-as-the-source) instead. All settings are listed
+under [Configuration](#configuration).
 
 > [!IMPORTANT]
 > The colored calendar is a **copy** of the original calendar. In Google Calendar,

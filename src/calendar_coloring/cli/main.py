@@ -10,6 +10,7 @@ import sys
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from datetime import date
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -266,12 +267,28 @@ def run_tui(
             else None
         ),
         overrides=overrides,
+        first_run=not config.profile_path.exists(),
     )
     app = CalendarColoringApp(
         build_workflow(config, gateway, reporter), setup, options, reporter
     )
     app.run()
     return EXIT_OK
+
+
+def credentials_help(path: Path) -> list[str]:
+    """How to get the OAuth client file, for the first run."""
+    return [
+        "The tool logs in to Google Calendar with your own OAuth client. To create it:",
+        "  1. Open https://console.cloud.google.com/ and create a new project.",
+        "  2. APIs & Services → Library: enable the Google Calendar API.",
+        "  3. APIs & Services → OAuth consent screen: choose External, and add",
+        "     your Google address under Test users.",
+        "  4. APIs & Services → Credentials → Create credentials → OAuth client ID:",
+        "     choose Desktop app and download the JSON file.",
+        f"  5. Save it as '{path}' (or set CREDENTIALS_PATH), then run again.",
+        "Details: https://github.com/Bert0ns/calendar-coloring#setup",
+    ]
 
 
 def tui_available() -> bool:
@@ -326,6 +343,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         credentials = authenticator.get_credentials()
     except (CredentialsFileNotFoundError, LoginRequiredError) as exc:
         reporter.error(str(exc))
+        if isinstance(exc, CredentialsFileNotFoundError):
+            for line in credentials_help(exc.path):
+                reporter.info(line)
         return EXIT_FAILURE
 
     gateway = GoogleCalendarClient.from_credentials(credentials)
