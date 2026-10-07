@@ -16,7 +16,9 @@ class CalendarGateway(Protocol):
 
     def get_calendar_id_by_name(self, name: str) -> str | None: ...
 
-    def create_calendar(self, name: str) -> str: ...
+    def create_calendar(self, name: str, time_zone: str | None = None) -> str:
+        """Creates a calendar; without ``time_zone``, in the user's one."""
+        ...
 
     def get_all_events(
         self, calendar_id: str, expand_recurring: bool = True

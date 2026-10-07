@@ -29,6 +29,7 @@ class Config:
         return CalendarSettings(
             source=self.source_calendar_name or saved.source,
             target=self.target_calendar_name or saved.target,
+            time_zone=saved.time_zone,
         )
 
     @classmethod

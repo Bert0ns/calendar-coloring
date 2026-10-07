@@ -53,12 +53,14 @@ class SyncService:
         plan: SyncPlan,
         target_name: str,
         on_progress: ProgressCallback | None = None,
+        time_zone: str | None = None,
     ) -> SyncResult:
-        """Executes the plan, creating the target calendar if it does not exist."""
+        """Executes the plan, creating the target calendar (in ``time_zone``, if
+        given) if it does not exist."""
         calendar_id = plan.target_calendar_id
         created = False
         if not calendar_id:
-            calendar_id = self.gateway.create_calendar(target_name)
+            calendar_id = self.gateway.create_calendar(target_name, time_zone)
             created = True
         results = self._mutate(calendar_id, plan.mutations, on_progress)
         return SyncResult(results=tuple(results), created_target_calendar=created)

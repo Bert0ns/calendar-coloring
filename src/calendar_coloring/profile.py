@@ -6,7 +6,8 @@ colors and exam subscriptions the student chose. It is stored in one JSON file::
     {
         "version": 1,
         "name": "Politecnico di Milano",
-        "calendars": {"source": "Calendar", "target": "Calendar Colored"},
+        "calendars": {"source": "Calendar", "target": "Calendar Colored",
+                      "time_zone": null},
         "rules": [
             {"kind": "exam", "field": "title", "match": "starts_with",
              "value": "Esame: ", "ignore_case": false, "title": "{title}"}
@@ -35,6 +36,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from calendar_coloring.palette import GoogleColor
 from calendar_coloring.preferences import ExamPreference, Preferences
@@ -64,6 +66,9 @@ class CalendarSettings:
     """Name of the Google calendar to read (unless an iCal URL is given)."""
     target: str = DEFAULT_TARGET_CALENDAR
     """Name of the Google calendar to write, created if missing."""
+    time_zone: str | None = None
+    """IANA time zone of the target calendar when it's created (e.g.
+    ``"Europe/Rome"``). ``None``: the one of the user's primary calendar."""
 
 
 @dataclass
@@ -77,6 +82,17 @@ class Profile:
     @property
     def classifier(self) -> Classifier:
         return Classifier(tuple(self.rules), self.enrollment)
+
+
+def time_zone_error(name: str) -> str | None:
+    """Why ``name`` is not a time zone, or ``None`` if it is one."""
+    if not name.strip():
+        return "Type a time zone, e.g. Europe/Rome."
+    try:
+        ZoneInfo(name.strip())
+    except (ZoneInfoNotFoundError, ValueError):
+        return f"Unknown time zone '{name.strip()}': use a name like Europe/Rome."
+    return None
 
 
 def polimi_profile() -> Profile:
@@ -174,12 +190,16 @@ class JsonProfileRepository:
             self._on_warning(f"Ignoring '{key}': it must be a JSON object.")
             return {}
 
-    @staticmethod
-    def _parse_calendars(raw: JsonObject) -> CalendarSettings:
+    def _parse_calendars(self, raw: JsonObject) -> CalendarSettings:
         defaults = CalendarSettings()
+        time_zone = raw.get("time_zone") or None
+        if time_zone is not None and time_zone_error(str(time_zone)) is not None:
+            self._on_warning(f"Ignoring unknown time zone {time_zone!r}.")
+            time_zone = None
         return CalendarSettings(
             source=str(raw.get("source") or defaults.source),
             target=str(raw.get("target") or defaults.target),
+            time_zone=None if time_zone is None else str(time_zone),
         )
 
     def _parse_rules(self, raw: object) -> list[Rule]:
@@ -292,6 +312,7 @@ def serialize(profile: Profile) -> JsonObject:
         "calendars": {
             "source": profile.calendars.source,
             "target": profile.calendars.target,
+            "time_zone": profile.calendars.time_zone,
         },
         "rules": [
             {

@@ -14,6 +14,7 @@ from calendar_coloring.profile import (
     Profile,
     polimi_profile,
     serialize,
+    time_zone_error,
 )
 from calendar_coloring.rules import (
     Condition,
@@ -95,7 +96,11 @@ def test_file_format(path: Path) -> None:
     assert json.loads(path.read_text(encoding="utf-8")) == {
         "version": 1,
         "name": "My Uni",
-        "calendars": {"source": "Calendar", "target": "Calendar Colored"},
+        "calendars": {
+            "source": "Calendar",
+            "target": "Calendar Colored",
+            "time_zone": None,
+        },
         "rules": [
             {
                 "kind": "lecture",
@@ -343,3 +348,27 @@ def test_classifier_uses_the_profile_rules() -> None:
     )
     profile.rules = []
     assert profile.classifier.classify({"summary": "Lezione: Didattica - CS"}) is None
+
+
+def test_time_zone(path: Path) -> None:
+    write(path, calendars={"time_zone": "America/New_York"})
+    assert make_repo(path).load().calendars.time_zone == "America/New_York"
+
+    write(path, calendars={"time_zone": "Mars/Olympus_Mons"})
+    warnings: list[str] = []
+    assert make_repo(path, warnings).load().calendars.time_zone is None
+    assert warnings == ["Ignoring unknown time zone 'Mars/Olympus_Mons'."]
+
+
+@pytest.mark.parametrize(
+    ("name", "error"),
+    [
+        ("Europe/Rome", None),
+        (" UTC ", None),
+        ("", "Type a time zone, e.g. Europe/Rome."),
+        ("Rome", "Unknown time zone 'Rome': use a name like Europe/Rome."),
+        ("../etc", "Unknown time zone '../etc': use a name like Europe/Rome."),
+    ],
+)
+def test_time_zone_error(name: str, error: str | None) -> None:
+    assert time_zone_error(name) == error

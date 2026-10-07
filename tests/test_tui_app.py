@@ -37,6 +37,7 @@ from calendar_coloring.tui.widgets import (
     ColorPicker,
     PlanTree,
     RuleEditor,
+    TextPrompt,
 )
 from calendar_coloring.workflow import SyncOptions
 
@@ -575,7 +576,11 @@ def test_change_the_target_to_an_existing_calendar(config: Config) -> None:
         assert "'Src' ➔ 'Other'" in app.sub_title
         assert text_of(app, "#setup-target") == "'Other'"
         # Saved right away, without the unsaved course color.
-        assert saved(config, "calendars") == {"source": "Src", "target": "Other"}
+        assert saved(config, "calendars") == {
+            "source": "Src",
+            "target": "Other",
+            "time_zone": None,
+        }
         assert saved(config, "courses") == {}
         assert app.draft.is_dirty
 
@@ -658,7 +663,11 @@ def test_change_the_source_reloads_and_keeps_unsaved_edits(config: Config) -> No
         assert app.query_one("#courses-table", DataTable).get_row("Bio")
         assert app.draft.preferences.course_color("CS") is GoogleColor.BASIL
         assert app.draft.is_dirty
-        assert saved(config, "calendars") == {"source": "Other", "target": "Tgt"}
+        assert saved(config, "calendars") == {
+            "source": "Other",
+            "target": "Tgt",
+            "time_zone": None,
+        }
         assert saved(config, "courses") == {}
 
     drive(app, scenario)
@@ -697,7 +706,11 @@ def test_choose_the_source_when_it_is_missing(config: Config) -> None:
 
         assert app.draft is not None
         assert app.calendars.source == "Uni"
-        assert saved(config, "calendars") == {"source": "Uni", "target": "Tgt"}
+        assert saved(config, "calendars") == {
+            "source": "Uni",
+            "target": "Tgt",
+            "time_zone": None,
+        }
         assert not app.draft.is_dirty
 
     drive(app, scenario)
@@ -718,7 +731,11 @@ def test_only_the_chosen_calendar_is_saved_over_the_profile(config: Config) -> N
         await settle(app, pilot)
 
         assert app.draft is None
-        assert saved(config, "calendars") == {"source": "Uni", "target": "Mine"}
+        assert saved(config, "calendars") == {
+            "source": "Uni",
+            "target": "Mine",
+            "time_zone": None,
+        }
 
     drive(app, scenario)
 
@@ -1063,5 +1080,62 @@ def test_rules_actions_need_a_session(config: Config) -> None:
         app._enrollment_saved("enrolled", None)
         await pilot.pause()
         assert len(app.screen_stack) == 1
+
+    drive(app, scenario)
+
+
+def test_change_the_time_zone_of_new_calendars(config: Config) -> None:
+    gateway = FakeCalendarGateway({"Src": SOURCE})
+    app = make_app(config, gateway)
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        app.action_preview()
+        await settle(app, pilot)
+        app.query_one(TabbedContent).active = "setup"
+        await pilot.pause()
+        assert "primary Google calendar" in text_of(app, "#setup-time-zone")
+
+        await pilot.click("#change-time-zone")
+        await pilot.pause()
+        prompt = app.screen
+        assert isinstance(prompt, TextPrompt)
+        field = prompt.query_one(Input)
+        field.value = "Rome"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen is prompt
+        assert "Unknown time zone 'Rome'" in str(
+            prompt.query_one("#prompt-error", Label).render()
+        )
+        field.value = "Asia/Tokyo"
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert app.calendars.time_zone == "Asia/Tokyo"
+        assert text_of(app, "#setup-time-zone").startswith("Asia/Tokyo")
+        assert saved(config, "calendars")["time_zone"] == "Asia/Tokyo"
+        assert app.plan is not None  # only matters when the calendar is created
+
+        app.action_apply()
+        await settle(app, pilot)
+        assert gateway.time_zones == {"Tgt": "Asia/Tokyo"}
+
+        # Empty: back to the primary calendar's time zone; escape cancels.
+        app.query_one(TabbedContent).active = "setup"  # apply showed the Sync tab
+        await pilot.pause()
+        await pilot.click("#change-time-zone")
+        await pilot.pause()
+        assert isinstance(app.screen, TextPrompt)
+        await pilot.press("escape")
+        await pilot.pause()
+        assert app.calendars.time_zone == "Asia/Tokyo"
+        await pilot.click("#change-time-zone")
+        await pilot.pause()
+        assert isinstance(app.screen, TextPrompt)
+        app.screen.query_one(Input).value = ""
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.calendars.time_zone is None
+        assert saved(config, "calendars")["time_zone"] is None
 
     drive(app, scenario)

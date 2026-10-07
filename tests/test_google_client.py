@@ -27,12 +27,30 @@ def test_get_calendar_id_by_name_returns_none_when_missing() -> None:
     assert client.get_calendar_id_by_name("Nope") is None
 
 
-def test_create_calendar_uses_rome_time_zone_by_default() -> None:
+def test_create_calendar_in_the_given_time_zone() -> None:
     client, service = make_client()
     service.calendars().insert().execute.return_value = {"id": "new"}
-    assert client.create_calendar("Tgt") == "new"
+    assert client.create_calendar("Tgt", "America/New_York") == "new"
     service.calendars().insert.assert_called_with(
-        body={"summary": "Tgt", "timeZone": "Europe/Rome"}
+        body={"summary": "Tgt", "timeZone": "America/New_York"}
+    )
+    service.calendars().get.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("primary", "expected"),
+    [({"timeZone": "Europe/Berlin"}, "Europe/Berlin"), ({}, "UTC")],
+)
+def test_create_calendar_uses_the_primary_calendar_time_zone(
+    primary: dict[str, str], expected: str
+) -> None:
+    client, service = make_client()
+    service.calendars().get().execute.return_value = primary
+    service.calendars().insert().execute.return_value = {"id": "new"}
+    assert client.create_calendar("Tgt") == "new"
+    service.calendars().get.assert_called_with(calendarId="primary")
+    service.calendars().insert.assert_called_with(
+        body={"summary": "Tgt", "timeZone": expected}
     )
 
 

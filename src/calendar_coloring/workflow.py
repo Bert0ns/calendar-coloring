@@ -196,7 +196,12 @@ class SyncWorkflow:
         on_progress: ProgressCallback | None = None,
     ) -> SyncResult:
         self.reporter.applying(plan)
-        result = self.service.apply(plan, session.target_name, on_progress)
+        result = self.service.apply(
+            plan,
+            session.target_name,
+            on_progress,
+            time_zone=session.profile.calendars.time_zone,
+        )
         self.reporter.sync_finished(result)
         return result
 

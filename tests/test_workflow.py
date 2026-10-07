@@ -264,7 +264,11 @@ def test_profile_and_calendar_list(config: Config) -> None:
     profile.calendars = CalendarSettings(source="Src", target="Tgt")
     workflow.save_profile(profile)
 
-    assert saved(config, "calendars") == {"source": "Src", "target": "Tgt"}
+    assert saved(config, "calendars") == {
+        "source": "Src",
+        "target": "Tgt",
+        "time_zone": None,
+    }
     assert workflow.list_calendars() == [
         CalendarInfo("id::Src", "Src", writable=False),
         CalendarInfo("id::Tgt", "Tgt", writable=True),
@@ -291,3 +295,15 @@ def test_syncable_events_leave_out_pruned_ones(config: Config) -> None:
     session = workflow.load(options, GoogleCalendarSource(gateway, "Src"), "T")
 
     assert [e["id"] for e in workflow.syncable_events(session)] == ["eam00001"]
+
+
+@pytest.mark.parametrize("time_zone", [None, "Asia/Tokyo"])
+def test_new_target_calendar_gets_the_profile_time_zone(
+    config: Config, time_zone: str | None
+) -> None:
+    save_profile(config, calendars={"time_zone": time_zone})
+    gateway = FakeCalendarGateway({"Src": SOURCE})
+
+    make_workflow(config, gateway).run(SyncOptions(), "Src", "Tgt")
+
+    assert gateway.time_zones == {"Tgt": time_zone}

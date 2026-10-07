@@ -62,3 +62,10 @@ def test_calendar_names_override_the_profile() -> None:
     assert Config(source_calendar_name="Other").calendars(saved) == (
         CalendarSettings(source="Other", target="Uni colored")
     )
+
+
+def test_overrides_keep_the_saved_time_zone() -> None:
+    saved = CalendarSettings(source="Uni", target="Mine", time_zone="Asia/Tokyo")
+    assert Config(target_calendar_name="Other").calendars(saved).time_zone == (
+        "Asia/Tokyo"
+    )

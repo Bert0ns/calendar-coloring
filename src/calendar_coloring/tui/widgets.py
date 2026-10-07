@@ -123,6 +123,62 @@ class ColorPicker(ModalScreen[GoogleColor | None]):
         self.dismiss(None)
 
 
+class TextPrompt(ModalScreen[str | None]):
+    """Modal one-line input. Dismisses with the text once ``validate`` accepts
+    it, or ``None`` when cancelled."""
+
+    BINDINGS: ClassVar[list[BindingType]] = [Binding("escape", "cancel", "Cancel")]
+
+    DEFAULT_CSS = """
+    TextPrompt {
+        align: center middle;
+    }
+    TextPrompt > Vertical {
+        width: 64;
+        height: auto;
+        border: thick $accent;
+        background: $surface;
+        padding: 0 1;
+    }
+    TextPrompt #prompt-error {
+        color: $error;
+    }
+    """
+
+    def __init__(
+        self,
+        title: str,
+        value: str = "",
+        placeholder: str = "",
+        validate: Callable[[str], str | None] | None = None,
+    ) -> None:
+        super().__init__()
+        self.title_text = title
+        self.value = value
+        self.placeholder = placeholder
+        self.validate = validate
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label(Text(self.title_text, style="bold"))
+            yield Input(self.value, placeholder=self.placeholder, id="prompt-input")
+            yield Label("", id="prompt-error")
+
+    def on_mount(self) -> None:
+        self.query_one(Input).focus()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        event.stop()
+        error = self.validate(event.value) if self.validate is not None else None
+        if error is not None:
+            self.query_one("#prompt-error", Label).update(error)
+            return
+        self.dismiss(event.value)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
 class CalendarPicker(ModalScreen[str | None]):
     """Modal list of calendars. With ``validate_new``, a new calendar name can
     also be typed. Dismisses with the chosen name, or ``None`` when cancelled."""

@@ -43,6 +43,8 @@ class FakeCalendarGateway:
         self.batches: list[tuple[str, list[Mutation]]] = []
         self.fail_event_ids: set[str] = set()
         self.listings: list[tuple[str, bool]] = []
+        self.time_zones: dict[str, str | None] = {}
+        """Time zone each calendar was created with."""
         self.read_only: set[str] = set()
         """Names of the calendars the user can only read."""
 
@@ -70,8 +72,9 @@ class FakeCalendarGateway:
                 return cal_id
         return None
 
-    def create_calendar(self, name: str) -> str:
+    def create_calendar(self, name: str, time_zone: str | None = None) -> str:
         self.created.append(name)
+        self.time_zones[name] = time_zone
         return self.add_calendar(name, [])
 
     def get_all_events(
