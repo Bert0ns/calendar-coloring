@@ -126,6 +126,14 @@ def cells(app: CalendarColoringApp, tab: str, key: str) -> list[str]:
     return [cell.plain for cell in table.get_row(key)]
 
 
+async def show_tab(app: CalendarColoringApp, pilot: Pilot[None], tab: str) -> None:
+    """The app opens on the Setup tab: goes to a table and focuses it."""
+    app.query_one(TabbedContent).active = tab
+    await pilot.pause()
+    app.query_one(f"#{tab}-table").focus()
+    await pilot.pause()
+
+
 async def log_text(app: CalendarColoringApp, pilot: Pilot[None]) -> str:
     """The log is only rendered once its (Sync) tab is visible."""
     app.query_one(TabbedContent).active = "sync"
@@ -138,6 +146,8 @@ def test_lists_courses_exams_and_deadlines(config: Config) -> None:
     app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
 
     async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        assert app.query_one(TabbedContent).active == "setup"
+        await show_tab(app, pilot, "courses")
         assert cells(app, "courses", "CS")[1:] == ["    Basil", "saved"]
         math = suggest_color("Math").label
         assert cells(app, "courses", "Math")[1:] == [f"    {math}", "suggested"]
@@ -176,7 +186,9 @@ def test_target_selects_the_tabs(config: Config) -> None:
 
     async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
         assert visible_tabs(app) == ["setup", "exams", "sync", "rules"]
-        assert app.query_one("#scope", Select).value is SyncTarget.EXAMS
+        await show_tab(app, pilot, "exams")
+        assert app.query_one("#scope-sync", Select).value is SyncTarget.EXAMS
+        assert app.query_one("#scope-setup", Select).value is SyncTarget.EXAMS
         assert app.check_action("toggle_subscription", ()) is True
 
     drive(app, scenario)
@@ -193,7 +205,8 @@ def test_the_sync_tab_limits_the_sync_to_lectures_exams_or_all(
     app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
 
     async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
-        scope = app.query_one("#scope", Select)
+        scope = app.query_one("#scope-sync", Select)
+        setup_scope = app.query_one("#scope-setup", Select)
         assert scope.value is SyncTarget.ALL
         await pilot.press("p")
         await settle(app, pilot)
@@ -208,14 +221,16 @@ def test_the_sync_tab_limits_the_sync_to_lectures_exams_or_all(
         scope.value = SyncTarget.LECTURES
         await pilot.pause()
         assert app.options.target is SyncTarget.LECTURES
+        assert setup_scope.value is SyncTarget.LECTURES  # kept in sync
         assert visible_tabs(app) == ["setup", "courses", "sync", "rules"]
         assert app.plan is None
         await pilot.press("p")
         await settle(app, pilot)
         assert planned(app) == ["CS", "Math"]
 
-        scope.value = SyncTarget.EXAMS
+        setup_scope.value = SyncTarget.EXAMS  # chosen from the Setup tab
         await pilot.pause()
+        assert scope.value is SyncTarget.EXAMS
         assert visible_tabs(app) == ["setup", "exams", "sync", "rules"]
         await pilot.press("p")
         await settle(app, pilot)
@@ -242,6 +257,7 @@ def test_pick_a_color_and_save(config: Config) -> None:
     app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
 
     async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        await show_tab(app, pilot, "courses")
         await pilot.press("c")
         assert isinstance(app.screen, ColorPicker)
         assert app.screen.subject == "CS"
@@ -268,6 +284,7 @@ def test_enter_opens_the_picker_and_escape_cancels(config: Config) -> None:
     app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
 
     async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        await show_tab(app, pilot, "courses")
         await pilot.press("down", "enter")
         assert isinstance(app.screen, ColorPicker)
         assert app.screen.subject == "Math"
@@ -503,6 +520,7 @@ def test_save_failure_is_reported(config: Config) -> None:
 
     async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
         app.workflow.save_preferences = denied  # type: ignore[method-assign]
+        await show_tab(app, pilot, "courses")
         await pilot.press("c", "enter", "ctrl+s")
         await pilot.pause()
         assert "Could not save preferences: read-only" in await log_text(app, pilot)
@@ -517,6 +535,7 @@ def test_quit_asks_to_confirm_unsaved_changes(config: Config) -> None:
 
     async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
         app.exit = lambda *args, **kwargs: exits.append(True)  # type: ignore[method-assign]
+        await show_tab(app, pilot, "courses")
         await pilot.press("c", "enter")
         await pilot.press("q")
         await pilot.pause()

@@ -242,8 +242,10 @@ class CalendarColoringApp(App[None]):
     #sync-actions {
         height: auto;
     }
-    #scope {
+    .scope {
         width: 24;
+    }
+    #sync-actions .scope {
         margin-right: 2;
     }
     #sync-actions Button {
@@ -345,18 +347,8 @@ class CalendarColoringApp(App[None]):
     # -- layout --------------------------------------------------------------
 
     def compose(self) -> ComposeResult:
-        target = self.options.target
         yield Header()
-        first = next(
-            tab
-            for tab, shown in (
-                (COURSES, target.includes_lectures),
-                (EXAMS, target.includes_exams),
-                (DEADLINES, target.includes_deadlines),
-            )
-            if shown
-        )
-        with TabbedContent(id="tabs", initial=first):
+        with TabbedContent(id="tabs", initial=SETUP):
             with TabPane("Setup", id=SETUP):
                 yield Static(
                     "The calendar to read your timetable from, and the one to "
@@ -375,6 +367,13 @@ class CalendarColoringApp(App[None]):
                     yield Static("Time zone", classes="setup-label")
                     yield Static(id="setup-time-zone", classes="setup-value")
                     yield Button("Change…", id="change-time-zone")
+                with Horizontal(classes="setup-row"):
+                    yield Static("Sync", classes="setup-label")
+                    yield self._scope_select("scope-setup")
+                    yield Static(
+                        "What a sync covers; the rest is left untouched.",
+                        classes="setup-value",
+                    )
                 yield Static(id="setup-notes", classes="help")
             with TabPane("Courses", id=COURSES):
                 yield Static(
@@ -402,12 +401,7 @@ class CalendarColoringApp(App[None]):
                 yield self._table(DEADLINES, "Deadline", "Color", "Status")
             with TabPane("Sync", id=SYNC):
                 with Horizontal(id="sync-actions"):
-                    yield Select(
-                        [(label, t) for t, label in SCOPE_LABELS.items()],
-                        value=target,
-                        allow_blank=False,
-                        id="scope",
-                    )
+                    yield self._scope_select("scope-sync")
                     yield Button("Preview changes", id="preview", variant="primary")
                     yield Button("Apply", id="apply", variant="success")
                 yield Static(
@@ -432,6 +426,15 @@ class CalendarColoringApp(App[None]):
                         yield Static(id="rules-summary")
                         yield self._table(EVENTS, "Kind", "×", "Name", "Event title")
         yield Footer()
+
+    def _scope_select(self, select_id: str) -> Select[SyncTarget]:
+        return Select(
+            [(label, target) for target, label in SCOPE_LABELS.items()],
+            value=self.options.target,
+            allow_blank=False,
+            id=select_id,
+            classes="scope",
+        )
 
     @staticmethod
     def _table(tab: str, *columns: str) -> DataTable[Text]:
@@ -810,11 +813,15 @@ class CalendarColoringApp(App[None]):
                 tabs.hide_tab(tab)
 
     def on_select_changed(self, event: Select.Changed) -> None:
-        if event.select.id != "scope" or not isinstance(event.value, SyncTarget):
+        if "scope" not in event.select.classes or not isinstance(
+            event.value, SyncTarget
+        ):
             return
         if event.value is self.options.target:
             return
         self.options = replace(self.options, target=event.value)
+        for select in self._ui.query(".scope").results(Select):
+            select.value = event.value  # the other selector follows
         self._show_scope_tabs()
         if self.draft is not None:
             session = replace(self.draft.session, options=self.options)
