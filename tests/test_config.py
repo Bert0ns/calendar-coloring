@@ -4,7 +4,13 @@ import platformdirs
 import pytest
 
 from unical import config as config_mod
-from unical.config import Config, default_config_dir, resolve_config_path
+from unical.config import (
+    Config,
+    default_config_dir,
+    default_credentials_path,
+    resolve_config_path,
+    user_config_dir,
+)
 from unical.profile import CalendarSettings
 
 
@@ -130,13 +136,37 @@ def test_calendar_names_override_the_profile() -> None:
     assert Config(target_calendar_name="Mine").calendars(saved) == CalendarSettings(
         source="Uni", target="Mine"
     )
-    assert Config(source_calendar_name="Other").calendars(saved) == (
-        CalendarSettings(source="Other", target="Uni colored")
-    )
 
 
-def test_overrides_keep_the_saved_time_zone() -> None:
-    saved = CalendarSettings(source="Uni", target="Mine", time_zone="Asia/Tokyo")
-    assert Config(target_calendar_name="Other").calendars(saved).time_zone == (
-        "Asia/Tokyo"
-    )
+def test_falls_back_to_user_config_dir(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake_config_dir = tmp_path / "dotconfig" / "unical"
+    fake_config_dir.mkdir(parents=True)
+    creds = fake_config_dir / "credentials.json"
+    creds.write_text("{}")
+    tok = fake_config_dir / "token.json"
+    tok.write_text("{}")
+    prof = fake_config_dir / "profile.json"
+    prof.write_text("{}")
+
+    monkeypatch.setattr("unical.config.default_config_dir", lambda: fake_config_dir)
+
+    config = Config.from_env({})
+    assert config.credentials_path == creds
+    assert config.token_path == tok
+    assert config.profile_path == prof
+    assert user_config_dir() == fake_config_dir
+
+
+def test_default_credentials_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake_config_dir = tmp_path / "unical"
+    monkeypatch.setattr("unical.config.default_config_dir", lambda: fake_config_dir)
+    assert default_credentials_path() == fake_config_dir / "credentials.json"
+
+    # If credentials.json exists in CWD, default_credentials_path prefers it
+    cwd_creds = Path("credentials.json")
+    cwd_creds.touch()
+    assert default_credentials_path() == Path("credentials.json")

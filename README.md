@@ -107,7 +107,11 @@ Google Cloud OAuth client, so nobody else ever sees your calendar.
      fails with `403 access_denied`.
 4. Go to **APIs & Services → Credentials → Create credentials → OAuth client
    ID**, choose **Desktop app**, then download the JSON file.
-5. Save it as `credentials.json` in the project directory.
+5. Import it directly into your user configuration directory:
+   ```bash
+   unical auth import /path/to/downloaded-credentials.json
+   ```
+   (Alternatively, save it as `credentials.json` in your working directory, or simply launch `unical` and let the interactive setup wizard prompt you for the file).
 
 ### 2. Install
 
@@ -171,6 +175,17 @@ under [Configuration](#configuration).
 > nothing to hide.
 
 ## Usage
+
+### Authentication
+
+Manage credentials and check login status with `unical auth`:
+
+```bash
+unical auth import /path/to/downloaded-credentials.json   # copy credentials to user config directory
+unical auth import /path/to/credentials.json -m           # move instead of copy
+unical auth status                                        # inspect credentials, token cache, and profile status
+unical auth login                                         # authenticate with Google and cache token in advance
+```
 
 ### Sync
 

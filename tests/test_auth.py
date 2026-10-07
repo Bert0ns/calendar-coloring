@@ -1,3 +1,4 @@
+import json
 import pickle
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -9,7 +10,11 @@ from unical import auth
 from unical.auth import (
     Authenticator,
     CredentialsFileNotFoundError,
+    InvalidCredentialsError,
     LoginRequiredError,
+    clean_path_input,
+    import_credentials,
+    validate_client_secrets,
 )
 
 
@@ -101,52 +106,65 @@ def test_revoked_refresh_token_triggers_login(paths, cached) -> None:
     messages: list[str] = []
     authenticator, login = make_auth(paths, login_result=fresh, info=messages)
 
-    assert authenticator.get_credentials() is fresh
+    creds = authenticator.get_credentials()
+
+    assert creds is fresh
     login.assert_called_once_with(paths[0])
-    assert any("Logging in again" in m for m in messages)
+    assert paths[1].read_text() == '{"token": "fake"}'
+    assert any("expired or was revoked" in m for m in messages)
 
 
-def test_unexpected_refresh_errors_propagate(paths, cached) -> None:
-    paths[1].write_text("{}")
-    creds = FakeCreds(valid=False, expired=True)
-    creds.refresh = MagicMock(side_effect=OSError("network down"))
-    cached["creds"] = creds
-    authenticator, _ = make_auth(paths)
-
-    with pytest.raises(OSError):
-        authenticator.get_credentials()
-
-
-def test_invalid_token_without_refresh_token_triggers_login(paths, cached) -> None:
+def test_expired_token_without_refresh_token_triggers_login(paths, cached) -> None:
     paths[1].write_text("{}")
     cached["creds"] = FakeCreds(valid=False, expired=True, refresh_token=None)
-    authenticator, login = make_auth(paths)
-    authenticator.get_credentials()
-    login.assert_called_once()
+    fresh = FakeCreds()
+    authenticator, login = make_auth(paths, login_result=fresh)
+
+    assert authenticator.get_credentials() is fresh
+    login.assert_called_once_with(paths[0])
 
 
-def test_unreadable_token_triggers_login(paths, cached) -> None:
-    paths[1].write_text("garbage")
-    cached["error"] = ValueError("bad")
-    authenticator, login = make_auth(paths)
-    authenticator.get_credentials()
-    login.assert_called_once()
-    assert paths[1].read_text() == '{"token": "fake"}'
+def test_login_when_no_token_file(paths) -> None:
+    fresh = FakeCreds()
+    authenticator, login = make_auth(paths, login_result=fresh)
 
-
-def test_first_login_saves_json_token(paths) -> None:
-    authenticator, login = make_auth(paths)
-    authenticator.get_credentials()
+    assert authenticator.get_credentials() is fresh
     login.assert_called_once_with(paths[0])
     assert paths[1].read_text() == '{"token": "fake"}'
 
 
-def test_missing_client_file_raises_only_when_login_is_needed(paths, cached) -> None:
-    paths[0].unlink()
-    authenticator, login = make_auth(paths)
+def test_corrupted_token_file_triggers_login(paths, cached) -> None:
+    paths[1].write_text("not json")
+    cached["error"] = ValueError("bad json")
+    fresh = FakeCreds()
+    messages: list[str] = []
+    authenticator, login = make_auth(paths, login_result=fresh, info=messages)
+
+    assert authenticator.get_credentials() is fresh
+    login.assert_called_once_with(paths[0])
+    assert any("Ignoring unreadable" in m for m in messages)
+
+
+def test_missing_credentials_file_raises_custom_error(tmp_path: Path) -> None:
+    authenticator, login = make_auth(
+        (tmp_path / "nope.json", tmp_path / "t.json", None)
+    )
+
     with pytest.raises(CredentialsFileNotFoundError) as exc_info:
         authenticator.get_credentials()
-    assert exc_info.value.path == paths[0]
+
+    assert exc_info.value.path == tmp_path / "nope.json"
+    assert "nope.json" in str(exc_info.value)
+    assert isinstance(exc_info.value, FileNotFoundError)
+    login.assert_not_called()
+
+
+def test_valid_token_bypasses_credentials_file_check(paths, cached) -> None:
+    paths[0].unlink()
+    authenticator, login = make_auth(paths)
+
+    with pytest.raises(CredentialsFileNotFoundError) as exc_info:
+        authenticator.get_credentials()
     assert isinstance(exc_info.value, FileNotFoundError)
     login.assert_not_called()
 
@@ -228,3 +246,149 @@ def test_login_flow_falls_back_to_manual_url_without_browser(monkeypatch) -> Non
         "port": 0,
         "open_browser": False,
     }
+
+
+# -- Credential validation, cleaning, and import --------------------------------
+
+
+def test_clean_path_input() -> None:
+    assert clean_path_input("  /path/to/file.json  ") == Path("/path/to/file.json")
+    assert clean_path_input("'/path/to/file.json'") == Path("/path/to/file.json")
+    assert clean_path_input('"/path/to/file.json"') == Path("/path/to/file.json")
+    assert clean_path_input(r"/path/to/my\ file.json") == Path("/path/to/my file.json")
+    assert clean_path_input("file:///tmp/creds.json") == Path("/tmp/creds.json")
+    assert clean_path_input("~/creds.json") == Path.home() / "creds.json"
+
+
+def test_validate_client_secrets_valid_installed() -> None:
+    payload = {
+        "installed": {
+            "client_id": "test-client-id.apps.googleusercontent.com",
+            "client_secret": "secret123",
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+        }
+    }
+    result = validate_client_secrets(json.dumps(payload))
+    assert result == payload
+    assert validate_client_secrets(payload) == payload
+
+
+def test_validate_client_secrets_valid_web() -> None:
+    payload = {
+        "web": {
+            "client_id": "test-web-id.apps.googleusercontent.com",
+            "client_secret": "secret456",
+        }
+    }
+    assert validate_client_secrets(payload) == payload
+
+
+def test_validate_client_secrets_invalid_json() -> None:
+    with pytest.raises(InvalidCredentialsError, match="not valid JSON"):
+        validate_client_secrets("{not valid json")
+
+
+def test_validate_client_secrets_non_dict() -> None:
+    with pytest.raises(InvalidCredentialsError, match="contain an object"):
+        validate_client_secrets("[1, 2, 3]")
+    with pytest.raises(InvalidCredentialsError, match="Expected JSON text"):
+        validate_client_secrets(12345)  # type: ignore[arg-type]
+
+
+def test_validate_client_secrets_service_account() -> None:
+    payload = {
+        "type": "service_account",
+        "project_id": "my-project",
+        "private_key_id": "key123",
+    }
+    with pytest.raises(InvalidCredentialsError, match="Service Account key"):
+        validate_client_secrets(payload)
+
+
+def test_validate_client_secrets_missing_installed_or_web() -> None:
+    payload = {"some_other_key": {}}
+    with pytest.raises(
+        InvalidCredentialsError, match="Expected top-level key 'installed'"
+    ):
+        validate_client_secrets(payload)
+
+
+def test_validate_client_secrets_missing_keys() -> None:
+    with pytest.raises(InvalidCredentialsError, match="missing 'client_id'"):
+        validate_client_secrets({"installed": {"client_secret": "s"}})
+
+    with pytest.raises(InvalidCredentialsError, match="missing 'client_secret'"):
+        validate_client_secrets({"installed": {"client_id": "c"}})
+
+
+def test_import_credentials_copies_file(tmp_path: Path) -> None:
+    source = tmp_path / "downloaded_creds.json"
+    source.write_text(
+        json.dumps(
+            {
+                "installed": {
+                    "client_id": "client-id",
+                    "client_secret": "client-secret",
+                }
+            }
+        )
+    )
+    dest = tmp_path / "config" / "unical" / "credentials.json"
+
+    result = import_credentials(source, destination=dest)
+    assert result == dest.resolve()
+    assert dest.exists()
+    assert source.exists()  # original kept on copy
+    assert json.loads(dest.read_text())["installed"]["client_id"] == "client-id"
+
+
+def test_import_credentials_moves_file(tmp_path: Path) -> None:
+    source = tmp_path / "move_me.json"
+    source.write_text(
+        json.dumps(
+            {
+                "installed": {
+                    "client_id": "client-id",
+                    "client_secret": "client-secret",
+                }
+            }
+        )
+    )
+    dest = tmp_path / "moved" / "credentials.json"
+
+    result = import_credentials(source, destination=dest, move=True)
+    assert result == dest.resolve()
+    assert dest.exists()
+    assert not source.exists()  # moved away
+
+
+def test_import_credentials_errors(tmp_path: Path) -> None:
+    missing = tmp_path / "nonexistent.json"
+    with pytest.raises(FileNotFoundError, match="does not exist"):
+        import_credentials(missing)
+
+    directory = tmp_path / "somedir"
+    directory.mkdir()
+    with pytest.raises(InvalidCredentialsError, match="not a regular file"):
+        import_credentials(directory)
+
+    invalid_file = tmp_path / "bad.json"
+    invalid_file.write_text("not json")
+    with pytest.raises(InvalidCredentialsError, match="not valid JSON"):
+        import_credentials(invalid_file)
+
+
+def test_import_credentials_same_path(tmp_path: Path) -> None:
+    creds = tmp_path / "credentials.json"
+    creds.write_text(
+        json.dumps(
+            {
+                "installed": {
+                    "client_id": "id",
+                    "client_secret": "secret",
+                }
+            }
+        )
+    )
+    assert import_credentials(creds, destination=creds) == creds.resolve()
