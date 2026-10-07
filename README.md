@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/icon.png" alt="Uni Calendar Coloring" width="128" />
+</p>
+
 # Uni Calendar Coloring
 
 Turn your university timetable into a color-coded Google Calendar.
