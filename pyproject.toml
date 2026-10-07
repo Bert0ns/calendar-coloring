@@ -9,6 +9,33 @@ description = "Sync a read-only university calendar into a color-coded Google Ca
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.12"
+authors = [
+    { name = "Davide Bertoni" },
+]
+keywords = [
+    "calendar",
+    "cli",
+    "google-calendar",
+    "ical",
+    "timetable",
+    "tui",
+    "university",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Education",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Education",
+    "Topic :: Office/Business :: Scheduling",
+    "Topic :: Utilities",
+]
 dependencies = [
     "google-api-python-client>=2.150.0,<3.0.0",
     "google-auth>=2.0.0,<3.0.0",
@@ -20,14 +47,24 @@ dependencies = [
     "tzdata>=2024.1",
 ]
 
+[project.urls]
+Homepage = "https://github.com/Bert0ns/uni-calendar-coloring"
+Documentation = "https://github.com/Bert0ns/uni-calendar-coloring#readme"
+Repository = "https://github.com/Bert0ns/uni-calendar-coloring"
+Issues = "https://github.com/Bert0ns/uni-calendar-coloring/issues"
+Changelog = "https://github.com/Bert0ns/uni-calendar-coloring/releases"
+
 [project.optional-dependencies]
 dev = [
     "black==25.1.0",
+    "build>=1.0.0",
     "mypy>=1.10",
     "pre-commit>=3.6.0",
+    "pyinstaller>=6.0.0",
     "pytest>=8.0.0",
     "pytest-cov>=5.0.0",
     "ruff>=0.4.0",
+    "twine>=5.0.0",
 ]
 
 [project.scripts]

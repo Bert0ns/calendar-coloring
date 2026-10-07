@@ -8,6 +8,10 @@ __pycache__/
 build/
 dist/
 
+# Standalone build artifacts
+*.spec
+!packaging/*.spec
+
 # Environment Variables
 env
 .env
