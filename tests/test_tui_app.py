@@ -172,10 +172,10 @@ def test_target_selects_the_tabs(config: Config) -> None:
     async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
         tabs = app.query_one(TabbedContent)
         assert [pane.id for pane in tabs.query("TabPane")] == [
+            "setup",
             "exams",
             "sync",
             "rules",
-            "setup",
         ]
         assert app.check_action("toggle_subscription", ()) is True
 

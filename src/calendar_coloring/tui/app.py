@@ -333,7 +333,35 @@ class CalendarColoringApp(App[None]):
     def compose(self) -> ComposeResult:
         target = self.options.target
         yield Header()
-        with TabbedContent(id="tabs"):
+        first = next(
+            tab
+            for tab, shown in (
+                (COURSES, target.includes_lectures),
+                (EXAMS, target.includes_exams),
+                (DEADLINES, target.includes_deadlines),
+            )
+            if shown
+        )
+        with TabbedContent(id="tabs", initial=first):
+            with TabPane("Setup", id=SETUP):
+                yield Static(
+                    "The calendar to read your timetable from, and the one to "
+                    "write the colored copy to. Choices are saved right away.",
+                    classes="help",
+                )
+                with Horizontal(classes="setup-row"):
+                    yield Static("Source", classes="setup-label")
+                    yield Static(id="setup-source", classes="setup-value")
+                    yield Button("Change…", id="change-source")
+                with Horizontal(classes="setup-row"):
+                    yield Static("Target", classes="setup-label")
+                    yield Static(id="setup-target", classes="setup-value")
+                    yield Button("Change…", id="change-target")
+                with Horizontal(classes="setup-row"):
+                    yield Static("Time zone", classes="setup-label")
+                    yield Static(id="setup-time-zone", classes="setup-value")
+                    yield Button("Change…", id="change-time-zone")
+                yield Static(id="setup-notes", classes="help")
             if target.includes_lectures:
                 with TabPane("Courses", id=COURSES):
                     yield Static(
@@ -386,25 +414,6 @@ class CalendarColoringApp(App[None]):
                     with Vertical(id="rules-right"):
                         yield Static(id="rules-summary")
                         yield self._table(EVENTS, "Kind", "×", "Name", "Event title")
-            with TabPane("Setup", id=SETUP):
-                yield Static(
-                    "The calendar to read your timetable from, and the one to "
-                    "write the colored copy to. Choices are saved right away.",
-                    classes="help",
-                )
-                with Horizontal(classes="setup-row"):
-                    yield Static("Source", classes="setup-label")
-                    yield Static(id="setup-source", classes="setup-value")
-                    yield Button("Change…", id="change-source")
-                with Horizontal(classes="setup-row"):
-                    yield Static("Target", classes="setup-label")
-                    yield Static(id="setup-target", classes="setup-value")
-                    yield Button("Change…", id="change-target")
-                with Horizontal(classes="setup-row"):
-                    yield Static("Time zone", classes="setup-label")
-                    yield Static(id="setup-time-zone", classes="setup-value")
-                    yield Button("Change…", id="change-time-zone")
-                yield Static(id="setup-notes", classes="help")
         yield Footer()
 
     @staticmethod

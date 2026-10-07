@@ -191,12 +191,12 @@ per kind of event:
 
 | Tab           | What you can do                                                                                                                                                                                                                                                         |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Setup**     | The calendar to read from and the one to write to. Pick them from your Google calendars, or type a new name for the target: it's created when you apply, in the time zone set here. Saved to the profile right away.                                                    |
 | **Courses**   | Every course in the source with its color. Pick a new color from the 11 Google colors.                                                                                                                                                                                  |
 | **Exams**     | Every exam session with its date, what the source calendar says (_enrolled_ / _not enrolled_), whether you're already subscribed to another date, and your subscription. Toggle the subscription or pick a color.                                                       |
 | **Deadlines** | Same as Courses, for deadlines.                                                                                                                                                                                                                                         |
 | **Sync**      | **Preview changes** lists the inserts, updates and deletes; expand an event to see its color, time and original title. **Apply** writes them to Google Calendar with a progress bar.                                                                                    |
 | **Rules**     | The [rules](#profile-and-rules) that decide what each event is, and the exam enrollment conditions. A live preview shows how every event title is classified. Add, edit, delete and reorder rules, or press Enter on an unmatched event to start a rule from its title. |
-| **Setup**     | The calendar to read from and the one to write to. Pick them from your Google calendars, or type a new name for the target: it's created when you apply, in the time zone set here. Saved to the profile right away.                                                    |
 
 The **Status** column shows where each value comes from:
 
