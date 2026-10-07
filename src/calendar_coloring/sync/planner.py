@@ -17,8 +17,11 @@ from calendar_coloring.sync.models import (
     SyncPlan,
 )
 
-# Legacy name kept on purpose: it tags events already synced into users' calendars.
-MANAGED_PROPERTY = "polimi_sync_managed"
+MANAGED_PROPERTY = "calendar_coloring_managed"
+"""Private property that tags the target events created by this tool."""
+LEGACY_MANAGED_PROPERTIES = ("polimi_sync_managed",)
+"""Tags of older versions: their events are still managed, and get the current
+tag at the next sync."""
 MAX_EVENT_ID_LENGTH = 1024
 _BASE32HEX = frozenset("abcdefghijklmnopqrstuv0123456789")
 _DIGEST_LENGTH = 8
@@ -38,6 +41,8 @@ def sanitize_event_id(raw_id: str) -> str:
     cleaned = "".join(c for c in lowered if c in _BASE32HEX)
     digest = hashlib.sha256(raw_id.encode("utf-8")).hexdigest()
     if len(cleaned) < 5:
+        # Legacy prefix kept on purpose: changing it would change the IDs of
+        # events already synced, deleting and inserting them again.
         return f"polimi{digest[:16]}"
     if cleaned != lowered or len(cleaned) > MAX_EVENT_ID_LENGTH:
         keep = MAX_EVENT_ID_LENGTH - _DIGEST_LENGTH
@@ -45,10 +50,25 @@ def sanitize_event_id(raw_id: str) -> str:
     return cleaned
 
 
+def _private_properties(event: Event) -> dict[str, Any]:
+    return dict((event.get("extendedProperties") or {}).get("private") or {})
+
+
 def is_managed(event: Event) -> bool:
-    """True if the target event was created by this tool."""
-    private = (event.get("extendedProperties") or {}).get("private") or {}
-    return bool(private.get(MANAGED_PROPERTY) == "true")
+    """True if the target event was created by this tool (any version)."""
+    private = _private_properties(event)
+    return any(
+        private.get(tag) == "true"
+        for tag in (MANAGED_PROPERTY, *LEGACY_MANAGED_PROPERTIES)
+    )
+
+
+def has_current_tag(event: Event) -> bool:
+    """True if the target event carries the current tag, and only that one."""
+    private = _private_properties(event)
+    return private.get(MANAGED_PROPERTY) == "true" and not any(
+        tag in private for tag in LEGACY_MANAGED_PROPERTIES
+    )
 
 
 def is_recurring_instance(event: Event) -> bool:
@@ -104,7 +124,8 @@ def needs_update(existing: Event, desired: Event) -> bool:
     for field_name in ("colorId", "recurrence"):
         if existing.get(field_name) != desired.get(field_name):
             return True
-    if not is_managed(existing):
+    if not has_current_tag(existing):
+        # Adopts an event with the same ID, or replaces a legacy tag.
         return True
     return any(
         _when(existing, edge) != _when(desired, edge) for edge in ("start", "end")

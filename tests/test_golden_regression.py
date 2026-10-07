@@ -8,6 +8,9 @@ the same calendar mutations and the same preferences.
 
 Preferences now live in one profile file, and exams are keyed by their name
 rather than their full title: the legacy files are translated accordingly.
+Managed events are tagged with a new property: the fixtures are translated as
+if the target calendar had already been migrated (see ``test_planner`` for the
+migration itself).
 """
 
 from __future__ import annotations
@@ -23,11 +26,20 @@ from calendar_coloring.cli.main import run
 from calendar_coloring.config import Config
 from calendar_coloring.reporting import NullReporter
 from calendar_coloring.sync.models import Mutation
+from calendar_coloring.sync.planner import LEGACY_MANAGED_PROPERTIES, MANAGED_PROPERTY
 from calendar_coloring.targets import SyncTarget
 from calendar_coloring.workflow import SyncOptions
 
-SCENARIO = load_fixture("scenario_events.json")
-GOLDEN = load_fixture("golden_main_sync.json")
+
+def with_current_tag(data: Any) -> Any:
+    text = json.dumps(data)
+    for legacy in LEGACY_MANAGED_PROPERTIES:
+        text = text.replace(f'"{legacy}"', f'"{MANAGED_PROPERTY}"')
+    return json.loads(text)
+
+
+SCENARIO = with_current_tag(load_fixture("scenario_events.json"))
+GOLDEN = with_current_tag(load_fixture("golden_main_sync.json"))
 
 
 def as_legacy_operation(mutation: Mutation) -> dict[str, Any]:
