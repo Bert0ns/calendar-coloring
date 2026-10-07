@@ -653,7 +653,7 @@ def test_reporter_messages_reach_the_log(config: Config) -> None:
         reporter.dry_run_finished(None)  # type: ignore[arg-type]
         await pilot.pause()
         text = await log_text(app, pilot)
-        assert "corrupted. Starting fresh." in text
+        assert "corrupted. Starting fresh." in " ".join(text.split())
         assert "a detail" in text
 
     drive(app, scenario)

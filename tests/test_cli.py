@@ -397,7 +397,7 @@ def test_main_tui_without_textual_fails_before_login(
 ) -> None:
     monkeypatch.setattr(cli, "tui_available", lambda: False)
     assert cli.main(["--tui"]) == cli.EXIT_FAILURE
-    assert "pip install 'uni-calendar-coloring[tui]'" in capsys.readouterr().out
+    assert "pip install 'uni-calendar-coloring'" in capsys.readouterr().out
     fake_auth.assert_not_called()
 
 

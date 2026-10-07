@@ -51,7 +51,7 @@ command-line flags, or on a weekly schedule with GitHub Actions.
 ```bash
 git clone https://github.com/Bert0ns/uni-calendar-coloring.git
 cd uni-calendar-coloring
-pip install ".[tui]"
+pip install .
 # save your Google OAuth client as credentials.json (see Setup below)
 unical
 ```
@@ -114,7 +114,7 @@ Google Cloud OAuth client, so nobody else ever sees your calendar.
 ```bash
 git clone https://github.com/Bert0ns/uni-calendar-coloring.git
 cd uni-calendar-coloring
-pip install ".[tui]"      # or `pip install .` if you don't want the terminal UI
+pip install .
 ```
 
 This installs the `unical` command. `python -m unical` works too.
@@ -183,9 +183,8 @@ unical deadlines --no-tui
 ```
 
 Run from a terminal, `unical` opens the [terminal UI](#terminal-ui). It falls
-back to a plain sync when there is no terminal (cron, CI, a pipe), when you pass
-`-i`, `-n`/`--dry-run` or `--no-tui`, or when the optional `tui` extra isn't
-installed. The plain sync is non-interactive: anything new gets a color from the
+back to a plain sync when there is no terminal (cron, CI, a pipe) or when you pass
+`-i`, `-n`/`--dry-run` or `--no-tui`. The plain sync is non-interactive: anything new gets a color from the
 [coloring rules](#coloring-rules), and that color is saved for future runs.
 
 Useful flags:
@@ -208,8 +207,8 @@ unical
 unical exams          # only the Exams and Sync tabs
 ```
 
-`--tui` forces it even when the shell doesn't look interactive. It needs the
-`tui` extra (`pip install ".[tui]"`) and opens on the **Setup** tab, with one
+`--tui` forces it even when the shell doesn't look interactive. It opens on the
+**Setup** tab, with one
 more tab per kind of event:
 
 | Tab           | What you can do                                                                                                                                                                                                                                       |
@@ -493,7 +492,7 @@ assigns stay in sync.
 | `Source calendar '…' not found`                           | The source calendar in `profile.json` must match the name exactly as shown in Google Calendar.               |
 | Every event shows up twice                                | Hide the original calendar in Google Calendar.                                                               |
 | `Could not download iCal feed`                            | The iCal URL may have expired or been revoked. Generate a new one.                                           |
-| `The terminal UI needs the optional 'textual' dependency` | Run `pip install ".[tui]"`.                                                                                  |
+| `The terminal UI needs the 'textual' dependency`          | Run `pip install .`.                                                                                         |
 | Login keeps expiring after a week                         | That's Google's Testing mode: log in again locally (and update `GCP_TOKEN_JSON` if you use GitHub Actions).  |
 | Some events have no color                                 | They match no rule. Check the Rules tab, where unmatched titles are listed.                                  |
 
@@ -501,7 +500,7 @@ assigns stay in sync.
 
 - **The command was renamed** from `calendar-coloring` to `unical`, and the
   Python package from `calendar_coloring` to `unical`. Reinstall with
-  `pip install ".[tui]"`, and update scripts and cron jobs. `profile.json`,
+  `pip install .`, and update scripts and cron jobs. `profile.json`,
   `token.json` and the events already in your target calendar keep working.
 - `token.pickle` is migrated to `token.json` automatically, and the old
   `GCP_TOKEN_PICKLE_B64` secret is still accepted.
@@ -511,7 +510,7 @@ assigns stay in sync.
 ## Development
 
 ```bash
-pip install -e ".[dev,tui]"
+pip install -e ".[dev]"
 pytest          # unit, golden regression and Textual pilot tests
 mypy            # strict type checking
 ruff check .    # linting
@@ -559,7 +558,7 @@ src/unical/
 │   ├── prompts.py     # Interactive preference editor (-i)
 │   ├── console.py     # Colored console reporter
 │   └── ansi.py        # ANSI styling helpers
-└── tui/               # Optional: pip install ".[tui]"
+└── tui/               # Terminal UI
     ├── model.py       # View model of the editor (pure Python, no Textual)
     ├── setup.py       # Setup tab model: calendars, overrides, first run
     ├── rules.py       # Rules tab model: live classification preview
