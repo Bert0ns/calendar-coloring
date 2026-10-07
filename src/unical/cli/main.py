@@ -99,8 +99,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--tui",
         action="store_true",
         help="Open the terminal UI to edit preferences, preview and apply the "
-        "sync. This is the default when run from a terminal. Needs the 'tui' "
-        "extra: pip install '.[tui]'.",
+        "sync. This is the default when run from a terminal.",
     )
     editor.add_argument(
         "--no-tui",
@@ -318,15 +317,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     tui = cli.tui
     if tui and not cli.tui_requested and not tui_available():
         reporter.warning(
-            "Install the optional terminal UI with: pip install "
-            "'uni-calendar-coloring[tui]'. Running a plain sync instead."
+            "Install the terminal UI with: pip install "
+            "'uni-calendar-coloring'. Running a plain sync instead."
         )
         tui = False
     if tui and not tui_available():
         reporter.error(
-            "The terminal UI needs the optional 'textual' dependency. "
-            "Install it with: pip install 'uni-calendar-coloring[tui]' "
-            "(or pip install '.[tui]' from the project directory)."
+            "The terminal UI needs the 'textual' dependency. "
+            "Install it with: pip install 'uni-calendar-coloring' "
+            "(or pip install . from the project directory)."
         )
         return EXIT_FAILURE
 
