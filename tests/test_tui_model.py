@@ -4,7 +4,7 @@ from calendar_coloring.catalog import discover
 from calendar_coloring.events import Enrollment, ExamOccurrence
 from calendar_coloring.palette import GoogleColor
 from calendar_coloring.preferences import ExamPreference, Preferences
-from calendar_coloring.profile import Profile
+from calendar_coloring.profile import CalendarSettings, Profile
 from calendar_coloring.suggestions import suggest_color
 from calendar_coloring.tui.model import ExamRow, ItemStatus, PreferencesDraft
 from calendar_coloring.workflow import SyncOptions, SyncSession
@@ -161,3 +161,27 @@ def test_unsubscribing_frees_the_other_dates() -> None:
     other = draft.exam_row("CS (2027-02-10)")
     assert other.status is ItemStatus.UNSET
     assert not other.subscribed_to_other_date
+
+
+def test_calendar_changes_are_saved_without_the_unsaved_edits() -> None:
+    draft = make_draft()
+    draft.set_course_color("CS", GoogleColor.BASIL)
+
+    to_save = draft.set_calendars(CalendarSettings(source="Uni", target="Mine"))
+
+    assert to_save.calendars == CalendarSettings(source="Uni", target="Mine")
+    assert to_save.preferences == Preferences()
+    assert draft.session.profile.calendars == to_save.calendars
+    assert draft.is_dirty  # the course color is still to save
+    draft.mark_saved()
+    assert draft.saved_profile == draft.session.profile
+
+
+def test_draft_can_start_from_an_older_saved_profile() -> None:
+    saved = Profile(preferences=Preferences(course_colors={"CS": GoogleColor.SAGE}))
+    draft = make_draft()
+
+    resumed = PreferencesDraft(draft.session, saved)
+
+    assert resumed.is_dirty
+    assert resumed.course_rows()[0].status is ItemStatus.MODIFIED

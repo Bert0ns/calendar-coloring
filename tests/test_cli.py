@@ -401,7 +401,7 @@ def test_main_tui_runs_the_app(isolated_env, fake_auth, monkeypatch) -> None:
 
     [app] = launched
     assert app.options == SyncOptions(target=SyncTarget.LECTURES)
-    assert app.target_name == "Calendar Colored"
+    assert app.calendars.target == "Calendar Colored"
     assert isinstance(app.source, GoogleCalendarSource)
     assert gateway.batches == []
 
@@ -449,3 +449,30 @@ def test_default_tui_without_textual_falls_back_to_plain_sync(
 
     assert "Running a plain sync instead" in capsys.readouterr().out
     assert gateway.created == ["Calendar Colored"]
+
+
+def test_run_tui_builds_the_calendar_setup(config: Config, monkeypatch) -> None:
+    pytest.importorskip("textual")
+    from calendar_coloring.tui.app import CalendarColoringApp
+    from calendar_coloring.tui.setup import Role
+
+    apps: list[CalendarColoringApp] = []
+    monkeypatch.setattr(CalendarColoringApp, "run", lambda self: apps.append(self))
+    save_profile(config, calendars={"source": "Uni", "target": "Mine"})
+    gateway = FakeCalendarGateway()
+
+    overridden = replace(config, source_calendar_name=None)
+    assert cli.run_tui(SyncOptions(), overridden, gateway) == cli.EXIT_OK
+    setup = apps[-1].setup
+    assert setup.calendars == CalendarSettings(source="Uni", target="Tgt")
+    assert setup.overrides == {Role.TARGET: "TARGET_CALENDAR_NAME"}
+    assert setup.fixed_source is None
+    source = setup.source_for("Other")
+    assert isinstance(source, GoogleCalendarSource)
+    assert source.name == "Other"
+
+    ical = replace(config, source_ical_url="https://ical.example/42/secret")
+    cli.run_tui(SyncOptions(), ical, gateway)
+    setup = apps[-1].setup
+    assert setup.fixed_source == "iCal feed at https://ical.example/<redacted>"
+    assert isinstance(setup.source_for("Other"), IcalFeedSource)

@@ -3,19 +3,21 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from typing import Any
 
 from googleapiclient.discovery import build
 
 from calendar_coloring.events import Event
 from calendar_coloring.sync.models import (
+    CalendarInfo,
     Mutation,
     MutationAction,
     MutationResult,
 )
 
 DEFAULT_TIME_ZONE = "Europe/Rome"
+WRITABLE_ACCESS_ROLES = frozenset({"owner", "writer"})
 MAX_BATCH_SIZE = 50  # Google recommends at most 50 calls per batch
 BATCH_RETRIES = 3
 
@@ -35,17 +37,32 @@ class GoogleCalendarClient:
     def from_credentials(cls, credentials: Any) -> GoogleCalendarClient:
         return cls(build("calendar", "v3", credentials=credentials))
 
+    def list_calendars(self) -> list[CalendarInfo]:
+        return [
+            CalendarInfo(
+                id=str(entry["id"]),
+                name=str(entry.get("summary") or entry["id"]),
+                writable=entry.get("accessRole") in WRITABLE_ACCESS_ROLES,
+                primary=bool(entry.get("primary", False)),
+            )
+            for entry in self._calendar_list_entries()
+        ]
+
     def get_calendar_id_by_name(self, name: str) -> str | None:
         """Finds a calendar ID by its summary (name)."""
+        for entry in self._calendar_list_entries():
+            if entry.get("summary") == name:
+                return str(entry["id"])
+        return None
+
+    def _calendar_list_entries(self) -> Iterator[dict[str, Any]]:
         page_token: str | None = None
         while True:
             page = self.service.calendarList().list(pageToken=page_token).execute()
-            for entry in page.get("items", []):
-                if entry.get("summary") == name:
-                    return str(entry["id"])
+            yield from page.get("items", [])
             page_token = page.get("nextPageToken")
             if not page_token:
-                return None
+                return
 
     def create_calendar(self, name: str, time_zone: str = DEFAULT_TIME_ZONE) -> str:
         body = {"summary": name, "timeZone": time_zone}

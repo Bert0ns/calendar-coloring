@@ -13,6 +13,7 @@ from calendar_coloring.presets import POLIMI_ENROLLMENT, POLIMI_RULES
 from calendar_coloring.profile import JsonProfileRepository, polimi_profile, serialize
 from calendar_coloring.rules import Classifier
 from calendar_coloring.sync.models import (
+    CalendarInfo,
     Mutation,
     MutationAction,
     MutationResult,
@@ -42,6 +43,8 @@ class FakeCalendarGateway:
         self.batches: list[tuple[str, list[Mutation]]] = []
         self.fail_event_ids: set[str] = set()
         self.listings: list[tuple[str, bool]] = []
+        self.read_only: set[str] = set()
+        """Names of the calendars the user can only read."""
 
     def add_calendar(self, name: str, events: list[dict[str, Any]]) -> str:
         cal_id = f"id::{name}"
@@ -52,6 +55,14 @@ class FakeCalendarGateway:
         return self.calendars[f"id::{name}"]["events"]
 
     # -- CalendarGateway -----------------------------------------------------
+
+    def list_calendars(self) -> list[CalendarInfo]:
+        return [
+            CalendarInfo(
+                id=cal_id, name=cal["name"], writable=cal["name"] not in self.read_only
+            )
+            for cal_id, cal in self.calendars.items()
+        ]
 
     def get_calendar_id_by_name(self, name: str) -> str | None:
         for cal_id, cal in self.calendars.items():

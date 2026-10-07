@@ -1,5 +1,6 @@
 from calendar_coloring.sync.gateway import CalendarGateway
 from calendar_coloring.sync.models import (
+    CalendarInfo,
     ColorOrigin,
     EventDecision,
     Mutation,
@@ -19,6 +20,7 @@ from calendar_coloring.sync.source import (
 
 __all__ = [
     "CalendarGateway",
+    "CalendarInfo",
     "ColorOrigin",
     "EventDecision",
     "EventSource",

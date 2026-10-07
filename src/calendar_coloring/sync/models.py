@@ -9,6 +9,17 @@ from enum import Enum
 from calendar_coloring.events import Event
 
 
+@dataclass(frozen=True)
+class CalendarInfo:
+    """A calendar of the user's calendar list."""
+
+    id: str
+    name: str
+    writable: bool
+    """True if events can be added to it (owner or writer access)."""
+    primary: bool = False
+
+
 class MutationAction(Enum):
     INSERT = "insert"
     UPDATE = "update"

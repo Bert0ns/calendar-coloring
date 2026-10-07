@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import Awaitable, Callable
+from typing import Any
 
 import pytest
 from conftest import FakeCalendarGateway, save_profile, saved
@@ -9,9 +10,14 @@ pytest.importorskip("textual")
 from textual.pilot import Pilot
 from textual.widgets import (
     Button,
+    Checkbox,
     DataTable,
+    Input,
+    Label,
+    OptionList,
     ProgressBar,
     RichLog,
+    Select,
     Static,
     TabbedContent,
 )
@@ -19,11 +25,19 @@ from textual.widgets import (
 from calendar_coloring.cli.main import build_workflow
 from calendar_coloring.config import Config
 from calendar_coloring.palette import GoogleColor
+from calendar_coloring.profile import CalendarSettings
+from calendar_coloring.rules import EventKind, MatchKind
 from calendar_coloring.suggestions import suggest_color
 from calendar_coloring.sync.source import GoogleCalendarSource
 from calendar_coloring.targets import SyncTarget
 from calendar_coloring.tui.app import CalendarColoringApp, TuiReporter
-from calendar_coloring.tui.widgets import ColorPicker, PlanTree
+from calendar_coloring.tui.setup import CalendarSetup, Role
+from calendar_coloring.tui.widgets import (
+    CalendarPicker,
+    ColorPicker,
+    PlanTree,
+    RuleEditor,
+)
 from calendar_coloring.workflow import SyncOptions
 
 SOURCE = [
@@ -68,14 +82,22 @@ def make_app(
     config: Config,
     gateway: FakeCalendarGateway,
     options: SyncOptions | None = None,
+    setup: CalendarSetup | None = None,
 ) -> CalendarColoringApp:
     reporter = TuiReporter()
     return CalendarColoringApp(
         build_workflow(config, gateway, reporter),
-        GoogleCalendarSource(gateway, "Src"),
+        setup or make_setup(gateway),
         options or SyncOptions(),
-        "Tgt",
         reporter,
+    )
+
+
+def make_setup(gateway: FakeCalendarGateway, **kwargs: Any) -> CalendarSetup:
+    return CalendarSetup(
+        calendars=CalendarSettings(source="Src", target="Tgt"),
+        source_for=lambda name: GoogleCalendarSource(gateway, name),
+        **kwargs,
     )
 
 
@@ -147,7 +169,12 @@ def test_target_selects_the_tabs(config: Config) -> None:
 
     async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
         tabs = app.query_one(TabbedContent)
-        assert [pane.id for pane in tabs.query("TabPane")] == ["exams", "sync"]
+        assert [pane.id for pane in tabs.query("TabPane")] == [
+            "exams",
+            "sync",
+            "rules",
+            "setup",
+        ]
         assert app.check_action("toggle_subscription", ()) is True
 
     drive(app, scenario)
@@ -338,12 +365,33 @@ def test_apply_reports_progress_and_failures(config: Config) -> None:
     drive(app, scenario)
 
 
-def test_load_failure_is_reported(config: Config) -> None:
+def test_missing_source_calendar_opens_the_setup(config: Config) -> None:
     app = make_app(config, FakeCalendarGateway())
 
     async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
         assert app.draft is None
-        assert "Could not load the source events: Source calendar 'Src' not found." in (
+        assert app.query_one(TabbedContent).active == "setup"
+        assert not app.query_one("#change-source", Button).disabled
+        assert (
+            "Source calendar 'Src' not found. Choose it in the Setup tab."
+            in await log_text(app, pilot)
+        )
+
+    drive(app, scenario)
+
+
+def test_load_failure_is_reported(config: Config) -> None:
+    gateway = FakeCalendarGateway({"Src": SOURCE})
+
+    def boom(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("network down")
+
+    gateway.get_all_events = boom  # type: ignore[method-assign]
+    app = make_app(config, gateway)
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        assert app.draft is None
+        assert "Could not load the source events: network down" in (
             await log_text(app, pilot)
         )
         assert app.query_one("#preview", Button).disabled
@@ -451,3 +499,569 @@ def test_reporter_messages_reach_the_log(config: Config) -> None:
 
 def test_reporter_without_app_drops_messages() -> None:
     TuiReporter().info("nobody listens")
+
+
+# -- setup --------------------------------------------------------------------
+
+
+async def open_picker(
+    app: CalendarColoringApp, pilot: Pilot[None], role: str
+) -> CalendarPicker:
+    app.query_one(TabbedContent).active = "setup"
+    await pilot.pause()
+    await pilot.click(f"#change-{role}")
+    await settle(app, pilot)
+    assert isinstance(app.screen, CalendarPicker)
+    return app.screen
+
+
+async def pick_calendar(
+    app: CalendarColoringApp, pilot: Pilot[None], role: str, name: str
+) -> None:
+    picker = await open_picker(app, pilot, role)
+    picker.query_one(OptionList).highlighted = [c.name for c in picker.choices].index(
+        name
+    )
+    await pilot.press("enter")
+    await settle(app, pilot)
+
+
+def text_of(app: CalendarColoringApp, selector: str) -> str:
+    return str(app.query_one(selector, Static).render())
+
+
+def test_setup_shows_the_calendars_and_overrides(config: Config) -> None:
+    gateway = FakeCalendarGateway({"Src": SOURCE})
+    setup = make_setup(gateway, overrides={Role.TARGET: "TARGET_CALENDAR_NAME"})
+    app = make_app(config, gateway, setup=setup)
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        app.query_one(TabbedContent).active = "setup"
+        await pilot.pause()
+        assert text_of(app, "#setup-source") == "'Src'"
+        assert text_of(app, "#setup-target") == "'Tgt'"
+        assert "TARGET_CALENDAR_NAME is set" in text_of(app, "#setup-notes")
+        assert app.sub_title == "'Src' ➔ 'Tgt'"
+
+    drive(app, scenario)
+
+
+def test_change_the_target_to_an_existing_calendar(config: Config) -> None:
+    gateway = FakeCalendarGateway({"Src": SOURCE, "Tgt": [], "Other": []})
+    gateway.read_only = {"Src"}
+    save_profile(config, calendars={"source": "Src", "target": "Tgt"})
+    app = make_app(config, gateway)
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        assert app.draft is not None
+        app.draft.set_course_color("CS", GoogleColor.BASIL)
+        app._preferences_changed()
+        app.action_preview()
+        await settle(app, pilot)
+        assert app.plan is not None
+
+        picker = await open_picker(app, pilot, "target")
+        assert [(c.name, c.allowed) for c in picker.choices] == [
+            ("Src", False),
+            ("Tgt", True),
+            ("Other", True),
+        ]
+        await pilot.press("escape")
+        await pilot.pause()
+        await pick_calendar(app, pilot, "target", "Other")
+
+        assert app.calendars.target == "Other"
+        assert app.plan is None
+        assert "'Src' ➔ 'Other'" in app.sub_title
+        assert text_of(app, "#setup-target") == "'Other'"
+        # Saved right away, without the unsaved course color.
+        assert saved(config, "calendars") == {"source": "Src", "target": "Other"}
+        assert saved(config, "courses") == {}
+        assert app.draft.is_dirty
+
+        app.action_preview()
+        await settle(app, pilot)
+        app.action_apply()
+        await settle(app, pilot)
+        assert len(gateway.events_of("Other")) == len(SOURCE)
+        assert gateway.events_of("Tgt") == []
+
+    drive(app, scenario)
+
+
+def test_a_new_target_calendar_is_created_on_apply(config: Config) -> None:
+    gateway = FakeCalendarGateway({"Src": SOURCE, "Tgt": []})
+    app = make_app(config, gateway)
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        picker = await open_picker(app, pilot, "target")
+        field = picker.query_one(Input)
+        field.focus()
+        field.value = "Src"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen is picker
+        assert "can't be the source" in str(
+            picker.query_one("#calendar-error", Label).render()
+        )
+
+        field.value = "  Brand new  "
+        await pilot.press("enter")
+        await settle(app, pilot)
+        assert app.calendars.target == "Brand new"
+
+        app.action_preview()
+        await settle(app, pilot)
+        assert "The target calendar will be created." in summary_text(app)
+        app.action_apply()
+        await settle(app, pilot)
+        assert gateway.created == ["Brand new"]
+
+    drive(app, scenario)
+
+
+def test_picking_the_current_calendar_changes_nothing(config: Config) -> None:
+    gateway = FakeCalendarGateway({"Src": SOURCE, "Tgt": []})
+    app = make_app(config, gateway)
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        await pick_calendar(app, pilot, "target", "Tgt")
+        await pick_calendar(app, pilot, "source", "Src")
+        assert app.calendars == CalendarSettings(source="Src", target="Tgt")
+        assert not config.profile_path.exists()
+
+    drive(app, scenario)
+
+
+def test_change_the_source_reloads_and_keeps_unsaved_edits(config: Config) -> None:
+    other = [
+        {
+            "id": "bio00001",
+            "summary": "Lezione: Didattica - Bio",
+            "start": {"date": "2026-09-22"},
+            "end": {"date": "2026-09-23"},
+        }
+    ]
+    gateway = FakeCalendarGateway({"Src": SOURCE, "Other": other})
+    save_profile(config, calendars={"source": "Src", "target": "Tgt"})
+    app = make_app(config, gateway)
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        assert app.draft is not None
+        app.draft.set_course_color("CS", GoogleColor.BASIL)
+        app._preferences_changed()
+
+        await pick_calendar(app, pilot, "source", "Other")
+
+        assert app.calendars.source == "Other"
+        assert app.sub_title.startswith("'Other' ➔ 'Tgt'")
+        assert app.query_one("#courses-table", DataTable).get_row("Bio")
+        assert app.draft.preferences.course_color("CS") is GoogleColor.BASIL
+        assert app.draft.is_dirty
+        assert saved(config, "calendars") == {"source": "Other", "target": "Tgt"}
+        assert saved(config, "courses") == {}
+
+    drive(app, scenario)
+
+
+def test_a_source_that_fails_to_load_is_not_kept(config: Config) -> None:
+    gateway = FakeCalendarGateway({"Src": SOURCE, "Other": []})
+    app = make_app(config, gateway)
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        def boom(*args: object, **kwargs: object) -> None:
+            raise RuntimeError("network down")
+
+        gateway.get_all_events = boom  # type: ignore[method-assign]
+        await pick_calendar(app, pilot, "source", "Other")
+
+        assert app.calendars.source == "Src"
+        assert app.draft is not None
+        assert app.query_one("#courses-table", DataTable).get_row("CS")
+        assert not config.profile_path.exists()
+        assert "Could not load the source events: network down" in (
+            await log_text(app, pilot)
+        )
+
+    drive(app, scenario)
+
+
+def test_choose_the_source_when_it_is_missing(config: Config) -> None:
+    gateway = FakeCalendarGateway({"Uni": SOURCE})
+    save_profile(config, calendars={"source": "Src", "target": "Tgt"})
+    app = make_app(config, gateway)
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        assert app.draft is None
+        await pick_calendar(app, pilot, "source", "Uni")
+
+        assert app.draft is not None
+        assert app.calendars.source == "Uni"
+        assert saved(config, "calendars") == {"source": "Uni", "target": "Tgt"}
+        assert not app.draft.is_dirty
+
+    drive(app, scenario)
+
+
+def test_only_the_chosen_calendar_is_saved_over_the_profile(config: Config) -> None:
+    # The app starts from "Src", e.g. set by SOURCE_CALENDAR_NAME: the profile
+    # keeps its own source. This also works before any source loaded.
+    save_profile(config, calendars={"source": "Uni", "target": "Tgt"})
+    gateway = FakeCalendarGateway({"Uni": SOURCE})
+    app = make_app(config, gateway)
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        picker = await open_picker(app, pilot, "target")
+        picker.query_one(Input).value = "Mine"
+        picker.query_one(Input).focus()
+        await pilot.press("enter")
+        await settle(app, pilot)
+
+        assert app.draft is None
+        assert saved(config, "calendars") == {"source": "Uni", "target": "Mine"}
+
+    drive(app, scenario)
+
+
+def test_calendar_list_failure_is_reported(config: Config) -> None:
+    gateway = FakeCalendarGateway({"Src": SOURCE})
+
+    def boom() -> None:
+        raise RuntimeError("offline")
+
+    gateway.list_calendars = boom  # type: ignore[assignment,method-assign]
+    app = make_app(config, gateway)
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        app.query_one(TabbedContent).active = "setup"
+        await pilot.pause()
+        await pilot.click("#change-source")
+        await settle(app, pilot)
+        assert len(app.screen_stack) == 1
+        assert "Could not list your calendars: offline" in await log_text(app, pilot)
+
+    drive(app, scenario)
+
+
+def test_profile_save_failure_on_calendar_change(
+    config: Config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    gateway = FakeCalendarGateway({"Src": SOURCE, "Other": []})
+    app = make_app(config, gateway)
+
+    def boom(profile: object) -> None:
+        raise OSError("read-only file system")
+
+    monkeypatch.setattr(app.workflow, "save_profile", boom)
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        await pick_calendar(app, pilot, "target", "Other")
+        assert app.calendars.target == "Other"
+        assert "Could not save the profile: read-only file system" in (
+            await log_text(app, pilot)
+        )
+
+    drive(app, scenario)
+
+
+def test_an_ical_source_cannot_be_changed(config: Config) -> None:
+    gateway = FakeCalendarGateway({"Src": SOURCE})
+    setup = make_setup(gateway, fixed_source="iCal feed at https://x/<redacted>")
+    app = make_app(config, gateway, setup=setup)
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        app.query_one(TabbedContent).active = "setup"
+        await pilot.pause()
+        assert app.query_one("#change-source", Button).disabled
+        assert not app.query_one("#change-target", Button).disabled
+        assert text_of(app, "#setup-source") == "iCal feed at https://x/<redacted>"
+        assert "iCal feed" in text_of(app, "#setup-notes")
+
+    drive(app, scenario)
+
+
+def test_target_picker_without_calendars_asks_for_a_name(config: Config) -> None:
+    gateway = FakeCalendarGateway()
+    app = make_app(config, gateway)
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        picker = await open_picker(app, pilot, "target")
+        assert not picker.query(OptionList)
+        assert picker.query_one(Input).has_focus
+        await pilot.press(*"Mine", "enter")
+        await settle(app, pilot)
+        assert app.calendars.target == "Mine"
+
+    drive(app, scenario)
+
+
+# -- rules --------------------------------------------------------------------
+
+SEMINAR = {
+    "id": "sem00001",
+    "summary": "Seminario: AI Safety",
+    "start": {"date": "2026-10-10"},
+    "end": {"date": "2026-10-11"},
+}
+
+
+async def open_rules(
+    app: CalendarColoringApp, pilot: Pilot[None], table: str = "rules"
+) -> DataTable[Any]:
+    app.query_one(TabbedContent).active = "rules"
+    await pilot.pause()
+    widget = app.query_one(f"#{table}-table", DataTable)
+    widget.focus()
+    await pilot.pause()
+    return widget
+
+
+def row_texts(app: CalendarColoringApp, table: str) -> list[list[str]]:
+    widget = app.query_one(f"#{table}-table", DataTable)
+    return [
+        [cell.plain for cell in widget.get_row_at(index)]
+        for index in range(widget.row_count)
+    ]
+
+
+def editor(app: CalendarColoringApp) -> RuleEditor:
+    assert isinstance(app.screen, RuleEditor)
+    return app.screen
+
+
+def status_of(form: RuleEditor) -> str:
+    return str(form.query_one("#rule-status", Static).render())
+
+
+def test_rules_tab_shows_rules_enrollment_and_preview(config: Config) -> None:
+    app = make_app(config, FakeCalendarGateway({"Src": [*SOURCE, SEMINAR]}))
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        await open_rules(app, pilot)
+        assert row_texts(app, "rules")[0] == [
+            "1",
+            "Exam",
+            "title starts with 'Esame: '",
+            "{title}",
+        ]
+        assert len(row_texts(app, "rules")) == 6
+        assert row_texts(app, "enrollment") == [
+            ["Enrolled", "description starts with 'Iscritto'"],
+            ["Not enrolled", "description starts with 'Non iscritto'"],
+        ]
+        assert text_of(app, "#rules-summary") == (
+            "2 lectures · 2 exams · 1 deadlines · 1 unmatched"
+        )
+        assert row_texts(app, "events")[-1] == [
+            "unmatched",
+            "1",
+            "Seminario: AI Safety",
+            "Seminario: AI Safety",
+        ]
+        assert app.check_action("new_rule", ()) is True
+        app.set_focus(None)
+        app.query_one(TabbedContent).active = "courses"
+        await pilot.pause()
+        assert app.check_action("new_rule", ()) is False
+
+    drive(app, scenario)
+
+
+def test_new_rule_from_an_unmatched_event(config: Config) -> None:
+    app = make_app(config, FakeCalendarGateway({"Src": [*SOURCE, SEMINAR]}))
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        events = await open_rules(app, pilot, "events")
+        events.move_cursor(row=events.row_count - 1)
+        await pilot.press("enter")
+        await pilot.pause()
+        form = editor(app)
+        assert form.query_one("#rule-value", Input).value == "Seminario: "
+        assert "Matches 1 of 6 events." in status_of(form)
+        form.query_one("#rule-kind", Select).value = EventKind.DEADLINE
+        form.query_one("#rule-title", Input).value = "🎤 {name}"
+        await pilot.pause()
+        await pilot.press("ctrl+s")
+        await pilot.pause()
+
+        assert app.screen is app.screen_stack[0]
+        assert row_texts(app, "rules")[-1] == [
+            "7",
+            "Deadline",
+            "title starts with 'Seminario: '",
+            "🎤 {name}",
+        ]
+        assert "0 unmatched" in text_of(app, "#rules-summary")
+        assert app.draft is not None and app.draft.is_dirty
+        assert cells(app, "deadlines", "AI Safety")[0] == "AI Safety"
+
+        await pilot.press("ctrl+s")
+        await pilot.pause()
+        assert saved(config, "rules")[-1] == {
+            "kind": "deadline",
+            "field": "title",
+            "match": "starts_with",
+            "value": "Seminario: ",
+            "ignore_case": False,
+            "title": "🎤 {name}",
+        }
+
+        app.action_preview()
+        await settle(app, pilot)
+        summaries = {m.summary for m in app.plan.mutations} if app.plan else set()
+        assert "🎤 AI Safety" in summaries
+
+    drive(app, scenario)
+
+
+def test_edit_a_rule_and_discard_the_preview(config: Config) -> None:
+    app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        app.action_preview()
+        await settle(app, pilot)
+        assert app.plan is not None
+
+        await open_rules(app, pilot)
+        await pilot.press("e")
+        await pilot.pause()
+        form = editor(app)
+        assert form.query_one("#rule-value", Input).value == "Esame: "
+        form.query_one("#rule-title", Input).value = "📝 {name}"
+        await pilot.pause()
+        await pilot.click("#save-rule")
+        await pilot.pause()
+
+        assert row_texts(app, "rules")[0][3] == "📝 {name}"
+        assert app.plan is None
+        assert "Preferences changed" in summary_text(app)
+
+    drive(app, scenario)
+
+
+def test_invalid_rule_cannot_be_saved(config: Config) -> None:
+    app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        await open_rules(app, pilot)
+        await pilot.press("n")
+        await pilot.pause()
+        form = editor(app)
+        assert "the value to match is empty" in status_of(form)
+        assert form.query_one("#save-rule", Button).disabled
+        form.query_one("#rule-match", Select).value = MatchKind.REGEX
+        form.query_one("#rule-value", Input).value = "(unclosed"
+        await pilot.pause()
+        assert "invalid regular expression" in status_of(form)
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen is form
+        form.query_one("#rule-ignore-case", Checkbox).value = True
+        await pilot.pause()
+        await pilot.click("#cancel-rule")
+        await pilot.pause()
+
+        assert app.screen is app.screen_stack[0]
+        assert len(row_texts(app, "rules")) == 6
+        assert app.draft is not None and not app.draft.is_dirty
+
+    drive(app, scenario)
+
+
+def test_delete_and_move_rules(config: Config) -> None:
+    app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        rules = await open_rules(app, pilot)
+        rules.move_cursor(row=2)  # lectures by title
+        await pilot.press("d")
+        await pilot.pause()
+        assert len(row_texts(app, "rules")) == 5
+        assert app.draft is not None and app.draft.session.catalog.courses == ()
+        assert rules.cursor_row == 2
+
+        rules.move_cursor(row=0)
+        await pilot.press("right_square_bracket")
+        await pilot.pause()
+        assert [row[2] for row in row_texts(app, "rules")[:2]] == [
+            "a category is 'Esame'",
+            "title starts with 'Esame: '",
+        ]
+        assert rules.cursor_row == 1
+        await pilot.press("left_square_bracket", "left_square_bracket")
+        await pilot.pause()
+        assert row_texts(app, "rules")[0][2] == "title starts with 'Esame: '"
+        assert rules.cursor_row == 0
+
+    drive(app, scenario)
+
+
+def test_edit_and_clear_the_exam_enrollment(config: Config) -> None:
+    app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        assert cells(app, "exams", "CS (2027-01-20)")[2] == "enrolled"
+        await open_rules(app, pilot, "enrollment")
+        await pilot.press("enter")
+        await pilot.pause()
+        form = editor(app)
+        assert not form.query("#rule-kind")
+        assert not form.query("#rule-title")
+        form.query_one("#rule-value", Input).value = "Registered"
+        await pilot.pause()
+        await pilot.press("ctrl+s")
+        await pilot.pause()
+        assert row_texts(app, "enrollment")[0][1] == (
+            "description starts with 'Registered'"
+        )
+        assert cells(app, "exams", "CS (2027-01-20)")[2] == ""
+
+        enrollment = app.query_one("#enrollment-table", DataTable)
+        enrollment.focus()
+        enrollment.move_cursor(row=1)
+        await pilot.press("d")
+        await pilot.pause()
+        assert row_texts(app, "enrollment")[1][1] == "— not detected"
+        # Moving only applies to the rules.
+        await pilot.press("right_square_bracket")
+        await pilot.pause()
+        assert row_texts(app, "rules")[0][2] == "title starts with 'Esame: '"
+
+    drive(app, scenario)
+
+
+def test_rules_keys_on_the_events_table(config: Config) -> None:
+    app = make_app(config, FakeCalendarGateway({"Src": SOURCE}))
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        await open_rules(app, pilot, "events")
+        await pilot.press("d")
+        await pilot.pause()
+        assert len(row_texts(app, "rules")) == 6
+        await pilot.press("e")
+        await pilot.pause()
+        assert editor(app).query_one("#rule-value", Input).value == (
+            "Lezione: Didattica - "
+        )
+        await pilot.press("escape")
+        await pilot.pause()
+        assert len(row_texts(app, "rules")) == 6
+
+    drive(app, scenario)
+
+
+def test_rules_actions_need_a_session(config: Config) -> None:
+    app = make_app(config, FakeCalendarGateway())
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        assert app.draft is None
+        app.action_new_rule()
+        app.action_edit_rule()
+        app.action_delete_rule()
+        app.action_move_rule(1)
+        app._rule_saved(None, None)
+        app._enrollment_saved("enrolled", None)
+        await pilot.pause()
+        assert len(app.screen_stack) == 1
+
+    drive(app, scenario)

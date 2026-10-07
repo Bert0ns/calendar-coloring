@@ -180,12 +180,14 @@ calendar-coloring exams          # only the Exams and Sync tabs
 `--tui` forces it even when the shell doesn't look interactive. The TUI needs the `tui` extra (`pip install ".[tui]"`). It opens with one tab
 per kind of event:
 
-| Tab           | What you can do                                                                                                                                                                                                   |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Courses**   | Every course in the source with its color. Pick a new color from the 11 Google colors.                                                                                                                            |
-| **Exams**     | Every exam session with its date, what the source calendar says (_enrolled_ / _not enrolled_), whether you're already subscribed to another date, and your subscription. Toggle the subscription or pick a color. |
-| **Deadlines** | Same as Courses, for deadlines.                                                                                                                                                                                   |
-| **Sync**      | **Preview changes** lists the inserts, updates and deletes; expand an event to see its color, time and original title. **Apply** writes them to Google Calendar with a progress bar.                              |
+| Tab           | What you can do                                                                                                                                                                                                                                                         |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Courses**   | Every course in the source with its color. Pick a new color from the 11 Google colors.                                                                                                                                                                                  |
+| **Exams**     | Every exam session with its date, what the source calendar says (_enrolled_ / _not enrolled_), whether you're already subscribed to another date, and your subscription. Toggle the subscription or pick a color.                                                       |
+| **Deadlines** | Same as Courses, for deadlines.                                                                                                                                                                                                                                         |
+| **Sync**      | **Preview changes** lists the inserts, updates and deletes; expand an event to see its color, time and original title. **Apply** writes them to Google Calendar with a progress bar.                                                                                    |
+| **Rules**     | The [rules](#profile-and-rules) that decide what each event is, and the exam enrollment conditions. A live preview shows how every event title is classified. Add, edit, delete and reorder rules, or press Enter on an unmatched event to start a rule from its title. |
+| **Setup**     | The calendar to read from and the one to write to. Pick them from your Google calendars, or type a new name for the target: it's created when you apply. Saved to the profile right away.                                                                               |
 
 The **Status** column shows where each value comes from:
 
@@ -200,9 +202,13 @@ The **Status** column shows where each value comes from:
 | ------------- | ---------------------------------------------- |
 | `Enter` / `c` | Pick a color for the selected row              |
 | `Space`       | Toggle the exam subscription (Exams tab)       |
-| `Ctrl+S`      | Save preferences without syncing               |
+| `Ctrl+S`      | Save rules and preferences without syncing     |
 | `p`           | Preview the changes                            |
 | `a`           | Apply the previewed changes                    |
+| `n`           | New rule (Rules tab)                           |
+| `e` / `Enter` | Edit the selected rule (Rules tab)             |
+| `d`           | Delete the selected rule (Rules tab)           |
+| `[` / `]`     | Move the selected rule up / down (Rules tab)   |
 | `q`           | Quit (asks again if there are unsaved changes) |
 
 Toggling a subscription switches between the default red and grey. A custom
@@ -324,6 +330,8 @@ the first sync, so you can see and edit the rules.
 Rules are checked in order and the first one that matches decides the kind of
 the event. Events that match no rule are copied without a color. Without a
 `rules` key, the built-in PoliMi rules apply; `"rules": []` means no rules.
+The easiest way to write them is the **Rules** tab of the
+[terminal UI](#terminal-ui), which shows live how each event is classified.
 
 | Key           | Values                                                                                     |
 | ------------- | ------------------------------------------------------------------------------------------ |

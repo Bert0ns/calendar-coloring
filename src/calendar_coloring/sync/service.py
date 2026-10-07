@@ -7,6 +7,7 @@ from collections.abc import Callable, Sequence
 from calendar_coloring.events import Event
 from calendar_coloring.sync.gateway import CalendarGateway
 from calendar_coloring.sync.models import (
+    CalendarInfo,
     Mutation,
     MutationResult,
     SyncPlan,
@@ -24,6 +25,9 @@ ProgressCallback = Callable[[int, int], None]
 class SyncService:
     def __init__(self, gateway: CalendarGateway) -> None:
         self.gateway = gateway
+
+    def list_calendars(self) -> list[CalendarInfo]:
+        return self.gateway.list_calendars()
 
     def find_target_calendar(self, target_name: str) -> str | None:
         return self.gateway.get_calendar_id_by_name(target_name)

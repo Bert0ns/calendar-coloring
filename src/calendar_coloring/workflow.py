@@ -21,7 +21,7 @@ from calendar_coloring.profile import Profile
 from calendar_coloring.reporting import Reporter
 from calendar_coloring.resolution import fill_missing_preferences
 from calendar_coloring.strategies import strategy_for
-from calendar_coloring.sync.models import SyncPlan, SyncResult
+from calendar_coloring.sync.models import CalendarInfo, SyncPlan, SyncResult
 from calendar_coloring.sync.planner import SyncPlanner
 from calendar_coloring.sync.service import ProgressCallback, SyncService
 from calendar_coloring.sync.source import EventSource
@@ -112,15 +112,23 @@ class SyncWorkflow:
     # -- phases --------------------------------------------------------------
 
     def load(
-        self, options: SyncOptions, source: EventSource, target_name: str
+        self,
+        options: SyncOptions,
+        source: EventSource,
+        target_name: str,
+        profile: Profile | None = None,
     ) -> SyncSession:
         """Discover phase: fetches the source events and the saved profile.
+
+        A frontend that already holds a profile (possibly with unsaved edits)
+        passes it to discover the events with it instead.
 
         Raises :class:`SourceError` if the source events cannot be loaded.
         """
         self.reporter.sync_started(source.label, target_name)
         source_events = source.fetch_events()
-        profile = self.repository.load()
+        if profile is None:
+            profile = self.repository.load()
         catalog = discover(
             self._planner(options, profile).syncable(source_events),
             profile.classifier,
@@ -133,6 +141,20 @@ class SyncWorkflow:
             profile=profile,
         )
 
+    def syncable_events(self, session: SyncSession) -> list[Event]:
+        """The source events that are copied to the target calendar."""
+        return self._planner(session.options, session.profile).syncable(
+            session.source_events
+        )
+
+    def rediscover(self, session: SyncSession) -> SyncSession:
+        """The session with its events classified again, after the profile's
+        rules changed. No I/O."""
+        return replace(
+            session,
+            catalog=discover(self.syncable_events(session), session.profile.classifier),
+        )
+
     def complete_preferences(self, session: SyncSession) -> None:
         """Fills preferences the user never chose with the automatic rules."""
         fill_missing_preferences(
@@ -141,6 +163,16 @@ class SyncWorkflow:
 
     def save_preferences(self, session: SyncSession) -> None:
         self.repository.save(session.profile)
+
+    def load_profile(self) -> Profile:
+        return self.repository.load()
+
+    def save_profile(self, profile: Profile) -> None:
+        self.repository.save(profile)
+
+    def list_calendars(self) -> list[CalendarInfo]:
+        """The user's calendars, to choose the source and the target from."""
+        return self.service.list_calendars()
 
     def plan(self, session: SyncSession) -> SyncPlan:
         """Computes the changes for the session preferences, as they are. Read-only."""
