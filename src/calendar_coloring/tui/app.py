@@ -27,6 +27,7 @@ from textual.widgets import (
     Header,
     ProgressBar,
     RichLog,
+    Select,
     Static,
     TabbedContent,
     TabPane,
@@ -38,6 +39,7 @@ from calendar_coloring.profile import Profile, time_zone_error
 from calendar_coloring.rules import Condition, Rule
 from calendar_coloring.sync.models import CalendarInfo, SyncPlan, SyncResult
 from calendar_coloring.sync.source import SourceCalendarNotFoundError
+from calendar_coloring.targets import SyncTarget
 from calendar_coloring.tui.model import (
     ColorRow,
     ExamRow,
@@ -71,6 +73,14 @@ from calendar_coloring.tui.widgets import (
 )
 from calendar_coloring.tui.wizard import RulesChoice, WizardIntro, WizardRules
 from calendar_coloring.workflow import SyncOptions, SyncWorkflow
+
+SCOPE_LABELS = {
+    SyncTarget.ALL: "Everything",
+    SyncTarget.LECTURES: "Lectures only",
+    SyncTarget.EXAMS: "Exams only",
+    SyncTarget.DEADLINES: "Deadlines only",
+}
+"""What the Sync tab can limit a sync to."""
 
 Level = Literal["detail", "info", "warning", "error"]
 
@@ -232,6 +242,12 @@ class CalendarColoringApp(App[None]):
     #sync-actions {
         height: auto;
     }
+    .scope {
+        width: 24;
+    }
+    #sync-actions .scope {
+        margin-right: 2;
+    }
     #sync-actions Button {
         margin-right: 2;
     }
@@ -331,18 +347,8 @@ class CalendarColoringApp(App[None]):
     # -- layout --------------------------------------------------------------
 
     def compose(self) -> ComposeResult:
-        target = self.options.target
         yield Header()
-        first = next(
-            tab
-            for tab, shown in (
-                (COURSES, target.includes_lectures),
-                (EXAMS, target.includes_exams),
-                (DEADLINES, target.includes_deadlines),
-            )
-            if shown
-        )
-        with TabbedContent(id="tabs", initial=first):
+        with TabbedContent(id="tabs", initial=SETUP):
             with TabPane("Setup", id=SETUP):
                 yield Static(
                     "The calendar to read your timetable from, and the one to "
@@ -361,36 +367,41 @@ class CalendarColoringApp(App[None]):
                     yield Static("Time zone", classes="setup-label")
                     yield Static(id="setup-time-zone", classes="setup-value")
                     yield Button("Change…", id="change-time-zone")
+                with Horizontal(classes="setup-row"):
+                    yield Static("Sync", classes="setup-label")
+                    yield self._scope_select("scope-setup")
+                    yield Static(
+                        "What a sync covers; the rest is left untouched.",
+                        classes="setup-value",
+                    )
                 yield Static(id="setup-notes", classes="help")
-            if target.includes_lectures:
-                with TabPane("Courses", id=COURSES):
-                    yield Static(
-                        "Every lecture of a course gets the course color. "
-                        "Enter/c: pick a color.",
-                        classes="help",
-                    )
-                    yield self._table(COURSES, "Course", "Color", "Status")
-            if target.includes_exams:
-                with TabPane("Exams", id=EXAMS):
-                    yield Static(
-                        "Space: toggle subscription · Enter/c: pick a color.",
-                        classes="help",
-                    )
-                    yield self._table(
-                        EXAMS,
-                        "Exam",
-                        "Date",
-                        "Source says",
-                        "Subscribed",
-                        "Color",
-                        "Status",
-                    )
-            if target.includes_deadlines:
-                with TabPane("Deadlines", id=DEADLINES):
-                    yield Static("Enter/c: pick a color.", classes="help")
-                    yield self._table(DEADLINES, "Deadline", "Color", "Status")
+            with TabPane("Courses", id=COURSES):
+                yield Static(
+                    "Every lecture of a course gets the course color. "
+                    "Enter/c: pick a color.",
+                    classes="help",
+                )
+                yield self._table(COURSES, "Course", "Color", "Status")
+            with TabPane("Exams", id=EXAMS):
+                yield Static(
+                    "Space: toggle subscription · Enter/c: pick a color.",
+                    classes="help",
+                )
+                yield self._table(
+                    EXAMS,
+                    "Exam",
+                    "Date",
+                    "Source says",
+                    "Subscribed",
+                    "Color",
+                    "Status",
+                )
+            with TabPane("Deadlines", id=DEADLINES):
+                yield Static("Enter/c: pick a color.", classes="help")
+                yield self._table(DEADLINES, "Deadline", "Color", "Status")
             with TabPane("Sync", id=SYNC):
                 with Horizontal(id="sync-actions"):
+                    yield self._scope_select("scope-sync")
                     yield Button("Preview changes", id="preview", variant="primary")
                     yield Button("Apply", id="apply", variant="success")
                 yield Static(
@@ -416,6 +427,15 @@ class CalendarColoringApp(App[None]):
                         yield self._table(EVENTS, "Kind", "×", "Name", "Event title")
         yield Footer()
 
+    def _scope_select(self, select_id: str) -> Select[SyncTarget]:
+        return Select(
+            [(label, target) for target, label in SCOPE_LABELS.items()],
+            value=self.options.target,
+            allow_blank=False,
+            id=select_id,
+            classes="scope",
+        )
+
     @staticmethod
     def _table(tab: str, *columns: str) -> DataTable[Text]:
         table: DataTable[Text] = DataTable(
@@ -426,6 +446,7 @@ class CalendarColoringApp(App[None]):
 
     def on_mount(self) -> None:
         self._ui.query_one("#progress").display = False
+        self._show_scope_tabs()
         self._refresh_setup()
         if self.setup.first_run:
             self.run_wizard()
@@ -776,6 +797,36 @@ class CalendarColoringApp(App[None]):
         assert self.draft is not None
         self.draft.session = self.workflow.rediscover(self.draft.session)
         self._preferences_changed()
+
+    def _show_scope_tabs(self) -> None:
+        """Shows the tabs of the kinds of events the sync covers."""
+        tabs = self._ui.query_one(TabbedContent)
+        target = self.options.target
+        for tab, shown in (
+            (COURSES, target.includes_lectures),
+            (EXAMS, target.includes_exams),
+            (DEADLINES, target.includes_deadlines),
+        ):
+            if shown:
+                tabs.show_tab(tab)
+            else:
+                tabs.hide_tab(tab)
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        if "scope" not in event.select.classes or not isinstance(
+            event.value, SyncTarget
+        ):
+            return
+        if event.value is self.options.target:
+            return
+        self.options = replace(self.options, target=event.value)
+        for select in self._ui.query(".scope").results(Select):
+            select.value = event.value  # the other selector follows
+        self._show_scope_tabs()
+        if self.draft is not None:
+            session = replace(self.draft.session, options=self.options)
+            self.draft.session = self.workflow.rediscover(session)
+            self._preferences_changed()
 
     # -- calendars -----------------------------------------------------------
 

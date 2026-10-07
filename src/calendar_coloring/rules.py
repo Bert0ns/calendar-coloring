@@ -151,6 +151,10 @@ class Classifier:
                 )
         return None
 
+    def kind_of(self, event: Event) -> EventKind | None:
+        classification = self.classify(event)
+        return None if classification is None else classification.kind
+
     def target_title(self, event: Event) -> str:
         classification = self.classify(event)
         return summary_of(event) if classification is None else classification.title
