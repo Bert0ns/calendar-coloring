@@ -42,6 +42,16 @@ def resolve_config_path(
     return base_dir / filename
 
 
+def user_config_dir() -> Path:
+    """The standard platform user configuration directory for unical."""
+    return default_config_dir()
+
+
+def default_credentials_path() -> Path:
+    """Default path where credentials are saved or resolved."""
+    return resolve_config_path(None, CREDENTIALS_FILE)
+
+
 @dataclass(frozen=True)
 class Config:
     """Runtime configuration.

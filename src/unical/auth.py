@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import pickle
+import shutil
+import urllib.parse
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -11,6 +14,8 @@ from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
+
+from unical.config import default_credentials_path
 
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
 
@@ -30,6 +35,109 @@ class LoginRequiredError(RuntimeError):
             "Run the tool locally once to log in, then update the GCP_TOKEN_JSON "
             "secret if you use GitHub Actions."
         )
+
+
+class InvalidCredentialsError(ValueError):
+    """The provided credentials file does not contain a valid OAuth client configuration."""
+
+
+def clean_path_input(raw: str) -> Path:
+    """Clean a raw file path string from terminal input or drag-and-drop.
+
+    Handles wrapping quotes, backslash-escaped spaces, file:// URIs, and user home expansion (~).
+    """
+    path_str = raw.strip()
+    if path_str.startswith("file://"):
+        parsed = urllib.parse.urlparse(path_str)
+        path_str = urllib.parse.unquote(parsed.path)
+        if len(path_str) > 2 and path_str[0] == "/" and path_str[2] == ":":
+            path_str = path_str[1:]
+    if (path_str.startswith('"') and path_str.endswith('"')) or (
+        path_str.startswith("'") and path_str.endswith("'")
+    ):
+        path_str = path_str[1:-1].strip()
+    if r"\ " in path_str:
+        path_str = path_str.replace(r"\ ", " ")
+    return Path(path_str).expanduser()
+
+
+def validate_client_secrets(
+    content_or_data: str | bytes | dict[str, Any],
+) -> dict[str, Any]:
+    """Validate that the given content represents a valid Google OAuth client JSON file.
+
+    Returns the parsed JSON data dict on success.
+    Raises InvalidCredentialsError if invalid.
+    """
+    if isinstance(content_or_data, (str, bytes)):
+        try:
+            data = json.loads(content_or_data)
+        except json.JSONDecodeError as exc:
+            raise InvalidCredentialsError(f"The file is not valid JSON: {exc}") from exc
+    elif isinstance(content_or_data, dict):
+        data = content_or_data
+    else:
+        raise InvalidCredentialsError("Expected JSON text or dictionary.")
+
+    if not isinstance(data, dict):
+        raise InvalidCredentialsError(
+            "The JSON file must contain an object at the top level."
+        )
+
+    if data.get("type") == "service_account":
+        raise InvalidCredentialsError(
+            "This file is a Google Cloud Service Account key, not an OAuth 2.0 Client ID. "
+            "Uni Calendar Coloring requires an OAuth Client ID for a Desktop application. "
+            "Please create an OAuth Client ID under 'APIs & Services → Credentials' in Google Cloud Console."
+        )
+
+    client_info = data.get("installed") or data.get("web")
+    if not client_info:
+        raise InvalidCredentialsError(
+            "The file does not look like a Google OAuth 2.0 client secret file. "
+            "Expected top-level key 'installed' (Desktop app) or 'web'."
+        )
+
+    if not isinstance(client_info, dict):
+        raise InvalidCredentialsError(
+            "Invalid OAuth client format: expected an object inside 'installed'."
+        )
+
+    if not client_info.get("client_id"):
+        raise InvalidCredentialsError("The OAuth client file is missing 'client_id'.")
+
+    if not client_info.get("client_secret"):
+        raise InvalidCredentialsError(
+            "The OAuth client file is missing 'client_secret'."
+        )
+
+    return data
+
+
+def import_credentials(
+    source: Path | str, destination: Path | None = None, move: bool = False
+) -> Path:
+    """Validate and copy or move a credentials file to the destination."""
+    source_path = clean_path_input(str(source)).resolve()
+    if not source_path.exists():
+        raise FileNotFoundError(f"Credentials file '{source_path}' does not exist.")
+    if not source_path.is_file():
+        raise InvalidCredentialsError(f"'{source_path}' is not a regular file.")
+
+    content = source_path.read_text(encoding="utf-8")
+    validate_client_secrets(content)
+
+    dest_path = (destination or default_credentials_path()).resolve()
+
+    if source_path == dest_path:
+        return dest_path
+
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    if move:
+        shutil.move(str(source_path), str(dest_path))
+    else:
+        shutil.copy2(str(source_path), str(dest_path))
+    return dest_path
 
 
 def _run_installed_app_flow(credentials_path: Path) -> Any:

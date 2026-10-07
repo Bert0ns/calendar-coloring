@@ -1,3 +1,4 @@
+import json
 import runpy
 import sys
 from dataclasses import replace
@@ -525,3 +526,234 @@ def test_run_tui_starts_the_guide_without_a_profile(
     cli.run_tui(SyncOptions(), config, FakeCalendarGateway())
 
     assert apps[-1].setup.first_run
+
+
+# -- auth subcommands & onboarding -------------------------------------------
+
+
+def test_auth_help(capsys) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        cli.main(["auth", "--help"])
+    assert exc_info.value.code == 0
+    out = capsys.readouterr().out
+    assert "import" in out
+    assert "status" in out
+    assert "login" in out
+
+
+def test_auth_import_file_default_destination(tmp_path: Path, capsys) -> None:
+    src_file = tmp_path / "my_creds.json"
+    src_file.write_text(
+        json.dumps({"installed": {"client_id": "c1", "client_secret": "s1"}})
+    )
+    dest = tmp_path / "config" / "credentials.json"
+
+    ret = cli.main(["auth", "import", str(src_file), "--destination", str(dest)])
+    assert ret == cli.EXIT_OK
+    assert dest.exists()
+    assert src_file.exists()
+    assert "Successfully imported credentials" in capsys.readouterr().out
+
+
+def test_auth_import_file_move(tmp_path: Path, capsys) -> None:
+    src_file = tmp_path / "my_creds_to_move.json"
+    src_file.write_text(
+        json.dumps({"installed": {"client_id": "c1", "client_secret": "s1"}})
+    )
+    dest = tmp_path / "config" / "credentials.json"
+
+    ret = cli.main(["auth", "import", str(src_file), "-m", "--destination", str(dest)])
+    assert ret == cli.EXIT_OK
+    assert dest.exists()
+    assert not src_file.exists()
+
+
+def test_auth_import_file_invalid(tmp_path: Path, capsys) -> None:
+    sa_file = tmp_path / "service_account.json"
+    sa_file.write_text(json.dumps({"type": "service_account"}))
+    dest = tmp_path / "config" / "credentials.json"
+
+    ret = cli.main(["auth", "import", str(sa_file), "--destination", str(dest)])
+    assert ret == cli.EXIT_FAILURE
+    assert not dest.exists()
+    assert "Service Account key" in capsys.readouterr().out
+
+
+def test_auth_import_interactive_prompt_success(tmp_path: Path, capsys) -> None:
+    src_file = tmp_path / "my_creds.json"
+    src_file.write_text(
+        json.dumps({"installed": {"client_id": "c1", "client_secret": "s1"}})
+    )
+    dest = tmp_path / "config" / "credentials.json"
+
+    ret = cli.main(
+        ["auth", "import", "--destination", str(dest)],
+        prompt_fn=lambda _: str(src_file),
+    )
+    assert ret == cli.EXIT_OK
+    assert dest.exists()
+
+
+def test_auth_import_interactive_prompt_cancel(tmp_path: Path, capsys) -> None:
+    dest = tmp_path / "config" / "credentials.json"
+    ret = cli.main(
+        ["auth", "import", "--destination", str(dest)],
+        prompt_fn=lambda _: "",
+    )
+    assert ret == cli.EXIT_FAILURE
+    assert "Cancelled" in capsys.readouterr().out
+
+
+def test_auth_status_missing(isolated_env, capsys) -> None:
+    ret = cli.main(["auth", "status"])
+    assert ret == cli.EXIT_OK
+    out = capsys.readouterr().out
+    assert "Status: Missing" in out
+    assert "unical auth import" in out
+
+
+def test_auth_status_not_logged_in(isolated_env, capsys) -> None:
+    creds_path = isolated_env / "credentials.json"
+    creds_path.write_text(
+        json.dumps({"installed": {"client_id": "c1", "client_secret": "s1"}})
+    )
+
+    ret = cli.main(["auth", "status"])
+    assert ret == cli.EXIT_OK
+    out = capsys.readouterr().out
+    assert "Configured" in out
+    assert "Status: Not logged in" in out
+
+
+def test_auth_status_logged_in(isolated_env, capsys) -> None:
+    creds_path = isolated_env / "credentials.json"
+    creds_path.write_text(
+        json.dumps({"installed": {"client_id": "c1", "client_secret": "s1"}})
+    )
+    token_path = isolated_env / "token.json"
+    token_path.write_text(
+        json.dumps(
+            {
+                "token": "tok",
+                "refresh_token": "ref",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "client_id": "cid",
+                "client_secret": "sec",
+                "expiry": "2099-01-01T00:00:00Z",
+                "scopes": [],
+            }
+        )
+    )
+
+    ret = cli.main(["auth", "status"])
+    assert ret == cli.EXIT_OK
+    out = capsys.readouterr().out
+    assert "Status: Logged in (token valid)" in out
+
+
+def test_auth_status_token_expired(isolated_env, capsys) -> None:
+    creds_path = isolated_env / "credentials.json"
+    creds_path.write_text(
+        json.dumps({"installed": {"client_id": "c1", "client_secret": "s1"}})
+    )
+    token_path = isolated_env / "token.json"
+    token_path.write_text(
+        json.dumps(
+            {
+                "token": "tok",
+                "refresh_token": "ref",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "client_id": "cid",
+                "client_secret": "sec",
+                "expiry": "2000-01-01T00:00:00Z",
+                "scopes": [],
+            }
+        )
+    )
+
+    ret = cli.main(["auth", "status"])
+    assert ret == cli.EXIT_OK
+    out = capsys.readouterr().out
+    assert "Status: Token expired (will refresh on next run)" in out
+
+
+def test_auth_login_missing_credentials(isolated_env, monkeypatch, capsys) -> None:
+    monkeypatch.setattr(cli, "_is_interactive_shell", lambda: False)
+    ret = cli.main(["auth", "login"])
+    assert ret == cli.EXIT_FAILURE
+    assert "not found" in capsys.readouterr().out
+
+
+def test_auth_login_success(isolated_env, monkeypatch, capsys) -> None:
+    creds_path = isolated_env / "credentials.json"
+    creds_path.write_text(
+        json.dumps({"installed": {"client_id": "c1", "client_secret": "s1"}})
+    )
+    fake_authenticator = MagicMock()
+    monkeypatch.setattr(cli, "Authenticator", fake_authenticator)
+
+    ret = cli.main(["auth", "login"])
+    assert ret == cli.EXIT_OK
+    fake_authenticator.return_value.get_credentials.assert_called_once()
+    assert "Successfully authenticated" in capsys.readouterr().out
+
+
+def test_main_first_run_triggers_wizard_when_tui(isolated_env, monkeypatch) -> None:
+    pytest.importorskip("textual")
+    from unical.tui.app import UnicalApp
+
+    monkeypatch.setattr(cli, "_is_interactive_shell", lambda: True)
+    monkeypatch.setattr(cli, "tui_available", lambda: True)
+
+    valid_creds = isolated_env / "credentials.json"
+    valid_creds.write_text(
+        json.dumps({"installed": {"client_id": "c1", "client_secret": "s1"}})
+    )
+
+    monkeypatch.setattr(
+        "unical.tui.wizard.run_credentials_wizard",
+        lambda destination=None: valid_creds,
+    )
+    apps: list[UnicalApp] = []
+    monkeypatch.setattr(UnicalApp, "run", lambda self: apps.append(self))
+
+    fake_auth_inst = MagicMock()
+    fake_auth_inst.return_value.get_credentials.side_effect = [
+        CredentialsFileNotFoundError(isolated_env / "credentials.json"),
+        MagicMock(),
+    ]
+    monkeypatch.setattr(cli, "Authenticator", fake_auth_inst)
+    monkeypatch.setattr(
+        cli.GoogleCalendarClient,
+        "from_credentials",
+        classmethod(lambda cls, c: FakeCalendarGateway()),
+    )
+
+    ret = cli.main([])
+    assert ret == cli.EXIT_OK
+    assert len(apps) == 1
+
+
+def test_main_first_run_triggers_cli_onboarding_when_not_tui(
+    isolated_env, monkeypatch, capsys
+) -> None:
+    monkeypatch.setattr(cli, "_is_interactive_shell", lambda: True)
+    monkeypatch.setattr(cli, "tui_available", lambda: False)
+
+    src_file = isolated_env / "downloaded.json"
+    src_file.write_text(
+        json.dumps({"installed": {"client_id": "c1", "client_secret": "s1"}})
+    )
+
+    fake_auth_inst = MagicMock()
+    fake_auth_inst.return_value.get_credentials.side_effect = [
+        CredentialsFileNotFoundError(isolated_env / "credentials.json"),
+        MagicMock(),
+    ]
+    monkeypatch.setattr(cli, "Authenticator", fake_auth_inst)
+    install_gateway(monkeypatch, FakeCalendarGateway({"Calendar": SOURCE}))
+
+    ret = cli.main([], prompt_fn=lambda _: str(src_file))
+    assert ret == cli.EXIT_OK
+    out = capsys.readouterr().out
+    assert "Credentials saved to" in out

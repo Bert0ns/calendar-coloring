@@ -5,9 +5,10 @@ from __future__ import annotations
 import argparse
 import functools
 import importlib.util
+import json
 import os
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
@@ -17,7 +18,9 @@ from dotenv import load_dotenv
 from unical.auth import (
     Authenticator,
     CredentialsFileNotFoundError,
+    InvalidCredentialsError,
     LoginRequiredError,
+    import_credentials,
 )
 from unical.cli.console import ConsoleReporter
 from unical.cli.prompts import InteractivePreferenceEditor
@@ -65,7 +68,8 @@ def _iso_date(value: str) -> date:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="unical",
-        description="Sync and color Google Calendar events.",
+        description="Sync and color Google Calendar events.\n"
+        "Use 'unical auth' to manage credentials and login status.",
     )
     parser.add_argument(
         "target",
@@ -130,6 +134,52 @@ def build_parser() -> argparse.ArgumentParser:
         help="Also delete managed target events starting before this date, even "
         "if still present in the source. Useful to drop past semesters.",
     )
+    return parser
+
+
+def build_auth_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="unical auth",
+        description="Manage Google OAuth credentials and authentication.",
+    )
+    subparsers = parser.add_subparsers(dest="subcommand")
+
+    import_parser = subparsers.add_parser(
+        "import",
+        help="Import a credentials JSON file into the user config directory.",
+        description="Import and validate a Google OAuth client credentials JSON file.",
+    )
+    import_parser.add_argument(
+        "file",
+        nargs="?",
+        default=None,
+        help="Path to downloaded credentials JSON file (or drag & drop).",
+    )
+    import_parser.add_argument(
+        "-m",
+        "--move",
+        action="store_true",
+        help="Move the file instead of copying it.",
+    )
+    import_parser.add_argument(
+        "--destination",
+        type=Path,
+        default=None,
+        help="Custom destination path (defaults to user config credentials.json).",
+    )
+
+    subparsers.add_parser(
+        "status",
+        help="Show credentials and authentication status.",
+        description="Display information about configured credentials, token cache, and profile.",
+    )
+
+    subparsers.add_parser(
+        "login",
+        help="Log in with Google via browser and cache token.",
+        description="Authenticate with Google Calendar using the configured credentials.",
+    )
+
     return parser
 
 
@@ -283,9 +333,181 @@ def credentials_help(path: Path) -> list[str]:
         "     your Google address under Test users.",
         "  4. APIs & Services → Credentials → Create credentials → OAuth client ID:",
         "     choose Desktop app and download the JSON file.",
-        f"  5. Save it as '{path}' (or set CREDENTIALS_PATH), then run again.",
+        f"  5. Save it as '{path}' (or run 'unical auth import /path/to/downloaded-credentials.json').",
         "Details: https://github.com/Bert0ns/uni-calendar-coloring#setup",
     ]
+
+
+def run_cli_credentials_onboarding(
+    destination: Path,
+    reporter: Reporter,
+    prompt_fn: Callable[[str], str] = input,
+) -> Path | None:
+    """Guided interactive terminal onboarding when credentials are not found."""
+    reporter.info("=" * 72)
+    reporter.info("  Google Calendar Credentials Setup")
+    reporter.info("=" * 72)
+    reporter.info(
+        "Uni Calendar Coloring requires a Google Cloud OAuth client credentials\n"
+        "file (credentials.json) to connect to your Google Calendar.\n\n"
+        "To get your credentials file:\n"
+        "  1. Open Google Cloud Console: https://console.cloud.google.com/\n"
+        "  2. Enable the Google Calendar API:\n"
+        "     https://console.cloud.google.com/apis/library/calendar-json.googleapis.com\n"
+        "  3. Configure OAuth consent screen (External, add yourself as Test user):\n"
+        "     https://console.cloud.google.com/apis/credentials/consent\n"
+        "  4. Create Credentials → OAuth client ID → Desktop app, and download the JSON:\n"
+        "     https://console.cloud.google.com/apis/credentials\n"
+    )
+    reporter.info("=" * 72)
+
+    while True:
+        try:
+            raw = prompt_fn(
+                "Enter or drag-and-drop the path to your downloaded credentials JSON file\n"
+                "(or press Enter to cancel): "
+            )
+        except (KeyboardInterrupt, EOFError):
+            return None
+
+        val = raw.strip()
+        if not val:
+            return None
+
+        try:
+            dest = import_credentials(val, destination=destination)
+            reporter.info(f"✔ Credentials successfully imported to '{dest}'.")
+            return dest
+        except (FileNotFoundError, InvalidCredentialsError, OSError) as exc:
+            reporter.error(str(exc))
+
+
+def main_auth(
+    argv: Sequence[str],
+    config: Config,
+    reporter: Reporter,
+    prompt_fn: Callable[[str], str] = input,
+) -> int:
+    """Handler for 'unical auth' subcommands."""
+    parser = build_auth_parser()
+    args = parser.parse_args(argv)
+
+    if args.subcommand is None:
+        parser.print_help()
+        return EXIT_OK
+
+    if args.subcommand == "import":
+        file_arg = args.file
+        if not file_arg:
+            if _is_interactive_shell() or prompt_fn is not input:
+                try:
+                    raw = prompt_fn(
+                        "Enter or drag-and-drop the path to your credentials JSON file: "
+                    )
+                except (KeyboardInterrupt, EOFError):
+                    return EXIT_FAILURE
+                file_arg = raw.strip()
+                if not file_arg:
+                    reporter.info("Cancelled.")
+                    return EXIT_FAILURE
+            else:
+                reporter.error("Error: Path to credentials file is required.")
+                return EXIT_FAILURE
+
+        try:
+            dest = import_credentials(
+                file_arg,
+                destination=args.destination or config.credentials_path,
+                move=args.move,
+            )
+            reporter.info(f"✔ Successfully imported credentials to '{dest}'.")
+            reporter.info("Run 'unical' to connect your Google account.")
+            return EXIT_OK
+        except (FileNotFoundError, InvalidCredentialsError, OSError) as exc:
+            reporter.error(str(exc))
+            return EXIT_FAILURE
+
+    if args.subcommand == "status":
+        from unical.config import user_config_dir
+
+        reporter.info(f"Configuration directory: {user_config_dir()}")
+        reporter.info(f"Credentials path:        {config.credentials_path}")
+        if config.credentials_path.exists():
+            try:
+                content = config.credentials_path.read_text(encoding="utf-8")
+                data = json.loads(content)
+                client_type = (
+                    "installed"
+                    if "installed" in data
+                    else ("web" if "web" in data else "unknown")
+                )
+                client_info = data.get(client_type, {})
+                client_id = client_info.get("client_id", "unknown")
+                reporter.info(f"  Status: Configured ({client_type} app)")
+                reporter.info(f"  Client ID: {client_id}")
+            except Exception as exc:
+                reporter.info(f"  Status: Present but invalid ({exc})")
+        else:
+            reporter.info("  Status: Missing (run 'unical auth import' to configure)")
+
+        reporter.info(f"Token cache path:        {config.token_path}")
+        if config.token_path.exists():
+            try:
+                from google.oauth2.credentials import Credentials
+
+                creds = Credentials.from_authorized_user_file(str(config.token_path))  # type: ignore[no-untyped-call]
+                if creds.valid:
+                    reporter.info("  Status: Logged in (token valid)")
+                elif creds.expired:
+                    reporter.info("  Status: Token expired (will refresh on next run)")
+                else:
+                    reporter.info("  Status: Logged in")
+            except Exception:
+                reporter.info("  Status: Token file present (could not parse)")
+        else:
+            reporter.info("  Status: Not logged in (token not found)")
+
+        reporter.info(f"Profile path:            {config.profile_path}")
+        if config.profile_path.exists():
+            reporter.info("  Status: Present")
+        else:
+            reporter.info("  Status: Not found (will be created on first setup)")
+
+        return EXIT_OK
+
+    if args.subcommand == "login":
+        if not config.credentials_path.exists():
+            if _is_interactive_shell() or prompt_fn is not input:
+                imported = run_cli_credentials_onboarding(
+                    config.credentials_path, reporter, prompt_fn=prompt_fn
+                )
+                if imported is None:
+                    return EXIT_FAILURE
+                config = replace(config, credentials_path=imported)
+            else:
+                reporter.error(
+                    f"OAuth client file '{config.credentials_path}' not found."
+                )
+                return EXIT_FAILURE
+
+        authenticator = Authenticator(
+            credentials_path=config.credentials_path,
+            token_path=config.token_path,
+            legacy_token_path=config.legacy_token_path,
+            on_info=reporter.info,
+            allow_browser_login=_can_open_browser_login(),
+        )
+        try:
+            authenticator.get_credentials()
+            reporter.info(
+                f"✔ Successfully authenticated! Token saved to '{config.token_path}'."
+            )
+            return EXIT_OK
+        except Exception as exc:
+            reporter.error(str(exc))
+            return EXIT_FAILURE
+
+    return EXIT_OK
 
 
 def tui_available() -> bool:
@@ -300,10 +522,23 @@ def _can_open_browser_login() -> bool:
     return sys.stdin.isatty() and os.getenv("CI") != "true"
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    cli = parse_args(argv)
+def main(
+    argv: Sequence[str] | None = None,
+    prompt_fn: Callable[[str], str] = input,
+) -> int:
+    raw_argv = list(sys.argv[1:] if argv is None else argv)
     load_dotenv()
     config = Config.from_env(os.environ)
+
+    if raw_argv and raw_argv[0] == "auth":
+        reporter = ConsoleReporter(
+            verbose=False,
+            quiet=False,
+            write=functools.partial(print, flush=True),
+        )
+        return main_auth(raw_argv[1:], config, reporter, prompt_fn=prompt_fn)
+
+    cli = parse_args(raw_argv)
     if cli.ical_url:
         config = replace(config, source_ical_url=cli.ical_url)
 
@@ -338,11 +573,42 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     try:
         credentials = authenticator.get_credentials()
-    except (CredentialsFileNotFoundError, LoginRequiredError) as exc:
-        reporter.error(str(exc))
-        if isinstance(exc, CredentialsFileNotFoundError):
+    except CredentialsFileNotFoundError as exc:
+        if _is_interactive_shell() or prompt_fn is not input:
+            imported: Path | None = None
+            if tui and tui_available():
+                from unical.tui.wizard import run_credentials_wizard
+
+                imported = run_credentials_wizard(exc.path)
+            else:
+                imported = run_cli_credentials_onboarding(
+                    exc.path, reporter, prompt_fn=prompt_fn
+                )
+
+            if imported is not None:
+                reporter.info(f"Credentials saved to '{imported}'.")
+                config = replace(config, credentials_path=imported)
+                authenticator = Authenticator(
+                    credentials_path=config.credentials_path,
+                    token_path=config.token_path,
+                    legacy_token_path=config.legacy_token_path,
+                    on_info=reporter.info,
+                    allow_browser_login=_can_open_browser_login(),
+                )
+                try:
+                    credentials = authenticator.get_credentials()
+                except Exception as auth_exc:
+                    reporter.error(str(auth_exc))
+                    return EXIT_FAILURE
+            else:
+                return EXIT_OK
+        else:
+            reporter.error(str(exc))
             for line in credentials_help(exc.path):
                 reporter.info(line)
+            return EXIT_FAILURE
+    except LoginRequiredError as exc:
+        reporter.error(str(exc))
         return EXIT_FAILURE
 
     gateway = GoogleCalendarClient.from_credentials(credentials)
