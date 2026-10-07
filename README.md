@@ -3,26 +3,28 @@
 Turn your university timetable into a color-coded Google Calendar.
 
 The university calendar is read-only and every event in it has the same color.
-This tool copies it into a Google Calendar you own and colors each event:
+`unical` copies it into a Google Calendar you own and colors each event:
 
 - **Exams**: red if you are enrolled, grey if you are not. Once you enroll in
   one session of an exam, its other sessions turn grey.
-- **Lectures**: one color per course, with boilerplate stripped from the title.
+- **Lectures**: one color per course, with the boilerplate stripped from the
+  title.
 - **Deadlines**: one color per deadline.
-
-What counts as an exam, a lecture or a deadline is up to the
-[rules of your profile](#profile-and-rules), so the tool can be adapted to the
-format of any university. The built-in profile handles the Politecnico di
-Milano format (`Esame: …`, `Lezione: Didattica - …`, `Scadenza: …`).
-
-The profile and your choices are saved in a plain JSON file, `profile.json`, so
-every later sync uses the same colors. You can run it on your laptop, from a terminal UI, or on a weekly
-schedule with GitHub Actions.
 
 ![The terminal UI, Exams tab](docs/tui.svg)
 
+What counts as an exam, a lecture or a deadline is decided by the
+[rules of your profile](#profile-and-rules), so the tool adapts to the format of
+any university. The built-in profile handles the Politecnico di Milano format
+(`Esame: …`, `Lezione: Didattica - …`, `Scadenza: …`).
+
+Your choices are saved in a plain JSON file, `profile.json`, so every later sync
+uses the same colors. You can run `unical` from a terminal UI, from plain
+command-line flags, or on a weekly schedule with GitHub Actions.
+
 ## Contents
 
+- [Quick start](#quick-start)
 - [How it works](#how-it-works)
 - [Setup](#setup)
 - [Usage](#usage)
@@ -36,8 +38,22 @@ schedule with GitHub Actions.
 - [Configuration](#configuration)
 - [Run it in the cloud with GitHub Actions](#run-it-in-the-cloud-with-github-actions)
 - [Troubleshooting](#troubleshooting)
+- [Upgrading](#upgrading)
 - [Development](#development)
 - [Architecture](#architecture)
+
+## Quick start
+
+```bash
+git clone https://github.com/Bert0ns/uni-calendar-coloring.git
+cd uni-calendar-coloring
+pip install ".[tui]"
+# save your Google OAuth client as credentials.json (see Setup below)
+unical
+```
+
+The terminal UI opens and guides you through the first run. Nothing is written
+to Google Calendar until you apply the changes.
 
 ## How it works
 
@@ -49,15 +65,15 @@ Source calendar ──read──▶ discover ──▶ preferences ──▶ pla
                                                          deletes
 ```
 
-1. **Discover**: read the source events and list the courses, exam sessions
-   and deadlines they contain.
+1. **Discover**: read the source events and list the courses, exam sessions and
+   deadlines they contain.
 2. **Preferences**: load your saved colors and subscriptions. Anything you
    haven't chosen yet is filled in by the [coloring rules](#coloring-rules), or
    you choose it yourself in the TUI or with the `-i` prompts.
 3. **Plan**: compare the source with the target calendar and work out the
    events to insert, update and delete. Unchanged events cost no API calls.
-4. **Apply**: send the changes through the Google batch API, retrying
-   transient failures.
+4. **Apply**: send the changes through the Google batch API, retrying transient
+   failures.
 
 The sync is safe to repeat:
 
@@ -65,10 +81,10 @@ The sync is safe to repeat:
   private property. Events you add to the target calendar yourself are left
   alone.
 - Events removed from the source are removed from the target.
-- If an event isn't covered by the current run (for example, a lecture during
-  `unical exams`), it is ignored: its copy in the target calendar is
-  never inserted, updated or deleted. Events removed from the source are only
-  deleted by a run that covers everything.
+- An event that the current run doesn't cover (for example, a lecture during
+  `unical exams`) is ignored: its copy in the target calendar is never
+  inserted, updated or deleted. Events removed from the source are only deleted
+  by a run that covers everything.
 - The target calendar is created on the first sync.
 
 ## Setup
@@ -83,8 +99,8 @@ Google Cloud OAuth client, so nobody else ever sees your calendar.
 2. Go to **APIs & Services → Library** and enable the **Google Calendar API**.
 3. Go to **APIs & Services → OAuth consent screen**:
    - Choose the **External** user type and fill in the required fields.
-   - Under **Test users**, add your own Google address. If you skip this,
-     login fails with `403 access_denied`.
+   - Under **Test users**, add your own Google address. If you skip this, login
+     fails with `403 access_denied`.
 4. Go to **APIs & Services → Credentials → Create credentials → OAuth client
    ID**, choose **Desktop app**, then download the JSON file.
 5. Save it as `credentials.json` in the project directory.
@@ -97,8 +113,7 @@ cd uni-calendar-coloring
 pip install ".[tui]"      # or `pip install .` if you don't want the terminal UI
 ```
 
-This installs the `unical` command. `python -m unical`
-works too.
+This installs the `unical` command. `python -m unical` works too.
 
 ### 3. First run
 
@@ -110,18 +125,20 @@ Your browser opens so you can log in with Google, and the login is saved to
 `token.json`. Without a browser (WSL, SSH), the login URL is printed for you to
 open by hand.
 
-The [terminal UI](#terminal-ui) then guides you through the setup:
+When there is no `profile.json` yet, the [terminal UI](#terminal-ui) opens a
+short guide:
 
 1. **The calendar with your timetable**: pick it from your Google calendars.
-2. **The calendar to write to**: pick one, or keep the suggested new name. A
-   new calendar is only created when you apply the changes.
-3. **Recognizing your events**: see how the built-in Politecnico di Milano
-   rules classify your events, then keep them, adjust them, or start from
-   scratch in the Rules tab.
+2. **The calendar to write to**: pick one, or keep the suggested new name. A new
+   calendar is only created when you apply the changes.
+3. **Recognizing your events**: see how the built-in Politecnico di Milano rules
+   classify your events, then keep them, adjust them, or start from scratch in
+   the Rules tab.
 
 The guide ends on a preview of the changes. Nothing is written to Google
-Calendar until you apply them. Your choices are saved in `profile.json`, and
-the guide only runs while that file doesn't exist.
+Calendar until you apply them. Your choices are saved in `profile.json`, and the
+guide only runs while that file doesn't exist. Press `Escape` on the welcome
+screen to skip it.
 
 Without the terminal UI, create `profile.json` yourself with the two calendars
 (the rules and colors start from the built-in profile), then try a dry run:
@@ -144,10 +161,10 @@ your [iCal URL](#use-an-ical-url-as-the-source) instead. All settings are listed
 under [Configuration](#configuration).
 
 > [!IMPORTANT]
-> The colored calendar is a **copy** of the original calendar. In Google Calendar,
-> hide the original calendar (untick it in the sidebar) to avoid seeing
-> every event twice. If you use an iCal URL as the source, there is nothing to
-> hide.
+> The colored calendar is a **copy** of the original calendar. In Google
+> Calendar, hide the original calendar (untick it in the sidebar) to avoid
+> seeing every event twice. If you use an iCal URL as the source, there is
+> nothing to hide.
 
 ## Usage
 
@@ -161,12 +178,11 @@ unical lectures --no-tui
 unical deadlines --no-tui
 ```
 
-Run from a terminal, `unical` opens the [terminal UI](#terminal-ui).
-It falls back to a plain sync when there is no terminal (cron, CI, a pipe),
-when you pass `-i`, `-n`/`--dry-run` or `--no-tui`, or when the optional `tui`
-extra isn't installed. The plain sync is non-interactive. Anything new gets a
-color from the [coloring rules](#coloring-rules), and that color is saved for
-future runs.
+Run from a terminal, `unical` opens the [terminal UI](#terminal-ui). It falls
+back to a plain sync when there is no terminal (cron, CI, a pipe), when you pass
+`-i`, `-n`/`--dry-run` or `--no-tui`, or when the optional `tui` extra isn't
+installed. The plain sync is non-interactive: anything new gets a color from the
+[coloring rules](#coloring-rules), and that color is saved for future runs.
 
 Useful flags:
 
@@ -178,8 +194,8 @@ unical --prune-before 2026-02-01   # also delete synced events before this date
 ```
 
 `--prune-before` is handy for dropping past semesters. Flags can be combined,
-e.g. `unical lectures --dry-run -v`. The command exits with a non-zero
-status if any calendar operation fails.
+e.g. `unical lectures --dry-run -v`. The command exits with a non-zero status if
+any calendar operation fails.
 
 ### Terminal UI
 
@@ -188,23 +204,31 @@ unical
 unical exams          # only the Exams and Sync tabs
 ```
 
-`--tui` forces it even when the shell doesn't look interactive. The TUI needs the `tui` extra (`pip install ".[tui]"`). It opens with one tab
-per kind of event:
+`--tui` forces it even when the shell doesn't look interactive. It needs the
+`tui` extra (`pip install ".[tui]"`) and opens on the **Setup** tab, with one
+more tab per kind of event:
 
-| Tab           | What you can do                                                                                                                                                                                                                                                         |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Setup**     | The calendar to read from and the one to write to. Pick them from your Google calendars, or type a new name for the target: it's created when you apply, in the time zone set here. Saved to the profile right away. The same what-to-sync selector as in the Sync tab.                                                    |
-| **Courses**   | Every course in the source with its color. Pick a new color from the 11 Google colors.                                                                                                                                                                                  |
-| **Exams**     | Every exam session with its date, what the source calendar says (_enrolled_ / _not enrolled_), whether you're already subscribed to another date, and your subscription. Toggle the subscription or pick a color.                                                       |
-| **Deadlines** | Same as Courses, for deadlines.                                                                                                                                                                                                                                         |
-| **Sync**      | Choose what to color: everything, lectures only, exams only or deadlines only (the other tabs follow). **Preview changes** lists the inserts, updates and deletes; expand an event to see its color, time and original title. **Apply** writes them to Google Calendar with a live progress panel: a spinner, a bar, how many inserts, updates and deletes are written, and the time elapsed and left.                                                                                    |
-| **Rules**     | The [rules](#profile-and-rules) that decide what each event is, and the exam enrollment conditions. A live preview shows how every event title is classified. Add, edit, delete and reorder rules, or press Enter on an unmatched event to start a rule from its title. |
+| Tab           | What you can do                                                                                                                                                                                                                                       |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Setup**     | The calendar to read from, the one to write to, and the time zone of a new target calendar. Pick the calendars from your Google calendars, or type a new name for the target. Choices are saved right away. Also has the selector for what a sync covers. |
+| **Courses**   | Every course in the source with its color. Pick a new color from the 11 Google colors.                                                                                                                                                                |
+| **Exams**     | Every exam session with its date, what the source calendar says (_enrolled_ / _not enrolled_), whether you're already subscribed to another date, and your subscription. Toggle the subscription or pick a color.                                       |
+| **Deadlines** | Same as Courses, for deadlines.                                                                                                                                                                                                                       |
+| **Sync**      | Choose what to color: everything, lectures only, exams only or deadlines only (the other tabs follow). **Preview changes** lists the inserts, updates and deletes. **Apply** writes them to Google Calendar with a live progress panel.               |
+| **Rules**     | The [rules](#profile-and-rules) that decide what each event is, and the exam enrollment conditions. A live preview shows how every event title is classified.                                                                                         |
+
+In the Sync tab, expand an event in the preview to see its color, time and
+original title. While applying, the progress panel shows a spinner, a bar, how
+many inserts, updates and deletes are written, and the time elapsed and left.
+
+In the Rules tab, add, edit, delete and reorder rules, or press Enter on an
+unmatched event to start a rule from its title.
 
 The **Status** column shows where each value comes from:
 
 - **saved**: chosen earlier and stored in the profile.
-- **suggested**: not chosen yet, so the coloring rules decide. It's saved at
-  the next sync.
+- **suggested**: not chosen yet, so the coloring rules decide. It's saved at the
+  next sync.
 - **modified**: changed in this session and not saved yet.
 - **not set**: an exam with no enrollment information. Its color is left as is
   until you choose one.
@@ -224,8 +248,12 @@ The **Status** column shows where each value comes from:
 
 Toggling a subscription switches between the default red and grey. A custom
 color you picked for the exam is kept. Applying saves your preferences, just
-like a normal sync. If you edit something after a preview, preview again
-before applying.
+like a normal sync. If you edit something after a preview, preview again before
+applying.
+
+With an iCal URL the source can't be changed in the Setup tab. If
+`SOURCE_CALENDAR_NAME` or `TARGET_CALENDAR_NAME` is set, it replaces the saved
+calendar every time the tool starts, and the tab says so.
 
 ### Interactive prompts
 
@@ -237,8 +265,8 @@ unical exams -i
 Without the TUI you get a question-by-question flow before the sync: your
 subscription to each exam session, then a color for each course and deadline.
 The current choice is the default, so you can press Enter to keep it. Other
-dates of the same exam with no saved choice reuse your first answer. Add `--dry-run` to
-try choices without saving them.
+dates of the same exam with no saved choice reuse your first answer. Add
+`--dry-run` to try choices without saving them.
 
 ### Use an iCal URL as the source
 
@@ -256,14 +284,14 @@ SOURCE_ICAL_URL="https://ical.example.com/<id>/<token>"
 ```
 
 Recurring events (`RRULE`/`EXDATE`) are passed to Google, which expands them.
-Rules can match the feed's `CATEGORIES` with `"field": "category"`; the PoliMi
-profile uses them (`Lezione`, `Esame`, `Scadenza`) when the title prefixes are
-missing.
+Rules can match the feed's `CATEGORIES` with `"field": "category"`. The built-in
+PoliMi rules use them (`Lezione`, `Esame`, `Scadenza`) when the title prefixes
+are missing.
 
 > [!WARNING]
-> Treat the iCal URL like a password: anyone who has it can read your
-> timetable. Keep it in `.env` (which is gitignored) or in a CI secret, never
-> in `profile.json`. The tool never logs it; `-v` shows only the host with the
+> Treat the iCal URL like a password: anyone who has it can read your timetable.
+> Keep it in `.env` (which is gitignored) or in a CI secret, never in
+> `profile.json`. The tool never logs it; `-v` shows only the host with the
 > token redacted.
 
 ### Command reference
@@ -274,7 +302,7 @@ unical [all|exams|lectures|deadlines] [options]
 
 | Option                                            | Description                                                                           |
 | ------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `all` (default), `exams`, `lectures`, `deadlines` | Which kinds of events to sync; the others are left untouched.                                           |
+| `all` (default), `exams`, `lectures`, `deadlines` | Which kinds of events to sync; the others are left untouched.                         |
 | `--tui`                                           | Open the terminal UI (default in a terminal). Not with `-i`, `--dry-run`, `--no-tui`. |
 | `--no-tui`                                        | Run a plain sync instead of opening the terminal UI.                                  |
 | `-i`, `--interactive`                             | Ask about subscriptions and colors before syncing.                                    |
@@ -286,10 +314,10 @@ unical [all|exams|lectures|deadlines] [options]
 
 ## Profile and rules
 
-`profile.json` holds everything about your calendar: the calendars to sync,
-the rules that classify events, and the colors and subscriptions you chose.
-Without one, the tool starts from the built-in PoliMi profile and saves it on
-the first sync, so you can see and edit the rules.
+`profile.json` holds everything about your calendar: the calendars to sync, the
+rules that classify events, and the colors and subscriptions you chose. Without
+one, the tool starts from the built-in PoliMi profile and saves it on the first
+sync, so you can see and edit the rules.
 
 ```json
 {
@@ -340,17 +368,20 @@ the first sync, so you can see and edit the rules.
 }
 ```
 
+The example is shortened. The built-in profile has six rules: the title prefix
+and the iCal category of each kind of event.
+
 When the target calendar doesn't exist, the first sync creates it in
 `time_zone`, an [IANA time zone](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)
-such as `Europe/Rome`. With `null`, it gets the time zone of your primary
-Google calendar.
+such as `Europe/Rome`. With `null`, it gets the time zone of your primary Google
+calendar.
 
 ### Rules
 
 Rules are checked in order and the first one that matches decides the kind of
 the event. Events that match no rule are copied without a color. Without a
-`rules` key, the built-in PoliMi rules apply; `"rules": []` means no rules.
-The easiest way to write them is the **Rules** tab of the
+`rules` key, the built-in PoliMi rules apply; `"rules": []` means no rules. The
+easiest way to write them is the **Rules** tab of the
 [terminal UI](#terminal-ui), which shows live how each event is classified.
 
 | Key           | Values                                                                                     |
@@ -395,17 +426,17 @@ always win.
 | `exams`     | `{"<exam name> (<YYYY-MM-DD>)": {"color": "<id>", "subscribed": true}}` |
 | `deadlines` | `{"<deadline>": "<color id>"}`                                          |
 
-Color IDs are Google's: 1 Lavender, 2 Sage, 3 Grape, 4 Flamingo, 5 Banana,
-6 Tangerine, 7 Peacock, 8 Graphite, 9 Blueberry, 10 Basil, 11 Tomato. You can
-edit the file by hand. Invalid entries are skipped with a warning, and the file
-is written atomically, so an interrupted run can't corrupt it.
+Color IDs are Google's: 1 Lavender, 2 Sage, 3 Grape, 4 Flamingo, 5 Banana, 6
+Tangerine, 7 Peacock, 8 Graphite, 9 Blueberry, 10 Basil, 11 Tomato. You can edit
+the file by hand. Invalid entries are skipped with a warning, and the file is
+written atomically, so an interrupted run can't corrupt it.
 
 ## Configuration
 
 The calendars, rules and colors live in the [profile](#profile-and-rules). The
 optional settings below come from environment variables, usually set in `.env`
-(see `.env.example`). Relative paths are resolved from the directory you run
-the command in.
+(see `.env.example`). Relative paths are resolved from the directory you run the
+command in.
 
 | Variable               | Default            | Description                                     |
 | ---------------------- | ------------------ | ----------------------------------------------- |
@@ -421,11 +452,14 @@ the command in.
 The repository includes a workflow,
 [`.github/workflows/manual_sync.yml`](.github/workflows/manual_sync.yml), that
 syncs **every Monday at 06:00 UTC**. You can also run it from the **Actions**
-tab and choose the target, verbose output, or a dry run.
+tab and choose what to sync, verbose output, or a dry run.
 
-1. Log in locally once so that `token.json` exists, e.g. with
+1. Fork the repository and commit your own `profile.json` (the one in the
+   repository belongs to its author), or override the calendar names with the
+   secrets below.
+2. Log in locally once so that `token.json` exists, e.g. with
    `unical --dry-run`.
-2. In your fork, go to **Settings → Secrets and variables → Actions** and add
+3. In your fork, go to **Settings → Secrets and variables → Actions** and add
    these repository secrets:
 
    | Secret                 | Value                                                       |
@@ -441,8 +475,8 @@ repository, so colors you pick locally (and push) and colors the cloud run
 assigns stay in sync.
 
 > [!NOTE]
-> While your OAuth app is in **Testing** mode, Google expires the login after
-> 7 days. The cloud run can't open a browser, so it then fails with a "login
+> While your OAuth app is in **Testing** mode, Google expires the login after 7
+> days. The cloud run can't open a browser, so it then fails with a "login
 > required" message. Run the tool locally to log in again and update the
 > `GCP_TOKEN_JSON` secret.
 
@@ -457,11 +491,18 @@ assigns stay in sync.
 | `Could not download iCal feed`                            | The iCal URL may have expired or been revoked. Generate a new one.                                           |
 | `The terminal UI needs the optional 'textual' dependency` | Run `pip install ".[tui]"`.                                                                                  |
 | Login keeps expiring after a week                         | That's Google's Testing mode: log in again locally (and update `GCP_TOKEN_JSON` if you use GitHub Actions).  |
+| Some events have no color                                 | They match no rule. Check the Rules tab, where unmatched titles are listed.                                  |
 
-> Upgrading from an older version? `token.pickle` is migrated to `token.json`
-> automatically, and the old `GCP_TOKEN_PICKLE_B64` secret is still accepted.
-> Events synced by older versions carry an older tag: the next sync updates
-> each of them once to the current tag, then they're left alone again.
+## Upgrading
+
+- **The command was renamed** from `calendar-coloring` to `unical`, and the
+  Python package from `calendar_coloring` to `unical`. Reinstall with
+  `pip install ".[tui]"`, and update scripts and cron jobs. `profile.json`,
+  `token.json` and the events already in your target calendar keep working.
+- `token.pickle` is migrated to `token.json` automatically, and the old
+  `GCP_TOKEN_PICKLE_B64` secret is still accepted.
+- Events synced by older versions carry an older tag: the next sync updates each
+  of them once to the current tag, then they're left alone again.
 
 ## Development
 
@@ -481,8 +522,8 @@ coverage.
 
 The core never prints, prompts or touches the network directly. It depends on
 small interfaces (ports) that the adapters implement, so the CLI, the
-interactive prompts and the TUI are all thin frontends over the same
-discover → preferences → plan → apply phases.
+interactive prompts and the TUI are all thin frontends over the same discover →
+preferences → plan → apply phases.
 
 ```
 src/unical/
@@ -491,6 +532,7 @@ src/unical/
 ├── rules.py           # Classification rules: event → exam/lecture/deadline + name
 ├── presets.py         # Built-in rules (Politecnico di Milano)
 ├── profile.py         # Profile model + JSON repository (atomic writes)
+├── targets.py         # SyncTarget: which kinds of events a run covers
 ├── catalog.py         # Discover: courses, exam sessions and deadlines in the source
 ├── preferences.py     # Preferences model: colors and exam subscriptions
 ├── suggestions.py     # Pure rules for default colors and subscriptions
@@ -515,7 +557,10 @@ src/unical/
 │   └── ansi.py        # ANSI styling helpers
 └── tui/               # Optional: pip install ".[tui]"
     ├── model.py       # View model of the editor (pure Python, no Textual)
-    ├── widgets.py     # Color picker, plan tree, swatches
+    ├── setup.py       # Setup tab model: calendars, overrides, first run
+    ├── rules.py       # Rules tab model: live classification preview
+    ├── widgets.py     # Color picker, calendar picker, plan tree, progress
+    ├── wizard.py      # First-run welcome and rules check screens
     └── app.py         # Textual app: tabs, workers, reporter
 ```
 
