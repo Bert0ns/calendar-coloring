@@ -2,11 +2,13 @@ import runpy
 import sys
 from dataclasses import replace
 from datetime import date
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 from conftest import FakeCalendarGateway, save_profile, saved
 
+from unical import config as config_mod
 from unical.auth import (
     CredentialsFileNotFoundError,
     LoginRequiredError,
@@ -228,12 +230,31 @@ def test_main_wires_everything(isolated_env, fake_auth, monkeypatch) -> None:
     assert cli.main(["lectures"]) == cli.EXIT_OK
 
     kwargs = fake_auth.call_args.kwargs
-    assert str(kwargs["token_path"]) == "token.json"
-    assert str(kwargs["legacy_token_path"]) == "token.pickle"
+    assert kwargs["token_path"] == config_mod.default_config_dir() / "token.json"
+    assert (
+        kwargs["legacy_token_path"] == config_mod.default_config_dir() / "token.pickle"
+    )
     assert gateway.created == ["Calendar Colored"]
-    assert saved(Config(profile_path=isolated_env / "profile.json"), "courses") == {
-        "CS": suggest_color("CS").color_id
-    }
+    assert saved(
+        Config(profile_path=config_mod.default_config_dir() / "profile.json"), "courses"
+    ) == {"CS": suggest_color("CS").color_id}
+
+
+def test_main_wires_everything_preserves_cwd_files(
+    isolated_env, fake_auth, monkeypatch
+) -> None:
+    (isolated_env / "token.json").touch()
+    (isolated_env / "token.pickle").touch()
+    (isolated_env / "profile.json").touch()
+    gateway = FakeCalendarGateway({"Calendar": SOURCE})
+    install_gateway(monkeypatch, gateway)
+
+    assert cli.main(["lectures"]) == cli.EXIT_OK
+
+    kwargs = fake_auth.call_args.kwargs
+    assert kwargs["token_path"] == Path("token.json")
+    assert kwargs["legacy_token_path"] == Path("token.pickle")
+    assert gateway.created == ["Calendar Colored"]
 
 
 def test_main_reads_the_calendars_from_the_profile(

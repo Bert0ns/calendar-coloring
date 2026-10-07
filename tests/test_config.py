@@ -1,22 +1,47 @@
 from pathlib import Path
 
-from unical.config import Config
+import platformdirs
+import pytest
+
+from unical import config as config_mod
+from unical.config import Config, default_config_dir, resolve_config_path
 from unical.profile import CalendarSettings
 
 
-def test_defaults() -> None:
+def test_defaults_without_cwd_files() -> None:
     config = Config.from_env({})
     assert config == Config()
     assert config.source_calendar_name is None
     assert config.target_calendar_name is None
+    expected_dir = config_mod.default_config_dir()
+    assert config.credentials_path == expected_dir / "credentials.json"
+    assert config.token_path == expected_dir / "token.json"
+    assert config.legacy_token_path == expected_dir / "token.pickle"
+    assert config.profile_path == expected_dir / "profile.json"
+    assert config.source_ical_url is None
+
+
+def test_defaults_with_cwd_files(tmp_path: Path) -> None:
+    Path("credentials.json").touch()
+    Path("token.json").touch()
+    Path("token.pickle").touch()
+    Path("profile.json").touch()
+
+    config = Config.from_env({})
+    assert config == Config()
     assert config.credentials_path == Path("credentials.json")
     assert config.token_path == Path("token.json")
     assert config.legacy_token_path == Path("token.pickle")
     assert config.profile_path == Path("profile.json")
-    assert config.source_ical_url is None
 
 
 def test_reads_every_setting_from_env() -> None:
+    # Even if files exist in CWD, explicit environment variables must take precedence.
+    Path("credentials.json").touch()
+    Path("token.json").touch()
+    Path("token.pickle").touch()
+    Path("profile.json").touch()
+
     config = Config.from_env(
         {
             "SOURCE_CALENDAR_NAME": "Src",
@@ -36,6 +61,52 @@ def test_reads_every_setting_from_env() -> None:
         token_path=Path("/a/t.json"),
         legacy_token_path=Path("/a/t.pickle"),
         profile_path=Path("/a/p.json"),
+    )
+
+
+def test_mixed_resolution_order() -> None:
+    # 1. CREDENTIALS_PATH from env
+    # 2. profile.json from CWD
+    # 3. token.json and token.pickle from default config directory
+    Path("profile.json").touch()
+    expected_dir = config_mod.default_config_dir()
+
+    config = Config.from_env({"CREDENTIALS_PATH": "/custom/credentials.json"})
+    assert config.credentials_path == Path("/custom/credentials.json")
+    assert config.profile_path == Path("profile.json")
+    assert config.token_path == expected_dir / "token.json"
+    assert config.legacy_token_path == expected_dir / "token.pickle"
+
+
+def test_resolve_config_path_explicit_cwd_and_config_dir(tmp_path: Path) -> None:
+    cwd = tmp_path / "work"
+    cwd.mkdir()
+    cfg_dir = tmp_path / "cfg"
+    cfg_dir.mkdir()
+
+    # Env set
+    assert resolve_config_path(
+        "/env/file.json", "file.json", cwd=cwd, config_dir=cfg_dir
+    ) == Path("/env/file.json")
+
+    # CWD file exists
+    (cwd / "file.json").touch()
+    assert (
+        resolve_config_path(None, "file.json", cwd=cwd, config_dir=cfg_dir)
+        == cwd / "file.json"
+    )
+
+    # Fallback to config_dir when not in CWD
+    assert (
+        resolve_config_path(None, "other.json", cwd=cwd, config_dir=cfg_dir)
+        == cfg_dir / "other.json"
+    )
+
+
+def test_default_config_dir_unpatched(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.undo()
+    assert default_config_dir() == platformdirs.user_config_path(
+        "unical", appauthor=False
     )
 
 
