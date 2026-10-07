@@ -48,15 +48,22 @@ command-line flags, or on a weekly schedule with GitHub Actions.
 
 ## Quick start
 
+Run without manual virtual environments using `uvx`:
+
 ```bash
-git clone https://github.com/Bert0ns/uni-calendar-coloring.git
-cd uni-calendar-coloring
-pip install .
-# save your Google OAuth client as credentials.json (see Setup below)
-unical
+uvx uni-calendar-coloring
+# or directly from GitHub:
+uvx --from git+https://github.com/Bert0ns/uni-calendar-coloring.git unical
 ```
 
-The terminal UI opens and guides you through the first run. Nothing is written
+Or run standalone pre-built binaries (no Python required):
+
+```bash
+# Download binary from GitHub Releases for your OS, make executable, and run:
+./unical
+```
+
+The terminal UI opens and guides you through the first run and credentials setup. Nothing is written
 to Google Calendar until you apply the changes.
 
 ## How it works
@@ -93,8 +100,7 @@ The sync is safe to repeat:
 
 ## Setup
 
-You need **Python 3.12+** and a Google account. The tool runs under your own
-Google Cloud OAuth client, so nobody else ever sees your calendar.
+You need a Google account (and **Python 3.12+** if installing via `uv`, `pipx`, or source; standalone pre-built binaries require no Python runtime). The tool runs under your own Google Cloud OAuth client, so nobody else ever sees your calendar.
 
 ### 1. Create Google API credentials
 
@@ -114,6 +120,62 @@ Google Cloud OAuth client, so nobody else ever sees your calendar.
    (Alternatively, save it as `credentials.json` in your working directory, or simply launch `unical` and let the interactive setup wizard prompt you for the file).
 
 ### 2. Install
+
+Choose the installation method that best suits your environment:
+
+#### Standalone Executable (Recommended - No Python Required)
+
+Pre-built single-file executables are automatically generated and attached to each [GitHub Release](https://github.com/Bert0ns/uni-calendar-coloring/releases):
+
+- **Linux (x86_64)**: `unical-linux-x86_64` (or `unical-linux-x86_64.tar.gz`)
+- **macOS (Universal - Apple Silicon & Intel)**: `unical-macos-universal` (or `unical-macos-universal.tar.gz`)
+- **Windows (x86_64)**: `unical-windows-x86_64.exe` (or `unical-windows-x86_64.zip`)
+
+On Linux / macOS:
+```bash
+curl -LO https://github.com/Bert0ns/uni-calendar-coloring/releases/latest/download/unical-linux-x86_64
+chmod +x unical-linux-x86_64
+mkdir -p ~/.local/bin
+mv unical-linux-x86_64 ~/.local/bin/unical
+```
+
+On Windows:
+Download `unical-windows-x86_64.exe` (or unzip `unical-windows-x86_64.zip`), rename to `unical.exe`, and run it from PowerShell or Command Prompt.
+
+#### Modern CLI Tool Managers (uv / pipx)
+
+Installs `unical` in an isolated environment and makes the command available system-wide:
+
+**Using [uv](https://docs.astral.sh/uv/) (fastest):**
+```bash
+# Install from PyPI:
+uv tool install uni-calendar-coloring
+
+# Or install directly from the Git repository:
+uv tool install git+https://github.com/Bert0ns/uni-calendar-coloring.git
+
+# Or run ephemerally with uvx:
+uvx uni-calendar-coloring
+```
+
+**Using [pipx](https://pypa.github.io/pipx/):**
+```bash
+# Install from PyPI:
+pipx install uni-calendar-coloring
+
+# Or install directly from the Git repository:
+pipx install git+https://github.com/Bert0ns/uni-calendar-coloring.git
+```
+
+#### Homebrew (macOS / Linux)
+
+```bash
+brew install Bert0ns/tap/unical
+```
+
+#### From Source (Git clone / Virtualenv)
+
+For contributors and developers:
 
 ```bash
 git clone https://github.com/Bert0ns/uni-calendar-coloring.git
@@ -534,11 +596,19 @@ assigns stay in sync.
 
 ```bash
 pip install -e ".[dev]"
-pytest          # unit, golden regression and Textual pilot tests
+pytest          # unit, golden regression, Textual pilot and packaging tests
 mypy            # strict type checking
 ruff check .    # linting
 black .         # formatting
 pre-commit install
+
+# Build standalone single-file binary with PyInstaller:
+pyinstaller packaging/unical.spec
+./dist/unical --help
+
+# Build distribution wheels & sdist:
+python -m build
+twine check dist/*
 ```
 
 CI runs all of the above on Python 3.12 and 3.14 and requires 95% test
