@@ -69,6 +69,7 @@ from calendar_coloring.tui.widgets import (
     plan_summary,
     swatch,
 )
+from calendar_coloring.tui.wizard import RulesChoice, WizardIntro, WizardRules
 from calendar_coloring.workflow import SyncOptions, SyncWorkflow
 
 Level = Literal["detail", "info", "warning", "error"]
@@ -417,7 +418,10 @@ class CalendarColoringApp(App[None]):
     def on_mount(self) -> None:
         self._ui.query_one("#progress").display = False
         self._refresh_setup()
-        self.load_session()
+        if self.setup.first_run:
+            self.run_wizard()
+        else:
+            self.load_session()
 
     # -- state ---------------------------------------------------------------
 
@@ -796,6 +800,15 @@ class CalendarColoringApp(App[None]):
 
     @work(exclusive=True, group="calendar")
     async def choose_calendar(self, role: Role) -> None:
+        calendars = await self._list_calendars()
+        if calendars is not None:
+            self.push_screen(
+                self._calendar_picker(role, calendars),
+                partial(self._calendar_chosen, role),
+            )
+
+    async def _list_calendars(self) -> list[CalendarInfo] | None:
+        """The user's calendars (fetched once), or ``None`` if they can't be."""
         if self._calendar_list is None:
             self._set_busy(True)
             try:
@@ -804,26 +817,106 @@ class CalendarColoringApp(App[None]):
                 )
             except Exception as exc:
                 self._write_log("error", f"Could not list your calendars: {exc}")
-                return
+                return None
             finally:
                 self._set_busy(False)
-        calendars = self._calendar_list
+        return self._calendar_list
+
+    def _calendar_picker(
+        self,
+        role: Role,
+        calendars: list[CalendarInfo],
+        title: str | None = None,
+        explanation: str = "",
+        new_name: str = "",
+    ) -> CalendarPicker:
         fixed = self.setup.fixed_source is not None
         choices = calendar_choices(calendars, role, self.calendars, fixed)
         if role is Role.SOURCE:
-            picker = CalendarPicker("Calendar to read from", choices)
-        else:
-            picker = CalendarPicker(
-                "Calendar to write to",
-                choices,
-                partial(
-                    target_name_error,
-                    calendars=calendars,
-                    current=self.calendars,
-                    fixed_source=fixed,
-                ),
+            return CalendarPicker(
+                title or "Calendar to read from", choices, explanation=explanation
             )
-        self.push_screen(picker, partial(self._calendar_chosen, role))
+        return CalendarPicker(
+            title or "Calendar to write to",
+            choices,
+            partial(
+                target_name_error,
+                calendars=calendars,
+                current=self.calendars,
+                fixed_source=fixed,
+            ),
+            new_name=new_name,
+            explanation=explanation,
+        )
+
+    # -- first run -----------------------------------------------------------
+
+    @work(group="wizard")
+    async def run_wizard(self) -> None:
+        """Guided setup: source calendar, target calendar, rules, preview.
+
+        Leaving a step (Escape) ends the guide: the app then works as usual,
+        with what was chosen so far.
+        """
+        if not await self.push_screen_wait(WizardIntro()):
+            self.load_session()
+            return
+        if self.setup.fixed_source is None:
+            calendars = await self._list_calendars()
+            source = None
+            if calendars is not None:
+                source = await self.push_screen_wait(
+                    self._calendar_picker(
+                        Role.SOURCE,
+                        calendars,
+                        title="Step 1 · The calendar with your timetable",
+                        explanation=(
+                            "The read-only calendar of your university, as you "
+                            "subscribed to it in Google Calendar."
+                        ),
+                    )
+                )
+            # Picking the current source also saves it, creating the profile.
+            await self.load_session(source_name=source).wait()
+        else:
+            await self.load_session().wait()
+        if self.draft is None:
+            return
+        calendars = await self._list_calendars()
+        if calendars is None:
+            return
+        target = await self.push_screen_wait(
+            self._calendar_picker(
+                Role.TARGET,
+                calendars,
+                title="Step 2 · The calendar to write the colored copy to",
+                explanation=(
+                    "Pick one of your calendars, or keep the new name: the "
+                    "calendar is created when you apply the changes."
+                ),
+                new_name=f"{self.calendars.source} Colored",
+            )
+        )
+        if target is None:
+            return
+        if target != self.calendars.target:
+            self._commit_calendar(Role.TARGET, target)
+        draft = self.draft
+        choice = await self.push_screen_wait(
+            WizardRules(draft.session.profile.name, self._title_previews)
+        )
+        tabs = self._ui.query_one(TabbedContent)
+        if choice is RulesChoice.KEEP:
+            self.notify("All set: review the changes, then press a to apply them.")
+            self.action_preview()
+            return
+        if choice is RulesChoice.EMPTY:
+            self._set_rules([], cursor=0)
+        tabs.active = RULES
+        self.notify(
+            "Write the rules for your calendar: press n for a new rule, or Enter "
+            "on an event. Then preview the changes with p."
+        )
 
     def _calendar_chosen(self, role: Role, name: str | None) -> None:
         if name is None or name == getattr(self.calendars, role.value):

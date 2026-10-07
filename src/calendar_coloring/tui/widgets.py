@@ -203,6 +203,10 @@ class CalendarPicker(ModalScreen[str | None]):
     CalendarPicker #calendar-error {
         color: $error;
     }
+    CalendarPicker .picker-explanation {
+        color: $text-muted;
+        margin-bottom: 1;
+    }
     """
 
     def __init__(
@@ -210,15 +214,25 @@ class CalendarPicker(ModalScreen[str | None]):
         title: str,
         choices: Sequence[CalendarChoice],
         validate_new: Callable[[str], str | None] | None = None,
+        new_name: str = "",
+        explanation: str = "",
     ) -> None:
+        """
+        :param new_name: prefills the new calendar name.
+        :param explanation: shown under the title.
+        """
         super().__init__()
         self.title_text = title
         self.choices = list(choices)
         self.validate_new = validate_new
+        self.new_name = new_name
+        self.explanation = explanation
 
     def compose(self) -> ComposeResult:
         with Vertical():
             yield Label(Text(self.title_text, style="bold"))
+            if self.explanation:
+                yield Static(self.explanation, classes="picker-explanation")
             if self.choices:
                 yield OptionList(
                     *(
@@ -237,6 +251,7 @@ class CalendarPicker(ModalScreen[str | None]):
                 yield Label(Text("No calendars found.", style="dim"))
             if self.validate_new is not None:
                 yield Input(
+                    self.new_name,
                     placeholder="…or type the name of a new calendar",
                     id="new-calendar",
                 )

@@ -30,6 +30,8 @@ class CalendarSetup:
     source can't be changed from the TUI then."""
     overrides: Mapping[Role, str] = field(default_factory=dict)
     """Environment variables that override the calendars saved in the profile."""
+    first_run: bool = False
+    """True when there is no profile yet: the app opens the guided setup."""
 
 
 @dataclass(frozen=True)
