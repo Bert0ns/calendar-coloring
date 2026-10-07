@@ -439,17 +439,25 @@ written atomically, so an interrupted run can't corrupt it.
 
 The calendars, rules and colors live in the [profile](#profile-and-rules). The
 optional settings below come from environment variables, usually set in `.env`
-(see `.env.example`). Relative paths are resolved from the directory you run the
-command in.
+(see `.env.example`).
 
-| Variable               | Default            | Description                                     |
-| ---------------------- | ------------------ | ----------------------------------------------- |
-| `PROFILE_PATH`         | `profile.json`     | The profile.                                    |
-| `SOURCE_CALENDAR_NAME` | _(the profile's)_  | Overrides the calendar to read from.            |
-| `TARGET_CALENDAR_NAME` | _(the profile's)_  | Overrides the calendar to write to.             |
-| `SOURCE_ICAL_URL`      | _(unset)_          | Read from this iCal feed instead of a calendar. |
-| `CREDENTIALS_PATH`     | `credentials.json` | OAuth client downloaded from Google Cloud.      |
-| `TOKEN_PATH`           | `token.json`       | Cached Google login.                            |
+Configuration and credential paths (`PROFILE_PATH`, `CREDENTIALS_PATH`, `TOKEN_PATH`)
+are resolved in this order:
+1. Explicit environment variable (relative paths resolved from current working directory).
+2. Current working directory (`./credentials.json`, `./profile.json`, etc.) if the file exists.
+3. Standard user configuration directory for your platform:
+   - **Linux**: `~/.config/unical/` (or `$XDG_CONFIG_HOME/unical/`)
+   - **macOS**: `~/Library/Application Support/unical/`
+   - **Windows**: `%APPDATA%\unical\`
+
+| Variable               | Default                          | Description                                     |
+| ---------------------- | -------------------------------- | ----------------------------------------------- |
+| `PROFILE_PATH`         | `profile.json` or config dir     | The profile.                                    |
+| `SOURCE_CALENDAR_NAME` | _(the profile's)_                | Overrides the calendar to read from.            |
+| `TARGET_CALENDAR_NAME` | _(the profile's)_                | Overrides the calendar to write to.             |
+| `SOURCE_ICAL_URL`      | _(unset)_                        | Read from this iCal feed instead of a calendar. |
+| `CREDENTIALS_PATH`     | `credentials.json` or config dir | OAuth client downloaded from Google Cloud.      |
+| `TOKEN_PATH`           | `token.json` or config dir       | Cached Google login.                            |
 
 ## Run it in the cloud with GitHub Actions
 

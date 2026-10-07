@@ -113,6 +113,8 @@ def _isolate_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Run every test in a temp dir so nothing touches the repo's real state
     files (course_colors.json, exam_states.json, ...)."""
     monkeypatch.chdir(tmp_path)
+    config_dir = tmp_path / "user_config" / "unical"
+    monkeypatch.setattr("unical.config.default_config_dir", lambda: config_dir)
 
 
 @pytest.fixture
