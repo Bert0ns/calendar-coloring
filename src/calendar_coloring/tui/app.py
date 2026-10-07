@@ -25,7 +25,6 @@ from textual.widgets import (
     DataTable,
     Footer,
     Header,
-    ProgressBar,
     RichLog,
     Select,
     Static,
@@ -67,6 +66,7 @@ from calendar_coloring.tui.widgets import (
     ColorPicker,
     PlanTree,
     RuleEditor,
+    SyncProgress,
     TextPrompt,
     plan_summary,
     swatch,
@@ -260,6 +260,7 @@ class CalendarColoringApp(App[None]):
         border: round $panel;
     }
     #progress {
+        height: auto;
         padding: 0 1;
     }
     #log {
@@ -409,7 +410,7 @@ class CalendarColoringApp(App[None]):
                     id="plan-summary",
                 )
                 yield PlanTree(id="plan-tree")
-                yield ProgressBar(id="progress", show_eta=False)
+                yield SyncProgress(id="progress")
                 yield RichLog(id="log", wrap=True)
             with TabPane("Rules", id=RULES):
                 yield Static(
@@ -1116,9 +1117,8 @@ class CalendarColoringApp(App[None]):
         assert self.draft is not None and self.plan is not None
         draft, plan = self.draft, self.plan
         self._set_busy(True)
-        progress = self._ui.query_one(ProgressBar)
-        progress.update(total=len(plan.mutations) or 1, progress=0)
-        progress.display = True
+        progress = self._ui.query_one(SyncProgress)
+        progress.start(plan)
         try:
             # Same as a CLI sync: what the user never chose is filled in by the
             # automatic rules (the preview already showed it) and saved.
@@ -1132,7 +1132,7 @@ class CalendarColoringApp(App[None]):
             self._write_log("error", f"Could not apply the changes: {exc}")
             return
         finally:
-            progress.display = False
+            progress.stop()
             self._set_busy(False)
             self._refresh_tables()
         self._set_plan(None)
@@ -1143,6 +1143,4 @@ class CalendarColoringApp(App[None]):
         self.post_message(ApplyProgress(completed, total))
 
     def on_apply_progress(self, message: ApplyProgress) -> None:
-        self._ui.query_one(ProgressBar).update(
-            total=message.total, progress=message.completed
-        )
+        self._ui.query_one(SyncProgress).advance(message.completed)

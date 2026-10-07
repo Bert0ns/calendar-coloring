@@ -1,4 +1,5 @@
 import asyncio
+import threading
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -15,7 +16,6 @@ from textual.widgets import (
     Input,
     Label,
     OptionList,
-    ProgressBar,
     RichLog,
     Select,
     Static,
@@ -28,6 +28,7 @@ from calendar_coloring.palette import GoogleColor
 from calendar_coloring.profile import CalendarSettings
 from calendar_coloring.rules import EventKind, MatchKind
 from calendar_coloring.suggestions import suggest_color
+from calendar_coloring.sync.models import Mutation, MutationAction, SyncPlan
 from calendar_coloring.sync.source import GoogleCalendarSource
 from calendar_coloring.targets import SyncTarget
 from calendar_coloring.tui.app import CalendarColoringApp, TuiReporter
@@ -37,7 +38,9 @@ from calendar_coloring.tui.widgets import (
     ColorPicker,
     PlanTree,
     RuleEditor,
+    SyncProgress,
     TextPrompt,
+    progress_text,
 )
 from calendar_coloring.tui.wizard import WizardIntro, WizardRules
 from calendar_coloring.workflow import SyncOptions
@@ -431,11 +434,93 @@ def test_apply_reports_progress_and_failures(config: Config) -> None:
         await settle(app, pilot)
         await pilot.press("a")
         await settle(app, pilot)
-        progress = app.query_one(ProgressBar)
-        assert (progress.progress, progress.total) == (5, 5)
+        progress = app.query_one(SyncProgress)
+        assert progress.completed == 5
         assert not progress.display
         assert "1 failure(s)" in summary_text(app)
         assert "Failed to insert 'CS': boom" in await log_text(app, pilot)
+
+    drive(app, scenario)
+
+
+PLAN = SyncPlan(
+    target_calendar_id="tgt",
+    mutations=(
+        *(Mutation(MutationAction.INSERT, f"i{n}", "New") for n in range(4)),
+        *(Mutation(MutationAction.UPDATE, f"u{n}", "Old") for n in range(4)),
+        Mutation(MutationAction.DELETE, "d0", "Gone"),
+        Mutation(MutationAction.DELETE, "d1", "Gone"),
+    ),
+)
+
+
+def test_progress_text_counts_each_kind_of_change() -> None:
+    text = progress_text(PLAN, completed=6, elapsed=3).plain
+    assert "Writing changes..." in text
+    assert "6/10  60%" in text
+    assert "+ 4/4 insert  ~ 2/4 update  - 0/2 delete" in text
+    assert "0:03 elapsed · about 0:02 left" in text
+
+
+def test_progress_text_before_the_first_batch_is_indeterminate() -> None:
+    text = progress_text(PLAN, completed=0, elapsed=0).plain
+    assert "Writing the first changes..." in text
+    assert "left" not in text
+    assert "%" not in text
+    new_calendar = SyncPlan(target_calendar_id=None, mutations=PLAN.mutations)
+    assert "Creating the target calendar" in progress_text(new_calendar, 0, 0).plain
+
+
+def test_progress_text_animates_and_finishes() -> None:
+    bars = {progress_text(PLAN, 0, n / 12).plain.splitlines()[1] for n in range(40)}
+    assert len(bars) > 10  # the pulse moves
+    spinners = {progress_text(PLAN, 5, n / 12).plain[0] for n in range(10)}
+    assert len(spinners) == 10
+    done = progress_text(PLAN, 10, 7).plain
+    assert "Wrapping up..." in done
+    assert "left" not in done
+    assert "+ 4/4 insert  ~ 4/4 update  - 2/2 delete" in done
+
+
+def test_the_progress_is_shown_while_applying(config: Config) -> None:
+    gateway = FakeCalendarGateway({"Src": SOURCE, "Tgt": []})
+    app = make_app(config, gateway)
+    halfway = threading.Event()
+    resume = threading.Event()
+
+    async def scenario(app: CalendarColoringApp, pilot: Pilot[None]) -> None:
+        apply = app.workflow.apply
+
+        def slow_apply(session: Any, plan: Any, on_progress: Any) -> Any:
+            def stalled(completed: int, total: int) -> None:
+                on_progress(2, total)
+                halfway.set()
+                resume.wait(5)
+
+            return apply(session, plan, stalled)
+
+        app.workflow.apply = slow_apply  # type: ignore[method-assign]
+        await pilot.press("p")
+        await settle(app, pilot)
+        progress = app.query_one(SyncProgress)
+        assert not progress.display
+
+        await pilot.press("a")
+        await until(pilot, lambda: halfway.is_set() and progress.completed == 2)
+        assert progress.display
+        shown = str(progress.render())
+        assert "Writing changes..." in shown
+        assert "2/5  40%" in shown
+        assert "+ 2/5 insert" in shown
+        first_frame = shown.splitlines()[0]
+        await until(
+            pilot, lambda: str(progress.render()).splitlines()[0] != first_frame
+        )
+
+        resume.set()
+        await settle(app, pilot)
+        assert not progress.display
+        assert "✔ Sync finished" in summary_text(app)
 
     drive(app, scenario)
 

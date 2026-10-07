@@ -1,8 +1,9 @@
 """Reusable TUI pieces: color swatches, the color and calendar pickers, the
-rule editor and the plan view."""
+rule editor, the plan view and the apply progress."""
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable, Sequence
 from typing import ClassVar
 
@@ -11,6 +12,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding, BindingType
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
+from textual.timer import Timer
 from textual.widgets import (
     Button,
     Checkbox,
@@ -525,6 +527,107 @@ def _mutation_details(mutation: Mutation, decision: EventDecision | None) -> lis
     if body.get("recurrence"):
         details.append(Text("Recurring event"))
     return details
+
+
+_SPINNER = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+_FRAMES_PER_SECOND = 12
+_BAR_WIDTH = 32
+_PULSE_WIDTH = 8
+
+
+def _clock(seconds: float) -> str:
+    minutes, seconds = divmod(int(seconds), 60)
+    return f"{minutes}:{seconds:02d}"
+
+
+def progress_text(plan: SyncPlan, completed: int, elapsed: float) -> Text:
+    """What the Sync tab shows while ``plan`` is applied: a spinner, a bar, how
+    many changes of each kind are written, and the time elapsed and left.
+
+    Mutations are written in plan order, so ``completed`` tells which ones are.
+    """
+    total = len(plan.mutations)
+    frame = int(elapsed * _FRAMES_PER_SECOND)
+    if completed == 0:
+        # Nothing reported yet: the first batch is on its way.
+        step = frame % (2 * (_BAR_WIDTH - _PULSE_WIDTH))
+        start = min(step, 2 * (_BAR_WIDTH - _PULSE_WIDTH) - step)
+        bar = Text("─" * start, style="dim")
+        bar.append("━" * _PULSE_WIDTH, style="green")
+        bar.append("─" * (_BAR_WIDTH - _PULSE_WIDTH - start), style="dim")
+        status = (
+            "Creating the target calendar, then writing"
+            if (plan.target_calendar_id is None)
+            else "Writing"
+        )
+        phase = f"{status} the first changes..."
+        figures = Text("")
+    else:
+        filled = _BAR_WIDTH * completed // total
+        bar = Text("━" * filled, style="green")
+        bar.append("─" * (_BAR_WIDTH - filled), style="dim")
+        phase = "Wrapping up..." if completed == total else "Writing changes..."
+        figures = Text(f"  {completed}/{total}  {100 * completed // total}%")
+
+    text = Text.assemble(
+        (f"{_SPINNER[frame % len(_SPINNER)]} ", "bold green"),
+        (phase, "bold"),
+        "\n",
+        bar,
+        figures,
+        "\n",
+    )
+    done = plan.mutations[:completed]
+    for action, (sign, label, style) in ACTION_STYLES.items():
+        planned = plan.count(action)
+        if planned:
+            written = sum(1 for m in done if m.action is action)
+            text.append(f"{sign} {written}/{planned} {label.lower()}  ", style=style)
+    text.append(f"· {_clock(elapsed)} elapsed", style="dim")
+    if 0 < completed < total:
+        text.append(
+            f" · about {_clock(elapsed * (total - completed) / completed)} left",
+            style="dim",
+        )
+    return text
+
+
+class SyncProgress(Static):
+    """Animated progress of applying a plan: see :func:`progress_text`."""
+
+    def __init__(self, id: str | None = None) -> None:
+        super().__init__(id=id)
+        self.plan = SyncPlan(target_calendar_id=None)
+        self.completed = 0
+        self._started = 0.0
+        self._timer: Timer | None = None
+
+    def on_mount(self) -> None:
+        self._timer = self.set_interval(
+            1 / _FRAMES_PER_SECOND, self._refresh_text, pause=True
+        )
+
+    def start(self, plan: SyncPlan) -> None:
+        self.plan = plan
+        self.completed = 0
+        self._started = time.monotonic()
+        self._refresh_text()
+        if self._timer is not None:
+            self._timer.resume()
+        self.display = True
+
+    def advance(self, completed: int) -> None:
+        self.completed = completed
+        self._refresh_text()
+
+    def stop(self) -> None:
+        if self._timer is not None:
+            self._timer.pause()
+        self.display = False
+
+    def _refresh_text(self) -> None:
+        elapsed = time.monotonic() - self._started
+        self.update(progress_text(self.plan, self.completed, elapsed))
 
 
 class PlanTree(Tree[None]):
