@@ -19,7 +19,8 @@ colors and exam subscriptions the student chose. It is stored in one JSON file::
         },
         "courses": {"<course>": "<color id>"},
         "exams": {"<exam> (<YYYY-MM-DD>)": {"color": "<color id>", "subscribed": true}},
-        "deadlines": {"<deadline>": "<color id>"}
+        "deadlines": {"<deadline>": "<color id>"},
+        "custom_events": []
     }
 
 The iCal URL is deliberately not part of the profile: it is a secret, and the
@@ -38,6 +39,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from unical.custom_events import CustomEvent
 from unical.palette import GoogleColor
 from unical.preferences import ExamPreference, Preferences
 from unical.presets import POLIMI_ENROLLMENT, POLIMI_NAME, POLIMI_RULES
@@ -78,6 +80,7 @@ class Profile:
     rules: list[Rule] = field(default_factory=list)
     enrollment: EnrollmentRules = field(default_factory=EnrollmentRules)
     preferences: Preferences = field(default_factory=Preferences)
+    custom_events: list[CustomEvent] = field(default_factory=list)
 
     @property
     def classifier(self) -> Classifier:
@@ -181,6 +184,7 @@ class JsonProfileRepository:
                     self._section(raw, "deadlines"), "deadline"
                 ),
             ),
+            custom_events=self._parse_custom_events(raw.get("custom_events")),
         )
 
     def _section(self, raw: JsonObject, key: str) -> JsonObject:
@@ -259,6 +263,54 @@ class JsonProfileRepository:
             )
         return exams
 
+    def _parse_custom_events(self, raw: object) -> list[CustomEvent]:
+        if raw is None:
+            return []
+        if not isinstance(raw, list):
+            self._on_warning("Ignoring 'custom_events': it must be a list.")
+            return []
+        events: list[CustomEvent] = []
+        for index, entry in enumerate(raw, start=1):
+            if not isinstance(entry, dict):
+                self._on_warning(
+                    f"Ignoring custom event {index}: must be a JSON object."
+                )
+                continue
+            event_id = entry.get("id")
+            summary = entry.get("summary")
+            start = entry.get("start")
+            end = entry.get("end")
+            if (
+                not event_id
+                or not summary
+                or not isinstance(start, dict)
+                or not isinstance(end, dict)
+            ):
+                self._on_warning(
+                    f"Ignoring custom event {index}: missing id, summary, start, or end."
+                )
+                continue
+            recurrence = (
+                tuple(str(r) for r in entry.get("recurrence", []))
+                if isinstance(entry.get("recurrence"), list)
+                else ()
+            )
+            color_id = entry.get("color_id")
+            events.append(
+                CustomEvent(
+                    id=str(event_id),
+                    summary=str(summary),
+                    start=dict(start),
+                    end=dict(end),
+                    description=str(entry.get("description") or ""),
+                    location=str(entry.get("location") or ""),
+                    color_id=str(color_id) if color_id is not None else None,
+                    recurrence=recurrence,
+                    source=str(entry.get("source") or "created"),
+                )
+            )
+        return events
+
     # -- writing -------------------------------------------------------------
 
     def _write(self, data: JsonObject) -> None:
@@ -336,4 +388,18 @@ def serialize(profile: Profile) -> JsonObject:
         "deadlines": {
             name: color.color_id for name, color in prefs.deadline_colors.items()
         },
+        "custom_events": [
+            {
+                "id": event.id,
+                "summary": event.summary,
+                "description": event.description,
+                "location": event.location,
+                "start": event.start,
+                "end": event.end,
+                "color_id": event.color_id,
+                "recurrence": list(event.recurrence),
+                "source": event.source,
+            }
+            for event in profile.custom_events
+        ],
     }

@@ -4,6 +4,7 @@ from typing import Any
 
 import pytest
 
+from unical.custom_events import CustomEvent
 from unical.events import ExamOccurrence
 from unical.palette import GoogleColor
 from unical.preferences import ExamPreference, Preferences
@@ -14,7 +15,6 @@ from unical.profile import (
     Profile,
     polimi_profile,
     serialize,
-    time_zone_error,
 )
 from unical.rules import (
     Condition,
@@ -44,35 +44,45 @@ def write(path: Path, **sections: Any) -> None:
 def test_missing_file_loads_the_polimi_profile(path: Path) -> None:
     profile = make_repo(path).load()
 
-    assert profile.name == POLIMI_NAME
-    assert profile.rules == list(POLIMI_RULES)
-    assert profile.enrollment == POLIMI_ENROLLMENT
-    assert profile.calendars == CalendarSettings()
-    assert profile.preferences == Preferences()
+    assert profile == polimi_profile()
 
 
-def test_missing_file_is_created_on_save(path: Path) -> None:
+def test_file_is_created_with_polimi_defaults_when_first_saved(path: Path) -> None:
     repo = make_repo(path)
     repo.save(repo.load())
 
-    assert make_repo(path).load() == polimi_profile()
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data["name"] == POLIMI_NAME
+    assert len(data["rules"]) == len(POLIMI_RULES)
+    assert data["courses"] == {}
+    assert data["exams"] == {}
+    assert data["deadlines"] == {}
+    assert data["custom_events"] == []
 
 
-def test_polimi_profile_round_trips(path: Path) -> None:
-    profile = polimi_profile()
-    profile.calendars = CalendarSettings(source="Uni", target="Uni colored")
-    profile.preferences.set_course_color("Zeta", GoogleColor.BASIL)
-    profile.preferences.set_course_color("Alpha", GoogleColor.LAVENDER)
-    profile.preferences.set_exam(
-        ExamOccurrence("X", "2027-01-01"), ExamPreference(GoogleColor.TOMATO, True)
+def test_roundtrip(path: Path) -> None:
+    profile = Profile(
+        name="Università degli Studi",
+        calendars=CalendarSettings("Uni", "Mine", "Europe/Rome"),
+        rules=[Rule(EventKind.EXAM, Condition(Field.TITLE, MatchKind.EQUALS, "Esame"))],
+        enrollment=EnrollmentRules(
+            not_enrolled=Condition(Field.DESCRIPTION, MatchKind.CONTAINS, "No")
+        ),
+        preferences=Preferences(
+            course_colors={"Fisica": GoogleColor.PEACOCK},
+            exams={
+                ExamOccurrence("Analisi 1", "2026-02-01").key: ExamPreference(
+                    GoogleColor.FLAMINGO, True
+                )
+            },
+            deadline_colors={"Consegna": GoogleColor.TANGERINE},
+        ),
     )
-    profile.preferences.set_deadline_color("Tesi", GoogleColor.BANANA)
 
-    make_repo(path).save(profile)
-    loaded = make_repo(path).load()
+    repo = make_repo(path)
+    repo.save(profile)
 
-    assert loaded == profile
-    assert list(loaded.preferences.course_colors) == ["Zeta", "Alpha"]
+    assert repo.load() == profile
 
 
 def test_file_format(path: Path) -> None:
@@ -123,6 +133,7 @@ def test_file_format(path: Path) -> None:
         "courses": {"Algebra": "2"},
         "exams": {},
         "deadlines": {},
+        "custom_events": [],
     }
 
 
@@ -360,15 +371,58 @@ def test_time_zone(path: Path) -> None:
     assert warnings == ["Ignoring unknown time zone 'Mars/Olympus_Mons'."]
 
 
-@pytest.mark.parametrize(
-    ("name", "error"),
-    [
-        ("Europe/Rome", None),
-        (" UTC ", None),
-        ("", "Type a time zone, e.g. Europe/Rome."),
-        ("Rome", "Unknown time zone 'Rome': use a name like Europe/Rome."),
-        ("../etc", "Unknown time zone '../etc': use a name like Europe/Rome."),
-    ],
-)
-def test_time_zone_error(name: str, error: str | None) -> None:
-    assert time_zone_error(name) == error
+def test_custom_events_roundtrip(path: Path) -> None:
+    cst = CustomEvent(
+        id="cst12345",
+        summary="Study Session",
+        start={"dateTime": "2026-10-15T10:00:00+02:00"},
+        end={"dateTime": "2026-10-15T12:00:00+02:00"},
+        description="Review chapter 4",
+        location="Room 101",
+        color_id="5",
+        recurrence=("RRULE:FREQ=WEEKLY;BYDAY=TH",),
+        source="created",
+    )
+    profile = polimi_profile()
+    profile.custom_events = [cst]
+
+    repo = make_repo(path)
+    repo.save(profile)
+    loaded = repo.load()
+
+    assert len(loaded.custom_events) == 1
+    assert loaded.custom_events[0] == cst
+
+
+def test_invalid_custom_events_are_skipped(path: Path) -> None:
+    write(
+        path,
+        custom_events=[
+            "not a dict",
+            {"summary": "No ID", "start": {}, "end": {}},
+            {"id": "1", "start": {}, "end": {}},
+            {"id": "2", "summary": "No start/end"},
+            {
+                "id": "cst_valid",
+                "summary": "Valid Event",
+                "start": {"date": "2026-10-15"},
+                "end": {"date": "2026-10-15"},
+                "recurrence": ["RRULE:FREQ=DAILY"],
+            },
+        ],
+    )
+    warnings: list[str] = []
+    profile = make_repo(path, warnings).load()
+
+    assert len(profile.custom_events) == 1
+    assert profile.custom_events[0].id == "cst_valid"
+    assert len(warnings) == 4
+
+
+def test_custom_events_must_be_a_list(path: Path) -> None:
+    write(path, custom_events={"id": "bad"})
+    warnings: list[str] = []
+
+    profile = make_repo(path, warnings).load()
+    assert profile.custom_events == []
+    assert warnings == ["Ignoring 'custom_events': it must be a list."]

@@ -297,6 +297,7 @@ class SyncWorkflow:
             window_to=options.window_to,
             course=options.course,
             in_scope=in_scope,
+            custom_events=profile.custom_events,
         )
 
     def _update_preferences(self, session: SyncSession) -> None:
