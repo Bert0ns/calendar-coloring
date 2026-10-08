@@ -122,7 +122,7 @@ def test_parse_ical_unfolds_continuation_lines() -> None:
 
 def test_parse_ical_unescapes_text() -> None:
     [event] = parse_ical(wrap("UID:abc12345", r"SUMMARY:a\, b\; c\\d"))
-    assert event["summary"] == "a, b; c\\d"
+    assert event["summary"] == r"a, b; c\d"
 
 
 def test_parse_ical_skips_events_without_uid() -> None:
@@ -205,6 +205,46 @@ def test_fetch_ical_downloads_and_decodes() -> None:
     request = urlopen.call_args.args[0]
     assert request.full_url == "https://example.com/feed.ics"
     assert urlopen.call_args.kwargs == {"timeout": 5}
+
+
+def test_fetch_ical_rewrites_webcal_to_https() -> None:
+    response = MagicMock()
+    response.__enter__.return_value.read.return_value = b"BEGIN:VCALENDAR"
+    with patch(
+        "unical.ical_source.urllib.request.urlopen",
+        return_value=response,
+    ) as urlopen:
+        assert (
+            fetch_ical("webcal://example.com/feed.ics?token=xyz") == "BEGIN:VCALENDAR"
+        )
+    request = urlopen.call_args.args[0]
+    assert request.full_url == "https://example.com/feed.ics?token=xyz"
+
+    with patch(
+        "unical.ical_source.urllib.request.urlopen",
+        return_value=response,
+    ) as urlopen:
+        assert fetch_ical("WEBCAL://example.com/feed.ics") == "BEGIN:VCALENDAR"
+    request = urlopen.call_args.args[0]
+    assert request.full_url == "https://example.com/feed.ics"
+
+
+@pytest.mark.parametrize(
+    "invalid_url",
+    [
+        "file:///etc/shadow",
+        "file:///C:/secrets.txt",
+        "ftp://example.com/calendar.ics",
+        "gopher://example.com/feed.ics",
+        "",
+        "not_a_url",
+        "javascript:alert(1)",
+    ],
+)
+def test_fetch_ical_rejects_unsupported_or_unsafe_schemes(invalid_url: str) -> None:
+    with pytest.raises(ICalError, match="Unsupported or unsafe URL scheme") as exc_info:
+        fetch_ical(invalid_url)
+    assert isinstance(exc_info.value, SourceError)
 
 
 @pytest.mark.parametrize(
