@@ -536,3 +536,125 @@ def test_events_adopt_by_id(
     profile = JsonProfileRepository(profile_path).load()
     assert len(profile.custom_events) == 1
     assert profile.custom_events[0].id == "unmanaged1"
+
+
+def test_events_add_timed_defaults_end_one_hour_later(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    profile_path = tmp_path / "profile.json"
+    JsonProfileRepository(profile_path).save(polimi_profile())
+    monkeypatch.setenv("PROFILE_PATH", str(profile_path))
+    monkeypatch.setattr(cli, "load_dotenv", lambda: None)
+
+    ret = cli.main(
+        [
+            "events",
+            "add",
+            "--summary",
+            "Project Sync",
+            "--start",
+            "2026-10-15T14:00:00",
+            "--id",
+            "sync1",
+        ]
+    )
+    assert ret == cli.EXIT_OK
+    profile = JsonProfileRepository(profile_path).load()
+    assert len(profile.custom_events) == 1
+    cst = profile.custom_events[0]
+    assert cst.start == {"dateTime": "2026-10-15T14:00:00"}
+    assert cst.end == {"dateTime": "2026-10-15T15:00:00"}
+
+
+def test_events_add_rejects_end_before_or_equal_start(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    profile_path = tmp_path / "profile.json"
+    JsonProfileRepository(profile_path).save(polimi_profile())
+    monkeypatch.setenv("PROFILE_PATH", str(profile_path))
+    monkeypatch.setattr(cli, "load_dotenv", lambda: None)
+
+    ret = cli.main(
+        [
+            "events",
+            "add",
+            "--summary",
+            "Backwards Event",
+            "--start",
+            "2026-10-15T14:00:00",
+            "--end",
+            "2026-10-15T13:00:00",
+        ]
+    )
+    assert ret == cli.EXIT_FAILURE
+    assert "End time must be strictly after start time" in capsys.readouterr().out
+
+
+def test_events_add_rejects_invalid_date_format(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    profile_path = tmp_path / "profile.json"
+    JsonProfileRepository(profile_path).save(polimi_profile())
+    monkeypatch.setenv("PROFILE_PATH", str(profile_path))
+    monkeypatch.setattr(cli, "load_dotenv", lambda: None)
+
+    ret = cli.main(
+        [
+            "events",
+            "add",
+            "--summary",
+            "Invalid Date",
+            "--start",
+            "not-a-valid-date",
+        ]
+    )
+    assert ret == cli.EXIT_FAILURE
+    assert "Invalid start date format" in capsys.readouterr().out
+
+
+def test_events_adopt_filters_already_adopted_events(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    profile_path = tmp_path / "profile.json"
+    initial_profile = polimi_profile()
+    initial_profile.custom_events.append(
+        CustomEvent(
+            id="unmanaged1",
+            summary="Office Hours",
+            start={"dateTime": "2026-10-15T11:00:00+02:00"},
+            end={"dateTime": "2026-10-15T12:00:00+02:00"},
+            source="adopted",
+        )
+    )
+    JsonProfileRepository(profile_path).save(initial_profile)
+    monkeypatch.setenv("PROFILE_PATH", str(profile_path))
+    monkeypatch.setattr(cli, "load_dotenv", lambda: None)
+
+    target_cal_name = "Polimi Target"
+    monkeypatch.setenv("TARGET_CALENDAR_NAME", target_cal_name)
+
+    ev1: Event = {
+        "id": "unmanaged1",
+        "summary": "Office Hours",
+        "start": {"dateTime": "2026-10-15T11:00:00+02:00"},
+        "end": {"dateTime": "2026-10-15T12:00:00+02:00"},
+    }
+    fake_gateway = FakeCalendarGateway({target_cal_name: [ev1]})
+    monkeypatch.setattr(
+        cli.GoogleCalendarClient,
+        "from_credentials",
+        classmethod(lambda cls, c: fake_gateway),
+    )
+    monkeypatch.setattr(cli, "Authenticator", MagicMock())
+
+    ret = cli.main(["events", "adopt", "--all"])
+    assert ret == cli.EXIT_OK
+    out = capsys.readouterr().out
+    assert "No unmanaged events found" in out

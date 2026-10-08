@@ -327,7 +327,7 @@ class SyncPlanner:
                     Mutation(
                         action=MutationAction.DELETE,
                         event_id=event_id,
-                        summary=existing.get("summary", event_id),
+                        summary=summary_of(existing) or event_id,
                     )
                 )
                 continue
@@ -337,7 +337,7 @@ class SyncPlanner:
                     Mutation(
                         action=MutationAction.DELETE,
                         event_id=event_id,
-                        summary=existing.get("summary", event_id),
+                        summary=summary_of(existing) or event_id,
                     )
                 )
                 continue
@@ -352,7 +352,7 @@ class SyncPlanner:
                 Mutation(
                     action=MutationAction.DELETE,
                     event_id=event_id,
-                    summary=existing.get("summary", event_id),
+                    summary=summary_of(existing) or event_id,
                 )
             )
 

@@ -10,7 +10,7 @@ import os
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -745,22 +745,63 @@ def main_events(
     if args.subcommand == "add":
         start_raw = args.start.strip()
         is_datetime = "T" in start_raw
-        start_dict: dict[str, Any] = (
-            {"dateTime": start_raw} if is_datetime else {"date": start_raw}
-        )
-        if args.end:
-            end_raw = args.end.strip()
-            end_dict: dict[str, Any] = (
-                {"dateTime": end_raw} if "T" in end_raw else {"date": end_raw}
-            )
-        elif not is_datetime:
+        if is_datetime:
+            try:
+                start_dt = datetime.fromisoformat(start_raw)
+            except ValueError:
+                rep.error(
+                    f"Invalid start datetime format '{start_raw}'. "
+                    "Expected ISO format (e.g. 2026-10-15T14:00:00)."
+                )
+                return EXIT_FAILURE
+            start_dict: dict[str, Any] = {"dateTime": start_raw}
+
+            if args.end:
+                end_raw = args.end.strip()
+                try:
+                    end_dt = datetime.fromisoformat(end_raw)
+                except ValueError:
+                    rep.error(
+                        f"Invalid end datetime format '{end_raw}'. "
+                        "Expected ISO format (e.g. 2026-10-15T15:00:00)."
+                    )
+                    return EXIT_FAILURE
+                if end_dt <= start_dt:
+                    rep.error("End time must be strictly after start time.")
+                    return EXIT_FAILURE
+                end_dict: dict[str, Any] = {"dateTime": end_raw}
+            else:
+                end_dt = start_dt + timedelta(hours=1)
+                end_dict = {"dateTime": end_dt.isoformat()}
+        else:
             try:
                 start_d = date.fromisoformat(start_raw)
-                end_dict = {"date": (start_d + timedelta(days=1)).isoformat()}
             except ValueError:
-                end_dict = {"date": start_raw}
-        else:
-            end_dict = {"dateTime": start_raw}
+                rep.error(
+                    f"Invalid start date format '{start_raw}'. "
+                    "Expected ISO date (YYYY-MM-DD)."
+                )
+                return EXIT_FAILURE
+            start_dict = {"date": start_d.isoformat()}
+
+            if args.end:
+                end_raw = args.end.strip()
+                try:
+                    end_d = date.fromisoformat(end_raw)
+                except ValueError:
+                    rep.error(
+                        f"Invalid end date format '{end_raw}'. "
+                        "Expected ISO date (YYYY-MM-DD)."
+                    )
+                    return EXIT_FAILURE
+                if end_d < start_d:
+                    rep.error("End date cannot be earlier than start date.")
+                    return EXIT_FAILURE
+                if end_d == start_d:
+                    end_d = end_d + timedelta(days=1)
+                end_dict = {"date": end_d.isoformat()}
+            else:
+                end_dict = {"date": (start_d + timedelta(days=1)).isoformat()}
 
         if (
             is_datetime
@@ -825,6 +866,7 @@ def main_events(
             return EXIT_FAILURE
 
         events = gw.get_all_events(target_cal_id, expand_recurring=False)
+        existing_custom_ids = {e.id for e in profile.custom_events}
         unmanaged = [
             e
             for e in events
@@ -832,6 +874,7 @@ def main_events(
             and not is_custom_event(e)
             and e.get("id")
             and e.get("start")
+            and e.get("id") not in existing_custom_ids
         ]
 
         if not unmanaged:

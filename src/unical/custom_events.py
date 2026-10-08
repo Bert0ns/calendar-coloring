@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import uuid
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from unical.events import Event, summary_of
@@ -104,6 +104,12 @@ def adopt_target_event(target_event: Event) -> CustomEvent:
             try:
                 start_d = date.fromisoformat(str(start["date"]))
                 end = {"date": (start_d + timedelta(days=1)).isoformat()}
+            except ValueError:
+                end = dict(start)
+        elif "dateTime" in start:
+            try:
+                start_dt = datetime.fromisoformat(str(start["dateTime"]))
+                end = {"dateTime": (start_dt + timedelta(hours=1)).isoformat()}
             except ValueError:
                 end = dict(start)
         else:
