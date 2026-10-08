@@ -44,6 +44,22 @@ def mask_url(url: str) -> str:
 
 def fetch_ical(url: str, timeout: int = DEFAULT_TIMEOUT) -> str:
     """Downloads raw iCal text from a URL."""
+    try:
+        parts = urlsplit(url)
+    except ValueError as exc:
+        raise ICalError(
+            f"Unsupported or unsafe URL scheme in '{mask_url(url)}'"
+        ) from exc
+
+    scheme = parts.scheme.lower()
+    if scheme == "webcal":
+        parts = parts._replace(scheme="https")
+        url = parts.geturl()
+        scheme = "https"
+
+    if scheme not in ("http", "https"):
+        raise ICalError(f"Unsupported or unsafe URL scheme in '{mask_url(url)}'")
+
     request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:

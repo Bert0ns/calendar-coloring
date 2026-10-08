@@ -1,5 +1,7 @@
 import json
+import os
 import pickle
+import stat
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -178,7 +180,8 @@ def test_legacy_pickle_is_migrated_to_json(paths) -> None:
     messages: list[str] = []
     authenticator, login = make_auth(paths, info=messages)
 
-    creds = authenticator.get_credentials()
+    with pytest.deprecated_call(match="deprecated"):
+        creds = authenticator.get_credentials()
 
     assert isinstance(creds, FakeCreds)
     login.assert_not_called()
@@ -190,7 +193,10 @@ def test_expired_legacy_pickle_is_refreshed_then_migrated(paths) -> None:
     paths[2].write_bytes(pickle.dumps(FakeCreds(valid=False, expired=True)))
     authenticator, login = make_auth(paths)
 
-    assert authenticator.get_credentials().refreshed
+    with pytest.deprecated_call(match="deprecated"):
+        creds = authenticator.get_credentials()
+
+    assert creds.refreshed
     assert paths[1].exists()
     login.assert_not_called()
 
@@ -392,3 +398,41 @@ def test_import_credentials_same_path(tmp_path: Path) -> None:
         )
     )
     assert import_credentials(creds, destination=creds) == creds.resolve()
+
+
+def test_saved_token_has_restricted_permissions(paths) -> None:
+    authenticator, _ = make_auth(paths)
+    authenticator.get_credentials()
+    assert paths[1].exists()
+    if os.name == "posix":
+        assert stat.S_IMODE(paths[1].stat().st_mode) == 0o600
+
+    # Verify that existing files with looser permissions are tightened on save
+    paths[1].chmod(0o644)
+    authenticator._save(FakeCreds())
+    if os.name == "posix":
+        assert stat.S_IMODE(paths[1].stat().st_mode) == 0o600
+
+
+def test_import_credentials_sets_restricted_permissions(tmp_path: Path) -> None:
+    source = tmp_path / "downloaded_creds.json"
+    source.write_text(
+        json.dumps(
+            {
+                "installed": {
+                    "client_id": "client-id",
+                    "client_secret": "client-secret",
+                }
+            }
+        )
+    )
+    dest = tmp_path / "credentials.json"
+    import_credentials(source, destination=dest)
+    if os.name == "posix":
+        assert stat.S_IMODE(dest.stat().st_mode) == 0o600
+
+    # Test same-path import restricts permissions as well
+    dest.chmod(0o644)
+    import_credentials(dest, destination=dest)
+    if os.name == "posix":
+        assert stat.S_IMODE(dest.stat().st_mode) == 0o600

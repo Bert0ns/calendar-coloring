@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
+import os
 import pickle
 import shutil
 import urllib.parse
+import warnings
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -130,6 +133,8 @@ def import_credentials(
     dest_path = (destination or default_credentials_path()).resolve()
 
     if source_path == dest_path:
+        with contextlib.suppress(OSError, NotImplementedError):
+            dest_path.chmod(0o600)
         return dest_path
 
     dest_path.parent.mkdir(parents=True, exist_ok=True)
@@ -137,6 +142,8 @@ def import_credentials(
         shutil.move(str(source_path), str(dest_path))
     else:
         shutil.copy2(str(source_path), str(dest_path))
+    with contextlib.suppress(OSError, NotImplementedError):
+        dest_path.chmod(0o600)
     return dest_path
 
 
@@ -213,6 +220,11 @@ class Authenticator:
                 return None, False
         if self.legacy_token_path is not None and self.legacy_token_path.exists():
             # Only ever reads the user's own token written by a previous version.
+            warnings.warn(
+                f"Loading legacy token pickle '{self.legacy_token_path}' is deprecated and will be removed in a future release.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
             with self.legacy_token_path.open("rb") as f:
                 creds = pickle.load(f)
             self._on_info(
@@ -223,4 +235,12 @@ class Authenticator:
 
     def _save(self, creds: Any) -> None:
         self.token_path.parent.mkdir(parents=True, exist_ok=True)
-        self.token_path.write_text(creds.to_json(), encoding="utf-8")
+        flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+        try:
+            fd = os.open(self.token_path, flags, 0o600)
+            with open(fd, "w", encoding="utf-8") as f:
+                f.write(creds.to_json())
+        except OSError:
+            self.token_path.write_text(creds.to_json(), encoding="utf-8")
+        with contextlib.suppress(OSError, NotImplementedError):
+            self.token_path.chmod(0o600)
