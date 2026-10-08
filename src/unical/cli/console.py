@@ -22,6 +22,7 @@ from unical.sync.models import (
     SyncPlan,
     SyncResult,
 )
+from unical.version_check import format_upgrade_notice
 
 _ACTION_STYLE = {
     MutationAction.INSERT: ("+ insert", GREEN),
@@ -71,6 +72,10 @@ class ConsoleReporter:
 
     def error(self, message: str) -> None:
         self._write(style(f"✖ {message}", RED))
+
+    def update_available(self, current: str, latest: str) -> None:
+        if not self.quiet:
+            self._write("\n" + format_upgrade_notice(current, latest) + "\n")
 
     # -- sync lifecycle ------------------------------------------------------
 

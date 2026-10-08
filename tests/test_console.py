@@ -188,3 +188,18 @@ def test_sync_started_uses_source_label() -> None:
     reporter, lines = capture()
     reporter.sync_started("iCal feed", "Tgt")
     assert "🔍 Syncing iCal feed ➔ 'Tgt'" in lines[0]
+
+
+def test_update_available_notice() -> None:
+    reporter, lines = capture()
+    reporter.update_available("1.0.1", "1.0.2")
+    output = "\n".join(lines)
+    assert "A new version of unical is available: 1.0.1" in output
+    assert "1.0.2" in output
+    assert "pip install --upgrade uni-calendar-coloring" in output
+
+
+def test_update_available_hidden_when_quiet() -> None:
+    reporter, lines = capture(quiet=True)
+    reporter.update_available("1.0.1", "1.0.2")
+    assert lines == []

@@ -27,6 +27,8 @@ hiddenimports = (
         "google.auth.transport.requests",
         "googleapiclient.discovery",
         "googleapiclient.http",
+        "packaging",
+        "packaging.version",
     ]
 )
 

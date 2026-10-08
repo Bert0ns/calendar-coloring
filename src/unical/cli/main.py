@@ -16,6 +16,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from google.auth.exceptions import GoogleAuthError
 
+from unical import __version__
 from unical.auth import (
     Authenticator,
     CredentialsFileNotFoundError,
@@ -38,6 +39,14 @@ from unical.sync.source import (
     SourceError,
 )
 from unical.targets import SyncTarget
+from unical.version_check import (
+    AsyncUpdateChecker,
+    check_for_updates,
+    default_version_cache_path,
+    is_newer_version,
+    read_version_cache,
+    should_check_for_updates,
+)
 from unical.workflow import (
     PreferenceEditor,
     SyncOptions,
@@ -57,6 +66,8 @@ class CliArgs:
     tui: bool = False
     tui_requested: bool = False
     """True when --tui was typed, as opposed to the TUI being the default."""
+    check_update: bool = True
+    check_update_only: bool = False
 
 
 def _iso_date(value: str) -> date:
@@ -135,6 +146,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Also delete managed target events starting before this date, even "
         "if still present in the source. Useful to drop past semesters.",
     )
+    parser.add_argument(
+        "-V",
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+    )
+    parser.add_argument(
+        "--no-update-check",
+        action="store_true",
+        help="Do not check for newer versions of unical.",
+    )
+    parser.add_argument(
+        "--check-update",
+        action="store_true",
+        help="Check for a newer version of unical and exit.",
+    )
     return parser
 
 
@@ -206,6 +233,8 @@ def parse_args(argv: Sequence[str] | None = None) -> CliArgs:
         ical_url=args.ical_url,
         tui=tui,
         tui_requested=args.tui,
+        check_update=not args.no_update_check,
+        check_update_only=args.check_update,
     )
 
 
@@ -288,6 +317,7 @@ def run_tui(
     options: SyncOptions,
     config: Config,
     gateway: CalendarGateway,
+    check_update: bool = True,
 ) -> int:
     """Runs the terminal UI with already-built adapters."""
     from unical.tui.app import TuiReporter, UnicalApp
@@ -318,7 +348,13 @@ def run_tui(
         overrides=overrides,
         first_run=not config.profile_path.exists(),
     )
-    app = UnicalApp(build_workflow(config, gateway, reporter), setup, options, reporter)
+    app = UnicalApp(
+        build_workflow(config, gateway, reporter),
+        setup,
+        options,
+        reporter,
+        check_update=check_update,
+    )
     app.run()
     return EXIT_OK
 
@@ -431,6 +467,15 @@ def main_auth(
         from unical.config import user_config_dir
 
         reporter.info(f"Configuration directory: {user_config_dir()}")
+        reporter.info(f"Version:                 {__version__}")
+        cache_ver, is_fresh = read_version_cache(default_version_cache_path())
+        if cache_ver and is_newer_version(cache_ver, __version__):
+            reporter.info(
+                f"Update status:           Update available: {cache_ver} "
+                "(run 'pip install --upgrade uni-calendar-coloring')"
+            )
+        elif is_fresh and cache_ver:
+            reporter.info("Update status:           Up to date")
         reporter.info(f"Credentials path:        {config.credentials_path}")
         if config.credentials_path.exists():
             try:
@@ -522,6 +567,43 @@ def _can_open_browser_login() -> bool:
     return sys.stdin.isatty() and os.getenv("CI") != "true"
 
 
+def main_version(
+    argv: Sequence[str] | None = None,
+    reporter: Reporter | None = None,
+) -> int:
+    """Handler for 'unical version' command or '--check-update'."""
+    rep = reporter or ConsoleReporter(write=functools.partial(print, flush=True))
+    rep.info(f"unical {__version__}")
+
+    parser = argparse.ArgumentParser(
+        prog="unical version",
+        description="Display version information and check for available updates.",
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        default=True,
+        help="Check online for a newer version (default: True).",
+    )
+    parser.add_argument(
+        "--no-check",
+        dest="check",
+        action="store_false",
+        help="Skip checking online for updates.",
+    )
+    args = parser.parse_args(argv or [])
+    if args.check and should_check_for_updates():
+        rep.info("Checking for updates...")
+        result = check_for_updates(force=True, enabled=True)
+        if result.has_update and result.latest_version:
+            rep.update_available(result.current_version, result.latest_version)
+        elif result.error:
+            rep.warning(f"Could not check for updates: {result.error}")
+        else:
+            rep.info(f"✔ You are running the latest version of unical ({__version__}).")
+    return EXIT_OK
+
+
 def main(
     argv: Sequence[str] | None = None,
     prompt_fn: Callable[[str], str] = input,
@@ -529,6 +611,14 @@ def main(
     raw_argv = list(sys.argv[1:] if argv is None else argv)
     load_dotenv()
     config = Config.from_env(os.environ)
+
+    if raw_argv and raw_argv[0] == "version":
+        reporter = ConsoleReporter(
+            verbose=False,
+            quiet=False,
+            write=functools.partial(print, flush=True),
+        )
+        return main_version(raw_argv[1:], reporter=reporter)
 
     if raw_argv and raw_argv[0] == "auth":
         reporter = ConsoleReporter(
@@ -539,6 +629,13 @@ def main(
         return main_auth(raw_argv[1:], config, reporter, prompt_fn=prompt_fn)
 
     cli = parse_args(raw_argv)
+    if cli.check_update_only:
+        reporter = ConsoleReporter(
+            verbose=False,
+            quiet=False,
+            write=functools.partial(print, flush=True),
+        )
+        return main_version([], reporter=reporter)
     if cli.ical_url:
         config = replace(config, source_ical_url=cli.ical_url)
 
@@ -548,6 +645,11 @@ def main(
         quiet=cli.quiet,
         write=functools.partial(print, flush=True),
     )
+
+    updater: AsyncUpdateChecker | None = None
+    if cli.check_update and not cli.quiet:
+        updater = AsyncUpdateChecker()
+        updater.start()
 
     tui = cli.tui
     if tui and not cli.tui_requested and not tui_available():
@@ -635,5 +737,10 @@ def main(
 
     gateway = GoogleCalendarClient.from_credentials(credentials)
     if tui:
-        return run_tui(cli.options, config, gateway)
-    return run(cli.options, config, gateway, reporter)
+        return run_tui(cli.options, config, gateway, check_update=cli.check_update)
+    exit_code = run(cli.options, config, gateway, reporter)
+    if updater is not None:
+        notice = updater.get_result(timeout=0.3)
+        if notice and notice.has_update and notice.latest_version:
+            reporter.update_available(notice.current_version, notice.latest_version)
+    return exit_code
