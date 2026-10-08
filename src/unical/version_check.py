@@ -192,7 +192,7 @@ def check_for_updates(
 
     Leverages local caching to avoid network latency on frequent invocations.
     """
-    if not enabled or not should_check_for_updates():
+    if not enabled:
         return VersionCheckResult(
             current_version=current_version,
             latest_version=None,
@@ -261,7 +261,7 @@ class AsyncUpdateChecker:
         url: str | None = None,
         timeout: float = DEFAULT_TIMEOUT_SECONDS,
     ) -> None:
-        self.enabled = enabled and should_check_for_updates()
+        self.enabled = enabled
         self.force = force
         self.cache_path = cache_path
         self.url = url

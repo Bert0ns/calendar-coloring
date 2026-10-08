@@ -592,7 +592,7 @@ def main_version(
         help="Skip checking online for updates.",
     )
     args = parser.parse_args(argv or [])
-    if args.check and should_check_for_updates():
+    if args.check:
         rep.info("Checking for updates...")
         result = check_for_updates(force=True, enabled=True)
         if result.has_update and result.latest_version:
@@ -647,7 +647,7 @@ def main(
     )
 
     updater: AsyncUpdateChecker | None = None
-    if cli.check_update and not cli.quiet:
+    if cli.check_update and not cli.quiet and should_check_for_updates():
         updater = AsyncUpdateChecker()
         updater.start()
 
