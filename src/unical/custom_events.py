@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import uuid
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 from unical.events import Event, summary_of
@@ -84,7 +84,9 @@ class CustomEvent:
 def adopt_target_event(target_event: Event) -> CustomEvent:
     """Adopts an existing unmanaged Google Calendar event into a CustomEvent."""
     raw_id = target_event.get("id") or ""
-    custom_id = sanitize_custom_id(raw_id)
+    # Existing target events already have a valid Google Calendar ID.
+    # Preserve it exactly so SyncPlanner can update it in-place without duplicating it.
+    custom_id = raw_id if raw_id else sanitize_custom_id()
     summary = summary_of(target_event) or "Custom Event"
     description = target_event.get("description") or ""
     location = target_event.get("location") or ""
@@ -98,7 +100,14 @@ def adopt_target_event(target_event: Event) -> CustomEvent:
         today_iso = date.today().isoformat()
         start = {"date": today_iso}
     if not end:
-        end = dict(start)
+        if "date" in start:
+            try:
+                start_d = date.fromisoformat(str(start["date"]))
+                end = {"date": (start_d + timedelta(days=1)).isoformat()}
+            except ValueError:
+                end = dict(start)
+        else:
+            end = dict(start)
 
     return CustomEvent(
         id=custom_id,

@@ -112,7 +112,7 @@ class CustomEvent:
                                   │
                                   ▼
 ┌──────────────────────┐   ┌─────────────┐   ┌──────────────────────┐
-│  University Source   │──▶│ SyncPlanner │◀──│   Target Calendar    │
+│  University Source   │───▶│ SyncPlanner │◀───│   Target Calendar    │
 │  (iCal / Source Cal) │   └──────┬──────┘   │ (Google Calendar)    │
 └──────────────────────┘          │          └──────────┬───────────┘
                                   ▼                     │
@@ -131,7 +131,7 @@ class CustomEvent:
    │ Unmanaged events (no managed tag)
    ▼
 ┌──────────────────────┐
-│ Event Detection &    │──▶ User Selects Events ──▶ Added to profile.json
+│ Event Detection &    │───▶ User Selects Events ───▶ Added to profile.json
 │ Adoption Manager     │                            Tagged in Google Calendar
 └──────────────────────┘
 ```
@@ -153,7 +153,10 @@ class CustomEvent:
 - `unical events delete <event-id>`: Removes custom event from profile.
 - `unical events adopt`: Detects unmanaged events in the target calendar and interactively prompts the user to select which events to adopt into `profile.json`.
 
-### 5.2 TUI (Textual)
+### 5.2 TUI (Textual) *(Planned for Follow-Up Phase)*
+> [!NOTE]
+> Initial delivery in PR #39 implements the core data model, sync planner integration, and CLI commands (`unical events list|add|delete|adopt`). The interactive Textual TUI tab is scoped for a follow-up phase.
+
 - **New Tab:** "Custom Events" tab in `src/unical/tui/app.py`.
 - **Event List & Preview:** Shows scheduled custom events, times, recurrence tags, and color badges.
 - **Actions:**

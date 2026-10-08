@@ -10,8 +10,9 @@ import os
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
 from google.auth.exceptions import GoogleAuthError
@@ -743,11 +744,38 @@ def main_events(
 
     if args.subcommand == "add":
         start_raw = args.start.strip()
-        end_raw = (args.end or start_raw).strip()
-        start_dict = (
-            {"dateTime": start_raw} if "T" in start_raw else {"date": start_raw}
+        is_datetime = "T" in start_raw
+        start_dict: dict[str, Any] = (
+            {"dateTime": start_raw} if is_datetime else {"date": start_raw}
         )
-        end_dict = {"dateTime": end_raw} if "T" in end_raw else {"date": end_raw}
+        if args.end:
+            end_raw = args.end.strip()
+            end_dict: dict[str, Any] = (
+                {"dateTime": end_raw} if "T" in end_raw else {"date": end_raw}
+            )
+        elif not is_datetime:
+            try:
+                start_d = date.fromisoformat(start_raw)
+                end_dict = {"date": (start_d + timedelta(days=1)).isoformat()}
+            except ValueError:
+                end_dict = {"date": start_raw}
+        else:
+            end_dict = {"dateTime": start_raw}
+
+        if (
+            is_datetime
+            and not any(c in start_raw[10:] for c in ("+", "-", "Z", "z"))
+            and profile.calendars.time_zone
+        ):
+            start_dict["timeZone"] = profile.calendars.time_zone
+        if (
+            "dateTime" in end_dict
+            and not any(
+                c in str(end_dict["dateTime"])[10:] for c in ("+", "-", "Z", "z")
+            )
+            and profile.calendars.time_zone
+        ):
+            end_dict["timeZone"] = profile.calendars.time_zone
         event_id = sanitize_custom_id(args.id)
         recurrence = tuple(args.recurrence) if args.recurrence else ()
         new_event = CustomEvent(
@@ -819,8 +847,13 @@ def main_events(
                 rep.error(f"No unmanaged event with ID '{args.event_id}' found.")
                 return EXIT_FAILURE
             to_adopt.append(match)
-        elif args.all or not (_is_interactive_shell() or prompt_fn is not input):
+        elif args.all:
             to_adopt.extend(unmanaged)
+        elif not (_is_interactive_shell() or prompt_fn is not input):
+            rep.error(
+                "Cannot prompt for event adoption in a non-interactive shell. Pass --all or --id."
+            )
+            return EXIT_FAILURE
         else:
             for unmanaged_ev in unmanaged:
                 s = summary_of(unmanaged_ev) or str(unmanaged_ev.get("id", ""))

@@ -398,3 +398,141 @@ def test_events_adopt_interactive(
     assert "Adopted 'Office Hours'" in out
     assert "Lunch with Bob" not in out
     assert "Saved 1 adopted event(s)" in out
+
+
+def test_adopt_target_event_preserves_external_id_and_exclusive_end() -> None:
+    unmanaged: Event = {
+        "id": "external-service_event_99_XYZ",
+        "summary": "All-day conference",
+        "start": {"date": "2026-10-15"},
+    }
+    adopted = adopt_target_event(unmanaged)
+    assert adopted.id == "external-service_event_99_XYZ"
+    assert adopted.start == {"date": "2026-10-15"}
+    assert adopted.end == {"date": "2026-10-16"}
+
+
+def test_sync_planner_adopts_unmanaged_event_with_arbitrary_id() -> None:
+    unmanaged: Event = {
+        "id": "custom-event_42-with-dashes",
+        "summary": "Advising Session",
+        "start": {"dateTime": "2026-10-15T14:00:00+02:00"},
+        "end": {"dateTime": "2026-10-15T15:00:00+02:00"},
+    }
+    adopted = adopt_target_event(unmanaged)
+    assert adopted.id == "custom-event_42-with-dashes"
+
+    planner = SyncPlanner(strategy=DummyStrategy(), custom_events=[adopted])
+    plan = planner.plan(
+        source_events=[], target_events=[unmanaged], target_calendar_id="cal_1"
+    )
+    assert len(plan.mutations) == 1
+    assert plan.mutations[0].action == MutationAction.UPDATE
+    assert plan.mutations[0].event_id == "custom-event_42-with-dashes"
+    assert not plan.preserved_unmanaged
+
+
+def test_events_add_all_day_defaults_end_date_next_day(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    profile_path = tmp_path / "profile.json"
+    JsonProfileRepository(profile_path).save(polimi_profile())
+    monkeypatch.setenv("PROFILE_PATH", str(profile_path))
+    monkeypatch.setattr(cli, "load_dotenv", lambda: None)
+
+    ret = cli.main(
+        [
+            "events",
+            "add",
+            "--summary",
+            "Conference Day",
+            "--start",
+            "2026-10-15",
+            "--id",
+            "confday1",
+        ]
+    )
+    assert ret == cli.EXIT_OK
+    profile = JsonProfileRepository(profile_path).load()
+    assert len(profile.custom_events) == 1
+    cst = profile.custom_events[0]
+    assert cst.start == {"date": "2026-10-15"}
+    assert cst.end == {"date": "2026-10-16"}
+
+
+def test_events_adopt_non_interactive_requires_all(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    profile_path = tmp_path / "profile.json"
+    JsonProfileRepository(profile_path).save(polimi_profile())
+    monkeypatch.setenv("PROFILE_PATH", str(profile_path))
+    monkeypatch.setattr(cli, "load_dotenv", lambda: None)
+    monkeypatch.setattr(cli, "_is_interactive_shell", lambda: False)
+
+    target_cal_name = "Polimi Target"
+    monkeypatch.setenv("TARGET_CALENDAR_NAME", target_cal_name)
+
+    ev: Event = {
+        "id": "unmanaged1",
+        "summary": "Office Hours",
+        "start": {"dateTime": "2026-10-15T11:00:00+02:00"},
+        "end": {"dateTime": "2026-10-15T12:00:00+02:00"},
+    }
+    fake_gateway = FakeCalendarGateway({target_cal_name: [ev]})
+    monkeypatch.setattr(
+        cli.GoogleCalendarClient,
+        "from_credentials",
+        classmethod(lambda cls, c: fake_gateway),
+    )
+    monkeypatch.setattr(cli, "Authenticator", MagicMock())
+
+    ret = cli.main(["events", "adopt"])
+    assert ret == cli.EXIT_FAILURE
+    out = capsys.readouterr().out
+    assert "Cannot prompt for event adoption in a non-interactive shell" in out
+
+
+def test_events_adopt_by_id(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    profile_path = tmp_path / "profile.json"
+    JsonProfileRepository(profile_path).save(polimi_profile())
+    monkeypatch.setenv("PROFILE_PATH", str(profile_path))
+    monkeypatch.setattr(cli, "load_dotenv", lambda: None)
+
+    target_cal_name = "Polimi Target"
+    monkeypatch.setenv("TARGET_CALENDAR_NAME", target_cal_name)
+
+    ev1: Event = {
+        "id": "unmanaged1",
+        "summary": "Office Hours",
+        "start": {"dateTime": "2026-10-15T11:00:00+02:00"},
+        "end": {"dateTime": "2026-10-15T12:00:00+02:00"},
+    }
+    ev2: Event = {
+        "id": "unmanaged2",
+        "summary": "Lunch with Bob",
+        "start": {"dateTime": "2026-10-15T13:00:00+02:00"},
+        "end": {"dateTime": "2026-10-15T14:00:00+02:00"},
+    }
+    fake_gateway = FakeCalendarGateway({target_cal_name: [ev1, ev2]})
+    monkeypatch.setattr(
+        cli.GoogleCalendarClient,
+        "from_credentials",
+        classmethod(lambda cls, c: fake_gateway),
+    )
+    monkeypatch.setattr(cli, "Authenticator", MagicMock())
+
+    ret = cli.main(["events", "adopt", "--id", "unmanaged1"])
+    assert ret == cli.EXIT_OK
+    out = capsys.readouterr().out
+    assert "Adopted 'Office Hours'" in out
+    profile = JsonProfileRepository(profile_path).load()
+    assert len(profile.custom_events) == 1
+    assert profile.custom_events[0].id == "unmanaged1"

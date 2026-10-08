@@ -15,6 +15,7 @@ from unical.profile import (
     Profile,
     polimi_profile,
     serialize,
+    time_zone_error,
 )
 from unical.rules import (
     Condition,
@@ -58,6 +59,23 @@ def test_file_is_created_with_polimi_defaults_when_first_saved(path: Path) -> No
     assert data["exams"] == {}
     assert data["deadlines"] == {}
     assert data["custom_events"] == []
+
+
+def test_polimi_profile_round_trips(path: Path) -> None:
+    profile = polimi_profile()
+    profile.calendars = CalendarSettings(source="Uni", target="Uni colored")
+    profile.preferences.set_course_color("Zeta", GoogleColor.BASIL)
+    profile.preferences.set_course_color("Alpha", GoogleColor.LAVENDER)
+    profile.preferences.set_exam(
+        ExamOccurrence("X", "2027-01-01"), ExamPreference(GoogleColor.TOMATO, True)
+    )
+    profile.preferences.set_deadline_color("Tesi", GoogleColor.BANANA)
+
+    make_repo(path).save(profile)
+    loaded = make_repo(path).load()
+
+    assert loaded == profile
+    assert list(loaded.preferences.course_colors) == ["Zeta", "Alpha"]
 
 
 def test_roundtrip(path: Path) -> None:
@@ -369,6 +387,20 @@ def test_time_zone(path: Path) -> None:
     warnings: list[str] = []
     assert make_repo(path, warnings).load().calendars.time_zone is None
     assert warnings == ["Ignoring unknown time zone 'Mars/Olympus_Mons'."]
+
+
+@pytest.mark.parametrize(
+    ("name", "error"),
+    [
+        ("Europe/Rome", None),
+        (" UTC ", None),
+        ("", "Type a time zone, e.g. Europe/Rome."),
+        ("Rome", "Unknown time zone 'Rome': use a name like Europe/Rome."),
+        ("../etc", "Unknown time zone '../etc': use a name like Europe/Rome."),
+    ],
+)
+def test_time_zone_error(name: str, error: str | None) -> None:
+    assert time_zone_error(name) == error
 
 
 def test_custom_events_roundtrip(path: Path) -> None:
