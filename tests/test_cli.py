@@ -849,7 +849,7 @@ def test_main_version_no_check(capsys: pytest.CaptureFixture[str]) -> None:
     ret = cli.main(["version", "--no-check"])
     assert ret == cli.EXIT_OK
     out = capsys.readouterr().out
-    assert "unical 1.0.1" in out
+    assert f"unical {cli.__version__}" in out
     assert "Checking for updates..." not in out
 
 
@@ -868,7 +868,7 @@ def test_main_version_with_check(
     assert ret == cli.EXIT_OK
     out = capsys.readouterr().out
     plain = re.sub(r"\[[0-9;]*m", "", out)
-    assert "unical 1.0.1" in plain
+    assert f"unical {cli.__version__}" in plain
     assert "Checking for updates..." in plain
     assert "A new version of unical is available: 1.0.1" in plain
     assert "1.0.2" in plain
@@ -888,7 +888,7 @@ def test_main_check_update_flag(
     ret = cli.main(["--check-update"])
     assert ret == cli.EXIT_OK
     out = capsys.readouterr().out
-    assert "unical 1.0.1" in out
+    assert f"unical {cli.__version__}" in out
     assert "You are running the latest version" in out
 
 
@@ -902,7 +902,7 @@ def test_main_auth_status_includes_version_and_update(
     from unical.version_check import write_version_cache
 
     cache_file = isolated_env / "version_check.json"
-    write_version_cache(cache_file, "1.0.3", checked_at=time.time())
+    write_version_cache(cache_file, "9.9.9", checked_at=time.time())
     monkeypatch.setattr(
         "unical.cli.main.default_version_cache_path", lambda: cache_file
     )
@@ -910,8 +910,8 @@ def test_main_auth_status_includes_version_and_update(
     ret = cli.main(["auth", "status"])
     assert ret == cli.EXIT_OK
     out = capsys.readouterr().out
-    assert "Version:                 1.0.1" in out
-    assert "Update status:           Update available: 1.0.3" in out
+    assert f"Version:                 {cli.__version__}" in out
+    assert "Update status:           Update available: 9.9.9" in out
 
 
 def test_main_displays_update_notice_after_sync(
