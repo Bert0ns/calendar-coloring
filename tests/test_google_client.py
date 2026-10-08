@@ -192,7 +192,8 @@ def test_batch_is_retried_with_exponential_backoff() -> None:
     assert all(r.ok for r in results)
     assert attempts["n"] == 3
     assert sleeps == [1, 2]
-    assert len(batches) == 1
+    assert len(batches) == 3
+    assert len(set(batches)) == 3
 
 
 def test_batch_gives_up_after_retries_and_fails_the_whole_chunk() -> None:
@@ -220,11 +221,55 @@ def test_failed_chunk_does_not_affect_other_chunks() -> None:
             call.kwargs["callback"](call.kwargs["request_id"], {}, None)
 
     good.execute.side_effect = run_callbacks
-    service.new_batch_http_request.side_effect = [bad, good]
+    service.new_batch_http_request.side_effect = [bad] * 4 + [good]
 
     results = client.batch_mutate_events("cal", MUTATIONS, batch_size=2)
 
     assert [r.ok for r in results] == [False, False, True]
+
+
+def test_batch_retry_clears_partial_callback_state() -> None:
+    sleeps: list[float] = []
+    client, service = make_client(sleeps)
+    attempts = 0
+    created_batches = []
+
+    def make_batch():
+        nonlocal attempts
+        attempts += 1
+        batch = MagicMock()
+        created_batches.append(batch)
+        attempt_num = attempts
+
+        def execute():
+            if attempt_num == 1:
+                first_call = batch.add.call_args_list[0]
+                first_call.kwargs["callback"](
+                    first_call.kwargs["request_id"], {}, RuntimeError("temp error")
+                )
+                raise ConnectionError("reset by peer")
+            for call in batch.add.call_args_list:
+                call.kwargs["callback"](call.kwargs["request_id"], {}, None)
+
+        batch.execute.side_effect = execute
+        return batch
+
+    service.new_batch_http_request.side_effect = make_batch
+
+    results = client.batch_mutate_events("cal", MUTATIONS)
+
+    assert len(created_batches) == 2
+    assert all(r.ok for r in results)
+    assert [r.error for r in results] == [None, None, None]
+
+
+def test_execute_with_retries_accepts_batch_instance() -> None:
+    client, _ = make_client()
+    batch = MagicMock()
+    batch.execute.side_effect = [ConnectionError("retry me"), None]
+    err = client._execute_with_retries(batch)
+    assert err is None
+    assert batch.execute.call_count == 2
 
 
 def test_list_calendars_follows_pagination_and_reads_access() -> None:

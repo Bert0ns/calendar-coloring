@@ -123,15 +123,19 @@ class GoogleCalendarClient:
 
             return callback
 
-        batch = self.service.new_batch_http_request()
-        for index, mutation in enumerate(chunk):
-            request_id = f"op_{index}"
-            batch.add(
-                self._request_for(calendar_id, mutation),
-                callback=make_callback(request_id),
-                request_id=request_id,
-            )
-        failure = self._execute_with_retries(batch)
+        def build_batch() -> Any:
+            errors.clear()
+            batch = self.service.new_batch_http_request()
+            for index, mutation in enumerate(chunk):
+                request_id = f"op_{index}"
+                batch.add(
+                    self._request_for(calendar_id, mutation),
+                    callback=make_callback(request_id),
+                    request_id=request_id,
+                )
+            return batch
+
+        failure = self._execute_with_retries(build_batch)
         if failure is not None:
             return [MutationResult(mutation, failure) for mutation in chunk]
 
@@ -145,8 +149,13 @@ class GoogleCalendarClient:
                 results.append(MutationResult(mutation, missing))
         return results
 
-    def _execute_with_retries(self, batch: Any) -> Exception | None:
+    def _execute_with_retries(
+        self, batch_or_factory: Any | Callable[[], Any]
+    ) -> Exception | None:
         """Executes a batch, retrying transport-level failures with backoff.
+
+        Accepts either a BatchHttpRequest instance or a zero-argument callable
+        that returns a fresh batch for each attempt.
 
         Returns the last error if every attempt failed, else ``None``.
         """
@@ -154,6 +163,12 @@ class GoogleCalendarClient:
         for attempt in range(self._batch_retries + 1):
             if attempt:
                 self._sleep(2 ** (attempt - 1))
+            batch = (
+                batch_or_factory()
+                if callable(batch_or_factory)
+                and not hasattr(batch_or_factory, "execute")
+                else batch_or_factory
+            )
             try:
                 batch.execute()
             except Exception as exc:
