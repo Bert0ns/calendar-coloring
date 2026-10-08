@@ -8,10 +8,12 @@ from unittest.mock import MagicMock
 
 import pytest
 from conftest import FakeCalendarGateway, save_profile, saved
+from google.auth.exceptions import RefreshError, TransportError
 
 from unical import config as config_mod
 from unical.auth import (
     CredentialsFileNotFoundError,
+    InvalidCredentialsError,
     LoginRequiredError,
 )
 from unical.cli import main as cli
@@ -361,6 +363,50 @@ def test_main_reports_login_required(isolated_env, fake_auth, capsys) -> None:
     fake_auth.return_value.get_credentials.side_effect = LoginRequiredError()
     assert cli.main([]) == cli.EXIT_FAILURE
     assert "Google login required" in capsys.readouterr().out
+
+
+def test_main_reports_invalid_credentials_error(
+    isolated_env, fake_auth, capsys
+) -> None:
+    fake_auth.return_value.get_credentials.side_effect = InvalidCredentialsError(
+        "OAuth client file is missing 'client_id'."
+    )
+    assert cli.main([]) == cli.EXIT_FAILURE
+    out = capsys.readouterr().out
+    assert "Authentication failed: OAuth client file is missing 'client_id'." in out
+    assert "unical auth login" in out
+
+
+def test_main_reports_refresh_error(isolated_env, fake_auth, capsys) -> None:
+    fake_auth.return_value.get_credentials.side_effect = RefreshError(
+        "Token has been expired or revoked."
+    )
+    assert cli.main([]) == cli.EXIT_FAILURE
+    out = capsys.readouterr().out
+    assert "Authentication failed: Token has been expired or revoked." in out
+    assert "unical auth login" in out
+
+
+def test_main_reports_transport_error(isolated_env, fake_auth, capsys) -> None:
+    fake_auth.return_value.get_credentials.side_effect = TransportError(
+        "Failed to establish a new connection."
+    )
+    assert cli.main([]) == cli.EXIT_FAILURE
+    out = capsys.readouterr().out
+    assert "Authentication failed: Failed to establish a new connection." in out
+    assert "internet connection" in out
+
+
+def test_main_reports_auth_error_with_tui_enabled(
+    isolated_env, fake_auth, capsys
+) -> None:
+    fake_auth.return_value.get_credentials.side_effect = RefreshError(
+        "Token has been revoked."
+    )
+    assert cli.main(["--tui"]) == cli.EXIT_FAILURE
+    out = capsys.readouterr().out
+    assert "Authentication failed: Token has been revoked." in out
+    assert "unical auth login" in out
 
 
 def test_main_quiet_prints_nothing_on_success(
@@ -757,3 +803,28 @@ def test_main_first_run_triggers_cli_onboarding_when_not_tui(
     assert ret == cli.EXIT_OK
     out = capsys.readouterr().out
     assert "Credentials saved to" in out
+
+
+def test_main_reports_auth_error_after_cli_onboarding(
+    isolated_env, monkeypatch, capsys
+) -> None:
+    monkeypatch.setattr(cli, "_is_interactive_shell", lambda: True)
+    monkeypatch.setattr(cli, "tui_available", lambda: False)
+
+    src_file = isolated_env / "downloaded.json"
+    src_file.write_text(
+        json.dumps({"installed": {"client_id": "c1", "client_secret": "s1"}})
+    )
+
+    fake_auth_inst = MagicMock()
+    fake_auth_inst.return_value.get_credentials.side_effect = [
+        CredentialsFileNotFoundError(isolated_env / "credentials.json"),
+        RefreshError("Token revoked"),
+    ]
+    monkeypatch.setattr(cli, "Authenticator", fake_auth_inst)
+
+    ret = cli.main([], prompt_fn=lambda _: str(src_file))
+    assert ret == cli.EXIT_FAILURE
+    out = capsys.readouterr().out
+    assert "Authentication failed: Token revoked" in out
+    assert "unical auth login" in out

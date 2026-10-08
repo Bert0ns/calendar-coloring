@@ -14,6 +14,7 @@ from datetime import date
 from pathlib import Path
 
 from dotenv import load_dotenv
+from google.auth.exceptions import GoogleAuthError
 
 from unical.auth import (
     Authenticator,
@@ -211,8 +212,7 @@ def parse_args(argv: Sequence[str] | None = None) -> CliArgs:
 def calendars_to_sync(config: Config) -> CalendarSettings:
     """The profile's calendars, with the overrides of the configuration.
 
-    Read quietly: the workflow reports problems with the profile when it loads it.
-    """
+    Read quietly: the workflow reports problems with the profile when it loads it."""
     return config.calendars(JsonProfileRepository(config.profile_path).load().calendars)
 
 
@@ -597,6 +597,18 @@ def main(
                 )
                 try:
                     credentials = authenticator.get_credentials()
+                except (InvalidCredentialsError, GoogleAuthError) as auth_exc:
+                    message = str(auth_exc).strip()
+                    error_msg = (
+                        f"Authentication failed: {message}"
+                        if message
+                        else "Authentication failed."
+                    )
+                    reporter.error(error_msg)
+                    reporter.info(
+                        "Run 'unical auth login' to re-authenticate, or check your credentials and internet connection."
+                    )
+                    return EXIT_FAILURE
                 except Exception as auth_exc:
                     reporter.error(str(auth_exc))
                     return EXIT_FAILURE
@@ -609,6 +621,16 @@ def main(
             return EXIT_FAILURE
     except LoginRequiredError as exc:
         reporter.error(str(exc))
+        return EXIT_FAILURE
+    except (InvalidCredentialsError, GoogleAuthError) as exc:
+        message = str(exc).strip()
+        error_msg = (
+            f"Authentication failed: {message}" if message else "Authentication failed."
+        )
+        reporter.error(error_msg)
+        reporter.info(
+            "Run 'unical auth login' to re-authenticate, or check your credentials and internet connection."
+        )
         return EXIT_FAILURE
 
     gateway = GoogleCalendarClient.from_credentials(credentials)
