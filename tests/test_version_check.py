@@ -233,7 +233,7 @@ def test_check_for_updates_network_failure(tmp_path: Path) -> None:
 
 def test_async_update_checker(tmp_path: Path) -> None:
     cache_file = tmp_path / "version.json"
-    write_version_cache(cache_file, "1.0.5", checked_at=time.time())
+    write_version_cache(cache_file, "9.9.9", checked_at=time.time())
 
     checker = AsyncUpdateChecker(
         enabled=True,
@@ -244,7 +244,7 @@ def test_async_update_checker(tmp_path: Path) -> None:
     checker.start()
     res = checker.get_result(timeout=1.0)
     assert res is not None
-    assert res.latest_version == "1.0.5"
+    assert res.latest_version == "9.9.9"
     assert res.has_update is True
 
 
