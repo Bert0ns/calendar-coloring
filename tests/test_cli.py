@@ -39,6 +39,7 @@ SOURCE = [
 
 # -- argument parsing --------------------------------------------------------
 
+
 def default_opts(*args, **kwargs) -> SyncOptions:
     return SyncOptions.with_semester_default(*args, **kwargs)
 
@@ -944,11 +945,16 @@ def test_main_displays_update_notice_after_sync(
 
 
 def test_parse_args_window_and_course() -> None:
-    args = cli.parse_args([
-        "--from", "2026-03-01",
-        "--to", "2026-09-15",
-        "--course", "Algorithms",
-    ])
+    args = cli.parse_args(
+        [
+            "--from",
+            "2026-03-01",
+            "--to",
+            "2026-09-15",
+            "--course",
+            "Algorithms",
+        ]
+    )
     assert args.options.window_from == date(2026, 3, 1)
     assert args.options.window_to == date(2026, 9, 15)
     assert not args.options.all_time
@@ -966,4 +972,13 @@ def test_parse_args_all_time_conflict_fails(capsys) -> None:
     with pytest.raises(SystemExit) as exc_info:
         cli.parse_args(["--all-time", "--from", "2026-03-01"])
     assert exc_info.value.code == 2
-    assert "--all-time cannot be combined with --from or --to" in capsys.readouterr().err
+    assert (
+        "--all-time cannot be combined with --from or --to" in capsys.readouterr().err
+    )
+
+
+def test_parse_args_inverted_window_fails(capsys) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        cli.parse_args(["--from", "2026-09-15", "--to", "2026-03-01"])
+    assert exc_info.value.code == 2
+    assert "--from date cannot be after --to date" in capsys.readouterr().err

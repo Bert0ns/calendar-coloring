@@ -76,6 +76,7 @@ def test_get_all_events_without_expanding_recurring_events() -> None:
         calendarId="cal", singleEvents=False, pageToken=None
     )
 
+
 def test_get_all_events_with_time_min_and_time_max() -> None:
     client, service = make_client()
     service.events().list().execute.return_value = {"items": []}

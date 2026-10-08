@@ -98,11 +98,19 @@ class FakeCalendarGateway:
                 try:
                     ev_d = date.fromisoformat(str(raw)[:10])
                     if time_min is not None:
-                        t_min = time_min.date() if isinstance(time_min, datetime) else time_min
+                        t_min = (
+                            time_min.date()
+                            if isinstance(time_min, datetime)
+                            else time_min
+                        )
                         if ev_d < t_min:
                             continue
                     if time_max is not None:
-                        t_max = time_max.date() if isinstance(time_max, datetime) else time_max
+                        t_max = (
+                            time_max.date()
+                            if isinstance(time_max, datetime)
+                            else time_max
+                        )
                         if ev_d > t_max:
                             continue
                 except ValueError:

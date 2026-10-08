@@ -1,4 +1,5 @@
 import urllib.error
+from datetime import date
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -277,15 +278,15 @@ def test_ical_feed_source() -> None:
     ]
     assert len(warnings) == 2
 
-from datetime import date
-
 
 def test_parse_ical_filters_by_time_min_and_time_max() -> None:
     # Event 1: 2026-09-17, Event 2: 2026-09-08, Event 3: 2026-10-20
     all_events = parse_ical(SAMPLE_ICAL)
     assert len(all_events) == 3
 
-    filtered = parse_ical(SAMPLE_ICAL, time_min=date(2026, 9, 15), time_max=date(2026, 9, 30))
+    filtered = parse_ical(
+        SAMPLE_ICAL, time_min=date(2026, 9, 15), time_max=date(2026, 9, 30)
+    )
     assert [e["id"] for e in filtered] == ["1172587-polimi.it"]
 
     only_after = parse_ical(SAMPLE_ICAL, time_min=date(2026, 9, 15))

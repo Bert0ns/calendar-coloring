@@ -354,3 +354,27 @@ def test_workflow_course_filter(config: Config) -> None:
     assert outcome.result.inserted == 1
     [inserted] = gateway.events_of("Tgt")
     assert "MATHEMATICS" in inserted["summary"]
+
+
+def test_workflow_course_filter_handles_unclassified_event(config: Config) -> None:
+    source_events = [
+        {
+            "id": "unclassified",
+            "summary": "Random event with no course or university pattern",
+            "start": {"date": "2026-10-01"},
+            "end": {"date": "2026-10-02"},
+        },
+        {
+            "id": "math1",
+            "summary": "Lezione: Didattica - MATHEMATICS",
+            "start": {"date": "2026-10-01"},
+            "end": {"date": "2026-10-02"},
+        },
+    ]
+    gateway = FakeCalendarGateway({"Src": source_events, "Tgt": []})
+    opts = SyncOptions(all_time=True, course="math")
+    outcome = make_workflow(config, gateway).run(opts, "Src", "Tgt")
+    assert outcome.result is not None
+    assert outcome.result.inserted == 1
+    [inserted] = gateway.events_of("Tgt")
+    assert "MATHEMATICS" in inserted["summary"]

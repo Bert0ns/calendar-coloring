@@ -563,11 +563,15 @@ class TestSyncWindow:
         future = self.event("future123", "2026-10-01")
 
         # Source has all three; target has all three
-        plan = self.planner().plan([past, current, future], [past, current, future], "tgt")
+        plan = self.planner().plan(
+            [past, current, future], [past, current, future], "tgt"
+        )
         # All are up to date, none should be deleted or updated
         assert plan.mutations == ()
 
-    def test_missing_past_and_future_target_events_are_preserved_not_deleted(self) -> None:
+    def test_missing_past_and_future_target_events_are_preserved_not_deleted(
+        self,
+    ) -> None:
         past = self.event("past12345", "2026-02-15")
         future = self.event("future123", "2026-10-01")
         current_source = self.event("current12", "2026-05-10")

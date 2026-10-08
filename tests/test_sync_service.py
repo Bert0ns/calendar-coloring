@@ -1,3 +1,6 @@
+from datetime import date
+from unittest.mock import patch
+
 import pytest
 from conftest import POLIMI, FakeCalendarGateway
 
@@ -139,18 +142,40 @@ def test_apply_reports_progress_per_chunk() -> None:
     assert progress == [(PROGRESS_CHUNK_SIZE, total), (total, total)]
     assert [len(batch) for _, batch in gateway.batches] == [PROGRESS_CHUNK_SIZE, 3]
 
-from datetime import date
-from unittest.mock import patch
-
 
 def test_plan_passes_window_bounds_and_respects_prune_before() -> None:
     gateway = FakeCalendarGateway({"Tgt": []})
     service = SyncService(gateway)
-    with patch.object(gateway, "get_all_events", wraps=gateway.get_all_events) as mock_get:
-        service.plan(PLANNER, SOURCE, "id::Tgt", time_min=date(2026, 3, 1), time_max=date(2026, 9, 15))
-        mock_get.assert_called_with("id::Tgt", expand_recurring=False, time_min=date(2026, 3, 1), time_max=date(2026, 9, 15))
+    with patch.object(
+        gateway, "get_all_events", wraps=gateway.get_all_events
+    ) as mock_get:
+        service.plan(
+            PLANNER,
+            SOURCE,
+            "id::Tgt",
+            time_min=date(2026, 3, 1),
+            time_max=date(2026, 9, 15),
+        )
+        mock_get.assert_called_with(
+            "id::Tgt",
+            expand_recurring=False,
+            time_min=date(2026, 3, 1),
+            time_max=date(2026, 9, 15),
+        )
 
-    planner_with_prune = SyncPlanner(Banana(), POLIMI.target_title, prune_before=date(2026, 1, 1))
-    with patch.object(gateway, "get_all_events", wraps=gateway.get_all_events) as mock_get:
-        service.plan(planner_with_prune, SOURCE, "id::Tgt", time_min=date(2026, 3, 1), time_max=date(2026, 9, 15))
-        mock_get.assert_called_with("id::Tgt", expand_recurring=False, time_min=None, time_max=date(2026, 9, 15))
+    planner_with_prune = SyncPlanner(
+        Banana(), POLIMI.target_title, prune_before=date(2026, 1, 1)
+    )
+    with patch.object(
+        gateway, "get_all_events", wraps=gateway.get_all_events
+    ) as mock_get:
+        service.plan(
+            planner_with_prune,
+            SOURCE,
+            "id::Tgt",
+            time_min=date(2026, 3, 1),
+            time_max=date(2026, 9, 15),
+        )
+        mock_get.assert_called_with(
+            "id::Tgt", expand_recurring=False, time_min=None, time_max=date(2026, 9, 15)
+        )

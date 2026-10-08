@@ -173,11 +173,9 @@ class SyncPlanner:
         day = start_day(event)
         if day is None:
             return False
-        if self.window_from is not None and day < self.window_from:
-            return True
-        if self.window_to is not None and day > self.window_to:
-            return True
-        return False
+        return (self.window_from is not None and day < self.window_from) or (
+            self.window_to is not None and day > self.window_to
+        )
 
     def is_syncable(self, event: Event) -> bool:
         """True if the source event will be mirrored into the target calendar."""

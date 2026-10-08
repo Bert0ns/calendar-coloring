@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable, Iterator, Sequence
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from typing import Any
 
 from googleapiclient.discovery import build
@@ -26,7 +26,7 @@ BATCH_RETRIES = 3
 def _to_rfc3339(val: datetime | date, is_end: bool = False) -> str:
     if isinstance(val, datetime):
         if val.tzinfo is None:
-            return val.replace(tzinfo=timezone.utc).isoformat()
+            return val.replace(tzinfo=UTC).isoformat()
         return val.isoformat()
     if is_end:
         return f"{val.isoformat()}T23:59:59.999999Z"

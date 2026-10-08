@@ -1,6 +1,7 @@
 import asyncio
 import threading
 from collections.abc import Awaitable, Callable
+from datetime import date
 from typing import Any
 
 import pytest
@@ -31,7 +32,12 @@ from unical.suggestions import suggest_color
 from unical.sync.models import Mutation, MutationAction, SyncPlan
 from unical.sync.source import GoogleCalendarSource
 from unical.targets import SyncTarget
-from unical.tui.app import TuiReporter, UnicalApp
+from unical.tui.app import (
+    TuiReporter,
+    UnicalApp,
+    _parse_window_string,
+    _validate_window_input,
+)
 from unical.tui.setup import CalendarSetup, Role
 from unical.tui.widgets import (
     CalendarPicker,
@@ -1499,9 +1505,6 @@ def test_first_run_guide_without_the_calendar_list(config: Config) -> None:
 
     drive_wizard(app, scenario)
 
-from datetime import date
-from unical.tui.app import _parse_window_string, _validate_window_input
-
 
 def test_parse_and_validate_window_string() -> None:
     assert _parse_window_string("all") == (None, None, True)
@@ -1525,6 +1528,10 @@ def test_parse_and_validate_window_string() -> None:
     assert _validate_window_input("all") is None
     assert _validate_window_input("2026-03-01..2026-09-15") is None
     assert _validate_window_input("invalid date") is not None
+    assert (
+        _validate_window_input("2026-09-15..2026-03-01")
+        == "Start date cannot be after end date."
+    )
 
 
 def test_tui_window_and_course_updates(config: Config) -> None:
@@ -1542,7 +1549,9 @@ def test_tui_window_and_course_updates(config: Config) -> None:
         assert app.options.window_from == date(2026, 3, 1)
         assert app.options.window_to == date(2026, 9, 15)
         assert not app.options.all_time
-        assert "2026-03-01 → 2026-09-15" in str(app.query_one("#setup-window", Static).render())
+        assert "2026-03-01 → 2026-09-15" in str(
+            app.query_one("#setup-window", Static).render()
+        )
 
         # Update course
         app._course_chosen("CS")

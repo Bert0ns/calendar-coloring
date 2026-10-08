@@ -9,9 +9,9 @@ Slow phases run in worker threads; the reporter posts back thread-safely.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from dataclasses import replace
 from datetime import date
-from unical.semesters import current_semester_window
 from functools import partial
 from typing import Any, ClassVar, Literal
 
@@ -38,6 +38,7 @@ from unical.events import Event
 from unical.palette import GoogleColor
 from unical.profile import Profile, time_zone_error
 from unical.rules import Condition, Rule
+from unical.semesters import current_semester_window
 from unical.sync.models import CalendarInfo, SyncPlan, SyncResult
 from unical.sync.source import SourceCalendarNotFoundError
 from unical.targets import SyncTarget
@@ -218,20 +219,30 @@ def _parse_window_string(val: str) -> tuple[date | None, date | None, bool]:
     if s in ("semester", "current", "current semester", "sem"):
         d_from, d_to, _ = current_semester_window()
         return d_from, d_to, False
-    parts = [p.strip() for p in s.replace("to", "..").replace("→", "..").replace("->", "..").split("..")]
+    parts = [
+        p.strip()
+        for p in s.replace("to", "..")
+        .replace("→", "..")
+        .replace("->", "..")
+        .split("..")
+    ]
     if len(parts) == 1:
         d = date.fromisoformat(parts[0])
         return d, None, False
     if len(parts) == 2:
-        d_from = date.fromisoformat(parts[0]) if parts[0] else None
-        d_to = date.fromisoformat(parts[1]) if parts[1] else None
-        return d_from, d_to, False
-    raise ValueError("Invalid format. Use 'all', 'semester', or 'YYYY-MM-DD..YYYY-MM-DD'.")
+        d_from_parsed: date | None = date.fromisoformat(parts[0]) if parts[0] else None
+        d_to_parsed: date | None = date.fromisoformat(parts[1]) if parts[1] else None
+        return d_from_parsed, d_to_parsed, False
+    raise ValueError(
+        "Invalid format. Use 'all', 'semester', or 'YYYY-MM-DD..YYYY-MM-DD'."
+    )
 
 
 def _validate_window_input(value: str) -> str | None:
     try:
-        _parse_window_string(value)
+        d_from, d_to, _ = _parse_window_string(value)
+        if d_from is not None and d_to is not None and d_from > d_to:
+            return "Start date cannot be after end date."
         return None
     except Exception as exc:
         return f"Invalid window ({exc}). Use 'all', 'semester', or 'YYYY-MM-DD..YYYY-MM-DD'."
@@ -919,7 +930,9 @@ class UnicalApp(App[None]):
         if self.options.all_time:
             reminder_parts.append("Window: All time")
         elif self.options.window_from and self.options.window_to:
-            reminder_parts.append(f"Window: {self.options.window_from} → {self.options.window_to}")
+            reminder_parts.append(
+                f"Window: {self.options.window_from} → {self.options.window_to}"
+            )
         elif self.options.window_from:
             reminder_parts.append(f"Window: from {self.options.window_from}")
         elif self.options.window_to:
@@ -932,10 +945,10 @@ class UnicalApp(App[None]):
         else:
             reminder_parts.append("Course: All")
 
-        try:
-            self._ui.query_one("#sync-scope-reminder", Static).update(" · ".join(reminder_parts))
-        except Exception:
-            pass
+        with contextlib.suppress(Exception):
+            self._ui.query_one("#sync-scope-reminder", Static).update(
+                " · ".join(reminder_parts)
+            )
         notes = []
         if self.setup.fixed_source is not None:
             notes.append(
@@ -1166,10 +1179,14 @@ class UnicalApp(App[None]):
                 self._time_zone_chosen,
             )
         elif event.button.id == "change-window":
-            current_val = "all" if self.options.all_time else (
-                f"{self.options.window_from}..{self.options.window_to}"
-                if (self.options.window_from and self.options.window_to)
-                else ""
+            current_val = (
+                "all"
+                if self.options.all_time
+                else (
+                    f"{self.options.window_from}..{self.options.window_to}"
+                    if (self.options.window_from and self.options.window_to)
+                    else ""
+                )
             )
             self.push_screen(
                 TextPrompt(

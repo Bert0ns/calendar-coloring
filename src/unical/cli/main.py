@@ -246,6 +246,8 @@ def parse_args(argv: Sequence[str] | None = None) -> CliArgs:
         parser.error("--tui always previews before applying: drop --dry-run")
     if args.all_time and (args.window_from or args.window_to):
         parser.error("--all-time cannot be combined with --from or --to")
+    if args.window_from and args.window_to and args.window_from > args.window_to:
+        parser.error("--from date cannot be after --to date")
     # The terminal UI is the default; options that only make sense for a plain
     # sync (-i, -n, --no-tui) switch it off, and so does a non-interactive shell.
     tui = args.tui or not (
@@ -310,7 +312,9 @@ def describe_run(
     if options.all_time:
         flags.append("window=all-time")
     elif options.window_from or options.window_to:
-        flags.append(f"window={options.window_from or '...'}..{options.window_to or '...'}")
+        flags.append(
+            f"window={options.window_from or '...'}..{options.window_to or '...'}"
+        )
     if options.course:
         flags.append(f"course='{options.course}'")
     if flags:

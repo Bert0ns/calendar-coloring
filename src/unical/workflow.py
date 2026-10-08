@@ -272,13 +272,18 @@ class SyncWorkflow:
         has_course_filter = bool(options.course)
 
         if has_target_filter or has_course_filter:
+
             def _in_scope(event: Event) -> bool:
-                if has_target_filter and not options.target.covers(classifier.kind_of(event)):
+                if has_target_filter and not options.target.covers(
+                    classifier.kind_of(event)
+                ):
                     return False
                 if has_course_filter:
                     classification = classifier.classify(event)
+                    if classification is None or classification.name is None:
+                        return False
                     course_term = (options.course or "").lower()
-                    if classification.name is None or course_term not in classification.name.lower():
+                    if course_term not in classification.name.lower():
                         return False
                 return True
 
