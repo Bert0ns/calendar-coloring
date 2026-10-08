@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import json
 from collections.abc import Sequence
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -78,10 +79,45 @@ class FakeCalendarGateway:
         return self.add_calendar(name, [])
 
     def get_all_events(
-        self, calendar_id: str, expand_recurring: bool = True
+        self,
+        calendar_id: str,
+        expand_recurring: bool = True,
+        time_min: datetime | date | None = None,
+        time_max: datetime | date | None = None,
     ) -> list[dict[str, Any]]:
         self.listings.append((calendar_id, expand_recurring))
-        return copy.deepcopy(self.calendars[calendar_id]["events"])
+        events = copy.deepcopy(self.calendars[calendar_id]["events"])
+        if time_min is not None or time_max is not None:
+            filtered = []
+            for ev in events:
+                start = ev.get("start") or {}
+                raw = start.get("dateTime", start.get("date"))
+                if not raw:
+                    filtered.append(ev)
+                    continue
+                try:
+                    ev_d = date.fromisoformat(str(raw)[:10])
+                    if time_min is not None:
+                        t_min = (
+                            time_min.date()
+                            if isinstance(time_min, datetime)
+                            else time_min
+                        )
+                        if ev_d < t_min:
+                            continue
+                    if time_max is not None:
+                        t_max = (
+                            time_max.date()
+                            if isinstance(time_max, datetime)
+                            else time_max
+                        )
+                        if ev_d > t_max:
+                            continue
+                except ValueError:
+                    pass
+                filtered.append(ev)
+            return filtered
+        return events
 
     def batch_mutate_events(
         self, calendar_id: str, mutations: Sequence[Mutation]

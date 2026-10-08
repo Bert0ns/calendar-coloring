@@ -1,3 +1,4 @@
+from datetime import date
 from unittest.mock import MagicMock
 
 import pytest
@@ -73,6 +74,25 @@ def test_get_all_events_without_expanding_recurring_events() -> None:
     # orderBy=startTime is rejected by the API unless singleEvents=True.
     service.events().list.assert_called_with(
         calendarId="cal", singleEvents=False, pageToken=None
+    )
+
+
+def test_get_all_events_with_time_min_and_time_max() -> None:
+    client, service = make_client()
+    service.events().list().execute.return_value = {"items": []}
+    client.get_all_events(
+        "cal",
+        expand_recurring=True,
+        time_min=date(2026, 3, 1),
+        time_max=date(2026, 9, 15),
+    )
+    service.events().list.assert_called_with(
+        calendarId="cal",
+        singleEvents=True,
+        orderBy="startTime",
+        pageToken=None,
+        timeMin="2026-03-01T00:00:00Z",
+        timeMax="2026-09-15T23:59:59.999999Z",
     )
 
 

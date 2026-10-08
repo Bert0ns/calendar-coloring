@@ -97,6 +97,12 @@ class ConsoleReporter:
             f"📥 Fetched {plan.source_event_count} source & "
             f"{plan.target_event_count} target events."
         )
+        if plan.window_from or plan.window_to:
+            self.info(
+                f"📅 Active window: {plan.window_from or '...'} → {plan.window_to or '...'} (events outside are frozen)."
+            )
+        if plan.course:
+            self.info(f"🎯 Selective sync for course: '{plan.course}'")
         if plan.pruned:
             self.info(
                 f"🧹 Pruning {plan.pruned} managed event(s) starting before "

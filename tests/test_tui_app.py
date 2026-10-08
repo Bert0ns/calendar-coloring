@@ -1,6 +1,7 @@
 import asyncio
 import threading
 from collections.abc import Awaitable, Callable
+from datetime import date
 from typing import Any
 
 import pytest
@@ -31,7 +32,12 @@ from unical.suggestions import suggest_color
 from unical.sync.models import Mutation, MutationAction, SyncPlan
 from unical.sync.source import GoogleCalendarSource
 from unical.targets import SyncTarget
-from unical.tui.app import TuiReporter, UnicalApp
+from unical.tui.app import (
+    TuiReporter,
+    UnicalApp,
+    _parse_window_string,
+    _validate_window_input,
+)
 from unical.tui.setup import CalendarSetup, Role
 from unical.tui.widgets import (
     CalendarPicker,
@@ -1498,3 +1504,64 @@ def test_first_run_guide_without_the_calendar_list(config: Config) -> None:
         assert "Could not list your calendars: offline" in (await log_text(app, pilot))
 
     drive_wizard(app, scenario)
+
+
+def test_parse_and_validate_window_string() -> None:
+    assert _parse_window_string("all") == (None, None, True)
+    assert _parse_window_string("all-time") == (None, None, True)
+
+    w_from, w_to, all_t = _parse_window_string("semester")
+    assert not all_t
+    assert w_from is not None and w_to is not None
+
+    assert _parse_window_string("2026-03-01..2026-09-15") == (
+        date(2026, 3, 1),
+        date(2026, 9, 15),
+        False,
+    )
+    assert _parse_window_string("2026-03-01 to 2026-09-15") == (
+        date(2026, 3, 1),
+        date(2026, 9, 15),
+        False,
+    )
+
+    assert _validate_window_input("all") is None
+    assert _validate_window_input("2026-03-01..2026-09-15") is None
+    assert _validate_window_input("invalid date") is not None
+    assert (
+        _validate_window_input("2026-09-15..2026-03-01")
+        == "Start date cannot be after end date."
+    )
+
+
+def test_tui_window_and_course_updates(config: Config) -> None:
+    gateway = FakeCalendarGateway({"Src": SOURCE})
+    save_profile(config, calendars={"source": "Src", "target": "Tgt"})
+    app = make_app(config, gateway)
+
+    async def scenario(app: UnicalApp, pilot: Pilot[None]) -> None:
+        await settle(app, pilot)
+        assert app.draft is not None
+
+        # Update window
+        app._window_chosen("2026-03-01..2026-09-15")
+        await settle(app, pilot)
+        assert app.options.window_from == date(2026, 3, 1)
+        assert app.options.window_to == date(2026, 9, 15)
+        assert not app.options.all_time
+        assert "2026-03-01 → 2026-09-15" in str(
+            app.query_one("#setup-window", Static).render()
+        )
+
+        # Update course
+        app._course_chosen("CS")
+        await settle(app, pilot)
+        assert app.options.course == "CS"
+        assert "'CS'" in str(app.query_one("#setup-course", Static).render())
+
+        # Check sync tab reminder
+        reminder = str(app.query_one("#sync-scope-reminder", Static).render())
+        assert "2026-03-01 → 2026-09-15" in reminder
+        assert "'CS'" in reminder
+
+    drive(app, scenario)

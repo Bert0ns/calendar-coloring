@@ -307,3 +307,74 @@ def test_new_target_calendar_gets_the_profile_time_zone(
     make_workflow(config, gateway).run(SyncOptions(), "Src", "Tgt")
 
     assert gateway.time_zones == {"Tgt": time_zone}
+
+
+def test_sync_options_with_semester_default() -> None:
+    # Mar 10, 2026 -> semester 2 (2026-03-01 to 2026-09-15)
+    opts = SyncOptions.with_semester_default(now=date(2026, 3, 10))
+    assert opts.window_from == date(2026, 3, 1)
+    assert opts.window_to == date(2026, 9, 15)
+    assert not opts.all_time
+
+    # all_time overrides semester defaults
+    opts_all = SyncOptions.with_semester_default(all_time=True, now=date(2026, 3, 10))
+    assert opts_all.window_from is None
+    assert opts_all.window_to is None
+    assert opts_all.all_time
+
+    # explicit window override
+    opts_custom = SyncOptions.with_semester_default(
+        window_from=date(2026, 4, 1),
+        window_to=date(2026, 5, 1),
+        now=date(2026, 3, 10),
+    )
+    assert opts_custom.window_from == date(2026, 4, 1)
+    assert opts_custom.window_to == date(2026, 5, 1)
+
+
+def test_workflow_course_filter(config: Config) -> None:
+    source_events = [
+        {
+            "id": "cs1",
+            "summary": "Lezione: Didattica - COMPUTER SCIENCE",
+            "start": {"date": "2026-10-01"},
+            "end": {"date": "2026-10-02"},
+        },
+        {
+            "id": "math1",
+            "summary": "Lezione: Didattica - MATHEMATICS",
+            "start": {"date": "2026-10-01"},
+            "end": {"date": "2026-10-02"},
+        },
+    ]
+    gateway = FakeCalendarGateway({"Src": source_events, "Tgt": []})
+    opts = SyncOptions(all_time=True, course="math")
+    outcome = make_workflow(config, gateway).run(opts, "Src", "Tgt")
+    assert outcome.result is not None
+    assert outcome.result.inserted == 1
+    [inserted] = gateway.events_of("Tgt")
+    assert "MATHEMATICS" in inserted["summary"]
+
+
+def test_workflow_course_filter_handles_unclassified_event(config: Config) -> None:
+    source_events = [
+        {
+            "id": "unclassified",
+            "summary": "Random event with no course or university pattern",
+            "start": {"date": "2026-10-01"},
+            "end": {"date": "2026-10-02"},
+        },
+        {
+            "id": "math1",
+            "summary": "Lezione: Didattica - MATHEMATICS",
+            "start": {"date": "2026-10-01"},
+            "end": {"date": "2026-10-02"},
+        },
+    ]
+    gateway = FakeCalendarGateway({"Src": source_events, "Tgt": []})
+    opts = SyncOptions(all_time=True, course="math")
+    outcome = make_workflow(config, gateway).run(opts, "Src", "Tgt")
+    assert outcome.result is not None
+    assert outcome.result.inserted == 1
+    [inserted] = gateway.events_of("Tgt")
+    assert "MATHEMATICS" in inserted["summary"]

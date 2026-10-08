@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from datetime import date
 
 from unical.events import Event
 from unical.sync.gateway import CalendarGateway
@@ -37,12 +38,23 @@ class SyncService:
         planner: SyncPlanner,
         source_events: list[Event],
         target_calendar_id: str | None,
+        time_min: date | None = None,
+        time_max: date | None = None,
     ) -> SyncPlan:
         """Computes the plan. Read-only: a missing target calendar is not created."""
+        # When pruning past events, target events before prune_before must be fetched
+        # so they can be deleted. When prune_before is None, past events are frozen
+        # and do not need to be fetched from the target.
+        target_time_min = None if planner.prune_before is not None else time_min
         target_events = (
             # Recurring events are synced as a single master event, so compare
             # against masters rather than their expanded occurrences.
-            self.gateway.get_all_events(target_calendar_id, expand_recurring=False)
+            self.gateway.get_all_events(
+                target_calendar_id,
+                expand_recurring=False,
+                time_min=target_time_min,
+                time_max=time_max,
+            )
             if target_calendar_id
             else []
         )

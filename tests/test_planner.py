@@ -531,3 +531,70 @@ class TestScope:
     def test_everything_covers_unclassified_events(self) -> None:
         assert SyncTarget.ALL.covers(None)
         assert not SyncTarget.EXAMS.covers(None)
+
+
+class TestSyncWindow:
+    WINDOW_FROM = date(2026, 3, 1)
+    WINDOW_TO = date(2026, 9, 15)
+
+    def planner(self, prune_before: date | None = None) -> SyncPlanner:
+        return SyncPlanner(
+            FixedStrategy(None),
+            POLIMI.target_title,
+            prune_before=prune_before,
+            window_from=self.WINDOW_FROM,
+            window_to=self.WINDOW_TO,
+        )
+
+    def event(self, event_id: str, day: str, managed: bool = True) -> Event:
+        ev: Event = {
+            "id": event_id,
+            "summary": event_id,
+            "start": {"date": day},
+            "end": {"date": day},
+        }
+        if managed:
+            ev["extendedProperties"] = MANAGED
+        return ev
+
+    def test_events_outside_window_are_frozen_not_mutated(self) -> None:
+        past = self.event("past12345", "2026-02-15")
+        current = self.event("current12", "2026-05-10")
+        future = self.event("future123", "2026-10-01")
+
+        # Source has all three; target has all three
+        plan = self.planner().plan(
+            [past, current, future], [past, current, future], "tgt"
+        )
+        # All are up to date, none should be deleted or updated
+        assert plan.mutations == ()
+
+    def test_missing_past_and_future_target_events_are_preserved_not_deleted(
+        self,
+    ) -> None:
+        past = self.event("past12345", "2026-02-15")
+        future = self.event("future123", "2026-10-01")
+        current_source = self.event("current12", "2026-05-10")
+
+        # Source only has current; target has past and future managed events
+        plan = self.planner().plan([current_source], [past, future], "tgt")
+        # Past and future are out of window, so they must be FROZEN (not deleted!)
+        # Only current_source should be inserted!
+        assert [(m.action, m.event_id) for m in plan.mutations] == [
+            (MutationAction.INSERT, "current12")
+        ]
+
+    def test_prune_before_deletes_even_if_outside_window(self) -> None:
+        very_old = self.event("old123456", "2025-12-01")
+        plan = self.planner(prune_before=date(2026, 1, 1)).plan([], [very_old], "tgt")
+        assert [(m.action, m.event_id) for m in plan.mutations] == [
+            (MutationAction.DELETE, "old123456")
+        ]
+        assert plan.pruned == 1
+
+    def test_is_syncable_filters_out_of_window(self) -> None:
+        p = self.planner()
+        assert not p.is_syncable(self.event("past", "2026-02-28"))
+        assert p.is_syncable(self.event("curr", "2026-03-01"))
+        assert p.is_syncable(self.event("curr", "2026-09-15"))
+        assert not p.is_syncable(self.event("future", "2026-09-16"))

@@ -20,6 +20,7 @@ from unical.preferences import Preferences
 from unical.profile import Profile
 from unical.reporting import Reporter
 from unical.resolution import fill_missing_preferences
+from unical.semesters import current_semester_window
 from unical.strategies import strategy_for
 from unical.sync.models import CalendarInfo, SyncPlan, SyncResult
 from unical.sync.planner import SyncPlanner
@@ -49,6 +50,41 @@ class SyncOptions:
     dry_run: bool = False
     prune_before: date | None = None
     """Leave out (and delete) events starting before this day."""
+    window_from: date | None = None
+    window_to: date | None = None
+    all_time: bool = False
+    course: str | None = None
+
+    @classmethod
+    def with_semester_default(
+        cls,
+        target: SyncTarget = SyncTarget.ALL,
+        interactive: bool = False,
+        dry_run: bool = False,
+        prune_before: date | None = None,
+        window_from: date | None = None,
+        window_to: date | None = None,
+        all_time: bool = False,
+        course: str | None = None,
+        now: date | None = None,
+    ) -> SyncOptions:
+        if all_time:
+            w_from = window_from
+            w_to = window_to
+        else:
+            def_from, def_to, _ = current_semester_window(now)
+            w_from = window_from or def_from
+            w_to = window_to or def_to
+        return cls(
+            target=target,
+            interactive=interactive,
+            dry_run=dry_run,
+            prune_before=prune_before,
+            window_from=w_from,
+            window_to=w_to,
+            all_time=all_time,
+            course=course,
+        )
 
 
 @dataclass(frozen=True)
@@ -96,8 +132,7 @@ class SyncWorkflow:
     ) -> SyncOutcome:
         """Runs a sync. With ``dry_run`` nothing is written (calendar or files).
 
-        Raises :class:`SourceError` if the source events cannot be loaded.
-        """
+        Raises :class:`SourceError` if the source events cannot be loaded."""
         session = self.load(options, source, target_name)
         self._update_preferences(session)
         if not options.dry_run:
@@ -123,10 +158,14 @@ class SyncWorkflow:
         A frontend that already holds a profile (possibly with unsaved edits)
         passes it to discover the events with it instead.
 
-        Raises :class:`SourceError` if the source events cannot be loaded.
-        """
+        Raises :class:`SourceError` if the source events cannot be loaded."""
         self.reporter.sync_started(source.label, target_name)
-        source_events = source.fetch_events()
+        time_min = None if options.all_time else options.window_from
+        time_max = None if options.all_time else options.window_to
+        try:
+            source_events = source.fetch_events(time_min=time_min, time_max=time_max)
+        except TypeError:
+            source_events = source.fetch_events()
         if profile is None:
             profile = self.repository.load()
         catalog = discover(
@@ -181,10 +220,14 @@ class SyncWorkflow:
             self.reporter.target_calendar_missing(
                 session.target_name, session.options.dry_run
             )
+        time_min = None if session.options.all_time else session.options.window_from
+        time_max = None if session.options.all_time else session.options.window_to
         plan = self.service.plan(
             self._planner(session.options, session.profile),
             session.source_events,
             target_id,
+            time_min=time_min,
+            time_max=time_max,
         )
         self.reporter.plan_ready(plan)
         return plan
@@ -209,8 +252,7 @@ class SyncWorkflow:
         """The plan that applies once missing preferences are completed.
 
         They are completed on a copy, so the session keeps telling apart what
-        the user chose from what the automatic rules fill in.
-        """
+        the user chose from what the automatic rules fill in."""
         draft = replace(
             session,
             profile=replace(
@@ -225,21 +267,42 @@ class SyncWorkflow:
     def _planner(self, options: SyncOptions, profile: Profile) -> SyncPlanner:
         # Strategies read preferences lazily, so they see later edits.
         classifier = profile.classifier
+        in_scope = None
+        has_target_filter = options.target is not SyncTarget.ALL
+        has_course_filter = bool(options.course)
+
+        if has_target_filter or has_course_filter:
+
+            def _in_scope(event: Event) -> bool:
+                if has_target_filter and not options.target.covers(
+                    classifier.kind_of(event)
+                ):
+                    return False
+                if has_course_filter:
+                    classification = classifier.classify(event)
+                    if classification is None or classification.name is None:
+                        return False
+                    course_term = (options.course or "").lower()
+                    if course_term not in classification.name.lower():
+                        return False
+                return True
+
+            in_scope = _in_scope
+
         return SyncPlanner(
             strategy_for(options.target, profile.preferences, classifier),
             classifier.target_title,
             prune_before=options.prune_before,
-            in_scope=(
-                None
-                if options.target is SyncTarget.ALL
-                else lambda event: options.target.covers(classifier.kind_of(event))
-            ),
+            window_from=options.window_from,
+            window_to=options.window_to,
+            course=options.course,
+            in_scope=in_scope,
         )
 
     def _update_preferences(self, session: SyncSession) -> None:
         if session.options.interactive:
             if self.editor is None:
-                raise ValueError("Interactive mode requires a PreferenceEditor")
+                raise ValueError("Interactive sync requires an editor.")
             self.editor.edit(
                 session.catalog, session.preferences, session.options.target
             )
