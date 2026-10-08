@@ -30,6 +30,8 @@ class Reporter(Protocol):
 
     def dry_run_finished(self, plan: SyncPlan) -> None: ...
 
+    def update_available(self, current: str, latest: str) -> None: ...
+
 
 class NullReporter:
     """Reporter that discards everything (useful in tests and scripts)."""
@@ -62,4 +64,7 @@ class NullReporter:
         pass
 
     def dry_run_finished(self, plan: SyncPlan) -> None:
+        pass
+
+    def update_available(self, current: str, latest: str) -> None:
         pass

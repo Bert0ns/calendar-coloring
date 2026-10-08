@@ -1,4 +1,5 @@
 import json
+import re
 import runpy
 import sys
 from dataclasses import replace
@@ -828,3 +829,112 @@ def test_main_reports_auth_error_after_cli_onboarding(
     out = capsys.readouterr().out
     assert "Authentication failed: Token revoked" in out
     assert "unical auth login" in out
+
+
+def test_parse_args_update_check_flags() -> None:
+    args_no_check = cli.parse_args(["--no-update-check"])
+    assert args_no_check.check_update is False
+    assert args_no_check.check_update_only is False
+
+    args_check_only = cli.parse_args(["--check-update"])
+    assert args_check_only.check_update is True
+    assert args_check_only.check_update_only is True
+
+
+def test_main_version_no_check(capsys: pytest.CaptureFixture[str]) -> None:
+    ret = cli.main(["version", "--no-check"])
+    assert ret == cli.EXIT_OK
+    out = capsys.readouterr().out
+    assert "unical 1.0.1" in out
+    assert "Checking for updates..." not in out
+
+
+def test_main_version_with_check(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from unical.version_check import VersionCheckResult
+
+    monkeypatch.setattr(
+        "unical.cli.main.check_for_updates",
+        lambda **kw: VersionCheckResult("1.0.1", "1.0.2", True),
+    )
+    monkeypatch.setattr("unical.cli.main.should_check_for_updates", lambda: True)
+
+    ret = cli.main(["version"])
+    assert ret == cli.EXIT_OK
+    out = capsys.readouterr().out
+    plain = re.sub(r"\[[0-9;]*m", "", out)
+    assert "unical 1.0.1" in plain
+    assert "Checking for updates..." in plain
+    assert "A new version of unical is available: 1.0.1" in plain
+    assert "1.0.2" in plain
+
+
+def test_main_check_update_flag(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from unical.version_check import VersionCheckResult
+
+    monkeypatch.setattr(
+        "unical.cli.main.check_for_updates",
+        lambda **kw: VersionCheckResult("1.0.1", "1.0.1", False),
+    )
+    monkeypatch.setattr("unical.cli.main.should_check_for_updates", lambda: True)
+
+    ret = cli.main(["--check-update"])
+    assert ret == cli.EXIT_OK
+    out = capsys.readouterr().out
+    assert "unical 1.0.1" in out
+    assert "You are running the latest version" in out
+
+
+def test_main_auth_status_includes_version_and_update(
+    isolated_env: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import time
+
+    from unical.version_check import write_version_cache
+
+    cache_file = isolated_env / "version_check.json"
+    write_version_cache(cache_file, "1.0.3", checked_at=time.time())
+    monkeypatch.setattr(
+        "unical.cli.main.default_version_cache_path", lambda: cache_file
+    )
+
+    ret = cli.main(["auth", "status"])
+    assert ret == cli.EXIT_OK
+    out = capsys.readouterr().out
+    assert "Version:                 1.0.1" in out
+    assert "Update status:           Update available: 1.0.3" in out
+
+
+def test_main_displays_update_notice_after_sync(
+    isolated_env: Path,
+    fake_auth: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from unical.version_check import VersionCheckResult
+
+    install_gateway(monkeypatch, FakeCalendarGateway({"Calendar": SOURCE}))
+
+    class FakeChecker:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def start(self):
+            pass
+
+        def get_result(self, timeout=0.3):
+            return VersionCheckResult("1.0.1", "1.0.2", True)
+
+    monkeypatch.setattr("unical.cli.main.AsyncUpdateChecker", FakeChecker)
+
+    ret = cli.main(["--no-tui"])
+    assert ret == cli.EXIT_OK
+    out = capsys.readouterr().out
+    plain = re.sub(r"\[[0-9;]*m", "", out)
+    assert "A new version of unical is available: 1.0.1" in plain
+    assert "1.0.2" in plain

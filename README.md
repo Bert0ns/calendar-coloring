@@ -249,6 +249,18 @@ unical auth status                                        # inspect credentials,
 unical auth login                                         # authenticate with Google and cache token in advance
 ```
 
+### Version and updates
+
+Check running version and inspect PyPI for newer releases:
+
+```bash
+unical --version                                          # print current version
+unical version                                            # check if an update is available on PyPI
+unical version --no-check                                 # print version without checking network
+```
+
+When a newer version is published, `unical` displays a non-intrusive upgrade notice at the end of CLI operations and as a notification in the terminal UI. Update checks are cached for 24 hours to prevent network delays and can be suppressed with `--no-update-check` or `UNICAL_NO_UPDATE_CHECK=1`.
+
 ### Sync
 
 ```bash
@@ -391,6 +403,9 @@ unical [all|exams|lectures|deadlines] [options]
 | `--prune-before YYYY-MM-DD`                       | Also delete synced events starting before this date.                                  |
 | `-v`, `--verbose`                                 | Show the decision for every event.                                                    |
 | `-q`, `--quiet`                                   | Show only warnings and errors.                                                        |
+| `-V`, `--version`                                 | Show version number and exit.                                                         |
+| `--check-update`                                  | Check online for a newer version of unical and exit.                                  |
+| `--no-update-check`                               | Do not check online for updates.                                                      |
 
 ## Profile and rules
 
@@ -534,6 +549,8 @@ are resolved in this order:
 | `SOURCE_ICAL_URL`      | _(unset)_                        | Read from this iCal feed instead of a calendar. |
 | `CREDENTIALS_PATH`     | `credentials.json` or config dir | OAuth client downloaded from Google Cloud.      |
 | `TOKEN_PATH`           | `token.json` or config dir       | Cached Google login.                            |
+| `UNICAL_NO_UPDATE_CHECK`| `0`                              | Set to `1` or `true` to disable version checks. |
+| `UNICAL_CACHE_DIR`     | platform cache dir               | Custom directory for version check cache.       |
 
 ## Run it in the cloud with GitHub Actions
 

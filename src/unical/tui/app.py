@@ -72,6 +72,7 @@ from unical.tui.widgets import (
     swatch,
 )
 from unical.tui.wizard import RulesChoice, WizardIntro, WizardRules
+from unical.version_check import check_for_updates, should_check_for_updates
 from unical.workflow import SyncOptions, SyncWorkflow
 
 SCOPE_LABELS = {
@@ -177,6 +178,9 @@ class TuiReporter:
 
     def dry_run_finished(self, plan: SyncPlan) -> None:
         pass
+
+    def update_available(self, current: str, latest: str) -> None:
+        self.info(f"Update available: {current} ➔ {latest}")
 
 
 def _result_headline(result: SyncResult) -> Text:
@@ -322,6 +326,7 @@ class UnicalApp(App[None]):
         setup: CalendarSetup,
         options: SyncOptions,
         reporter: TuiReporter,
+        check_update: bool = True,
     ) -> None:
         super().__init__()
         self.workflow = workflow
@@ -339,6 +344,7 @@ class UnicalApp(App[None]):
         self._title_previews: list[TitlePreview] = []
         self._quit_requested = False
         self.sub_title = self._base_sub_title
+        self._check_update = check_update
         reporter.connect(self)
 
     @property
@@ -449,10 +455,25 @@ class UnicalApp(App[None]):
         self._ui.query_one("#progress").display = False
         self._show_scope_tabs()
         self._refresh_setup()
+        if self._check_update and should_check_for_updates():
+            self._check_for_updates_worker()
         if self.setup.first_run:
             self.run_wizard()
         else:
             self.load_session()
+
+    @work(thread=True)
+    def _check_for_updates_worker(self) -> None:
+        result = check_for_updates()
+        if result.has_update and result.latest_version:
+            self.call_from_thread(
+                self.notify,
+                f"A new version of unical ({result.latest_version}) is available!\n"
+                "Run: pip install --upgrade uni-calendar-coloring",
+                title="Update available",
+                severity="information",
+                timeout=10,
+            )
 
     # -- state ---------------------------------------------------------------
 
