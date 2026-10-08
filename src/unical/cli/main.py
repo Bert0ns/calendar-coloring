@@ -10,8 +10,9 @@ import os
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
-from datetime import date
+from datetime import date, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
 from google.auth.exceptions import GoogleAuthError
@@ -27,11 +28,19 @@ from unical.auth import (
 from unical.cli.console import ConsoleReporter
 from unical.cli.prompts import InteractivePreferenceEditor
 from unical.config import Config
+from unical.custom_events import (
+    CustomEvent,
+    adopt_target_event,
+    is_custom_event,
+    sanitize_custom_id,
+)
+from unical.events import Event, summary_of
 from unical.google_client import GoogleCalendarClient
 from unical.ical_source import IcalFeedSource, mask_url
 from unical.profile import CalendarSettings, JsonProfileRepository
 from unical.reporting import Reporter
 from unical.sync.gateway import CalendarGateway
+from unical.sync.planner import is_managed
 from unical.sync.service import SyncService
 from unical.sync.source import (
     EventSource,
@@ -49,6 +58,7 @@ from unical.version_check import (
 )
 from unical.workflow import (
     PreferenceEditor,
+    ProfileRepository,
     SyncOptions,
     SyncWorkflow,
 )
@@ -81,7 +91,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="unical",
         description="Sync and color Google Calendar events.\n"
-        "Use 'unical auth' to manage credentials and login status.",
+        "Use 'unical auth' to manage credentials and 'unical events' for custom events.",
     )
     parser.add_argument(
         "target",
@@ -234,6 +244,80 @@ def build_auth_parser() -> argparse.ArgumentParser:
         "login",
         help="Log in with Google via browser and cache token.",
         description="Authenticate with Google Calendar using the configured credentials.",
+    )
+
+    return parser
+
+
+def build_events_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="unical events",
+        description="Manage custom calendar events and adopt unmanaged events.",
+    )
+    subparsers = parser.add_subparsers(dest="subcommand")
+
+    # list
+    subparsers.add_parser(
+        "list",
+        help="List all custom events defined in the active profile.",
+    )
+
+    # add
+    add_parser = subparsers.add_parser(
+        "add",
+        help="Add a custom event to the active profile.",
+    )
+    add_parser.add_argument(
+        "--summary", "-s", required=True, help="Title of the custom event."
+    )
+    add_parser.add_argument(
+        "--start",
+        required=True,
+        help="Start time: ISO date (YYYY-MM-DD) or datetime (YYYY-MM-DDTHH:MM:SS).",
+    )
+    add_parser.add_argument(
+        "--end",
+        default=None,
+        help="End time: ISO date (YYYY-MM-DD) or datetime (YYYY-MM-DDTHH:MM:SS). Defaults to start.",
+    )
+    add_parser.add_argument(
+        "--description", "-d", default="", help="Description or notes."
+    )
+    add_parser.add_argument("--location", "-l", default="", help="Event location.")
+    add_parser.add_argument(
+        "--color", "-c", default=None, help="Google Calendar color ID (1-11)."
+    )
+    add_parser.add_argument(
+        "--recurrence",
+        "-r",
+        action="append",
+        default=None,
+        help="RFC 5545 recurrence rule (e.g. 'RRULE:FREQ=WEEKLY;BYDAY=MO').",
+    )
+    add_parser.add_argument("--id", default=None, help="Explicit event ID (optional).")
+
+    # delete
+    delete_parser = subparsers.add_parser(
+        "delete",
+        help="Delete a custom event from the active profile.",
+    )
+    delete_parser.add_argument("id", help="ID of the custom event to delete.")
+
+    # adopt
+    adopt_parser = subparsers.add_parser(
+        "adopt",
+        help="Detect and adopt unmanaged events from the target Google Calendar.",
+    )
+    adopt_parser.add_argument(
+        "--id",
+        dest="event_id",
+        default=None,
+        help="Specific Google Calendar event ID to adopt directly.",
+    )
+    adopt_parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Adopt all detected unmanaged events without prompting.",
     )
 
     return parser
@@ -599,6 +683,262 @@ def main_auth(
     return EXIT_OK
 
 
+def _get_gateway(config: Config, reporter: Reporter) -> CalendarGateway | None:
+    authenticator = Authenticator(
+        credentials_path=config.credentials_path,
+        token_path=config.token_path,
+        legacy_token_path=config.legacy_token_path,
+        on_info=reporter.info,
+        allow_browser_login=_can_open_browser_login(),
+    )
+    try:
+        credentials = authenticator.get_credentials()
+        return GoogleCalendarClient.from_credentials(credentials)
+    except Exception as exc:
+        reporter.error(str(exc))
+        return None
+
+
+def main_events(
+    argv: Sequence[str] | None = None,
+    config: Config | None = None,
+    reporter: Reporter | None = None,
+    prompt_fn: Callable[[str], str] = input,
+    gateway: CalendarGateway | None = None,
+    repository: ProfileRepository | None = None,
+) -> int:
+    """Handler for 'unical events' subcommands."""
+    config = config or Config.from_env(os.environ)
+    rep = reporter or ConsoleReporter(write=functools.partial(print, flush=True))
+    parser = build_events_parser()
+    args = parser.parse_args(argv or [])
+
+    repo = repository or JsonProfileRepository(
+        config.profile_path, on_warning=rep.warning
+    )
+    profile = repo.load()
+
+    if args.subcommand is None:
+        parser.print_help()
+        return EXIT_OK
+
+    if args.subcommand == "list":
+        if not profile.custom_events:
+            rep.info("No custom events in profile.")
+            return EXIT_OK
+        rep.info(f"Custom events ({len(profile.custom_events)}):")
+        for custom_ev in profile.custom_events:
+            when = custom_ev.start.get("dateTime", custom_ev.start.get("date", "?"))
+            color = f" (color {custom_ev.color_id})" if custom_ev.color_id else ""
+            rec = (
+                f" [recurring: {', '.join(custom_ev.recurrence)}]"
+                if custom_ev.recurrence
+                else ""
+            )
+            rep.info(f"  • [{custom_ev.id}] {custom_ev.summary} — {when}{color}{rec}")
+            if custom_ev.location:
+                rep.info(f"      Location: {custom_ev.location}")
+            if custom_ev.description:
+                rep.info(f"      Description: {custom_ev.description}")
+        return EXIT_OK
+
+    if args.subcommand == "add":
+        start_raw = args.start.strip()
+        is_datetime = "T" in start_raw
+        if is_datetime:
+            try:
+                start_dt = datetime.fromisoformat(start_raw)
+            except ValueError:
+                rep.error(
+                    f"Invalid start datetime format '{start_raw}'. "
+                    "Expected ISO format (e.g. 2026-10-15T14:00:00)."
+                )
+                return EXIT_FAILURE
+            start_dict: dict[str, Any] = {"dateTime": start_raw}
+
+            if args.end:
+                end_raw = args.end.strip()
+                try:
+                    end_dt = datetime.fromisoformat(end_raw)
+                except ValueError:
+                    rep.error(
+                        f"Invalid end datetime format '{end_raw}'. "
+                        "Expected ISO format (e.g. 2026-10-15T15:00:00)."
+                    )
+                    return EXIT_FAILURE
+                if end_dt <= start_dt:
+                    rep.error("End time must be strictly after start time.")
+                    return EXIT_FAILURE
+                end_dict: dict[str, Any] = {"dateTime": end_raw}
+            else:
+                end_dt = start_dt + timedelta(hours=1)
+                end_dict = {"dateTime": end_dt.isoformat()}
+        else:
+            try:
+                start_d = date.fromisoformat(start_raw)
+            except ValueError:
+                rep.error(
+                    f"Invalid start date format '{start_raw}'. "
+                    "Expected ISO date (YYYY-MM-DD)."
+                )
+                return EXIT_FAILURE
+            start_dict = {"date": start_d.isoformat()}
+
+            if args.end:
+                end_raw = args.end.strip()
+                try:
+                    end_d = date.fromisoformat(end_raw)
+                except ValueError:
+                    rep.error(
+                        f"Invalid end date format '{end_raw}'. "
+                        "Expected ISO date (YYYY-MM-DD)."
+                    )
+                    return EXIT_FAILURE
+                if end_d < start_d:
+                    rep.error("End date cannot be earlier than start date.")
+                    return EXIT_FAILURE
+                if end_d == start_d:
+                    end_d = end_d + timedelta(days=1)
+                end_dict = {"date": end_d.isoformat()}
+            else:
+                end_dict = {"date": (start_d + timedelta(days=1)).isoformat()}
+
+        if (
+            is_datetime
+            and not any(c in start_raw[10:] for c in ("+", "-", "Z", "z"))
+            and profile.calendars.time_zone
+        ):
+            start_dict["timeZone"] = profile.calendars.time_zone
+        if (
+            "dateTime" in end_dict
+            and not any(
+                c in str(end_dict["dateTime"])[10:] for c in ("+", "-", "Z", "z")
+            )
+            and profile.calendars.time_zone
+        ):
+            end_dict["timeZone"] = profile.calendars.time_zone
+        event_id = sanitize_custom_id(args.id)
+        recurrence = tuple(args.recurrence) if args.recurrence else ()
+        new_event = CustomEvent(
+            id=event_id,
+            summary=args.summary.strip(),
+            description=args.description.strip(),
+            location=args.location.strip(),
+            color_id=str(args.color).strip() if args.color else None,
+            start=start_dict,
+            end=end_dict,
+            recurrence=recurrence,
+            source="created",
+        )
+        existing_idx = next(
+            (i for i, e in enumerate(profile.custom_events) if e.id == new_event.id),
+            None,
+        )
+        if existing_idx is not None:
+            profile.custom_events[existing_idx] = new_event
+            rep.info(f"Updated custom event '{new_event.summary}' [{new_event.id}].")
+        else:
+            profile.custom_events.append(new_event)
+            rep.info(f"Added custom event '{new_event.summary}' [{new_event.id}].")
+        repo.save(profile)
+        return EXIT_OK
+
+    if args.subcommand == "delete":
+        target_id = args.id.strip()
+        before_len = len(profile.custom_events)
+        profile.custom_events = [e for e in profile.custom_events if e.id != target_id]
+        if len(profile.custom_events) == before_len:
+            rep.warning(f"Custom event '{target_id}' not found in profile.")
+            return EXIT_FAILURE
+        repo.save(profile)
+        rep.info(f"Deleted custom event '{target_id}' from profile.")
+        return EXIT_OK
+
+    if args.subcommand == "adopt":
+        gw = gateway or _get_gateway(config, rep)
+        if gw is None:
+            return EXIT_FAILURE
+        calendars = calendars_to_sync(config)
+        target_cal_name = calendars.target
+        target_cal_id = gw.get_calendar_id_by_name(target_cal_name)
+        if not target_cal_id:
+            rep.error(f"Target calendar '{target_cal_name}' not found.")
+            return EXIT_FAILURE
+
+        events = gw.get_all_events(target_cal_id, expand_recurring=False)
+        existing_custom_ids = {e.id for e in profile.custom_events}
+        unmanaged = [
+            e
+            for e in events
+            if not is_managed(e)
+            and not is_custom_event(e)
+            and e.get("id")
+            and e.get("start")
+            and e.get("id") not in existing_custom_ids
+        ]
+
+        if not unmanaged:
+            rep.info(f"No unmanaged events found in calendar '{target_cal_name}'.")
+            return EXIT_OK
+
+        rep.info(f"Found {len(unmanaged)} unmanaged event(s) in '{target_cal_name}':")
+        to_adopt: list[Event] = []
+
+        if args.event_id:
+            match = next((e for e in unmanaged if e.get("id") == args.event_id), None)
+            if not match:
+                rep.error(f"No unmanaged event with ID '{args.event_id}' found.")
+                return EXIT_FAILURE
+            to_adopt.append(match)
+        elif args.all:
+            to_adopt.extend(unmanaged)
+        elif not (_is_interactive_shell() or prompt_fn is not input):
+            rep.error(
+                "Cannot prompt for event adoption in a non-interactive shell. Pass --all or --id."
+            )
+            return EXIT_FAILURE
+        else:
+            for unmanaged_ev in unmanaged:
+                s = summary_of(unmanaged_ev) or str(unmanaged_ev.get("id", ""))
+                when = unmanaged_ev.get("start", {}).get(
+                    "dateTime", unmanaged_ev.get("start", {}).get("date", "")
+                )
+                try:
+                    ans = (
+                        prompt_fn(f"Adopt event '{s}' ({when})? [y/N]: ")
+                        .strip()
+                        .lower()
+                    )
+                except (KeyboardInterrupt, EOFError):
+                    rep.info("\nAdoption canceled.")
+                    return EXIT_OK
+                if ans in ("y", "yes"):
+                    to_adopt.append(unmanaged_ev)
+
+        if not to_adopt:
+            rep.info("No events selected for adoption.")
+            return EXIT_OK
+
+        for to_adopt_ev in to_adopt:
+            cst = adopt_target_event(to_adopt_ev)
+            existing_idx = next(
+                (i for i, e in enumerate(profile.custom_events) if e.id == cst.id), None
+            )
+            if existing_idx is not None:
+                profile.custom_events[existing_idx] = cst
+            else:
+                profile.custom_events.append(cst)
+            rep.info(f"✔ Adopted '{cst.summary}' [{cst.id}] into profile.")
+
+        repo.save(profile)
+        rep.info(
+            f"Saved {len(to_adopt)} adopted event(s) to profile. Run 'unical' to sync them."
+        )
+        return EXIT_OK
+
+    return EXIT_OK
+
+
 def tui_available() -> bool:
     return importlib.util.find_spec("textual") is not None
 
@@ -671,6 +1011,14 @@ def main(
             write=functools.partial(print, flush=True),
         )
         return main_auth(raw_argv[1:], config, reporter, prompt_fn=prompt_fn)
+
+    if raw_argv and raw_argv[0] == "events":
+        reporter = ConsoleReporter(
+            verbose=False,
+            quiet=False,
+            write=functools.partial(print, flush=True),
+        )
+        return main_events(raw_argv[1:], config, reporter, prompt_fn=prompt_fn)
 
     cli = parse_args(raw_argv)
     if cli.check_update_only:

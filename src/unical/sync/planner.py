@@ -7,6 +7,12 @@ from collections.abc import Callable, Sequence
 from datetime import date
 from typing import Any
 
+from unical.custom_events import (
+    CUSTOM_PROPERTY,
+    MANAGED_PROPERTY,
+    CustomEvent,
+    is_custom_event,
+)
 from unical.events import Event, summary_of
 from unical.strategies import EventColoringStrategy
 from unical.sync.models import (
@@ -17,8 +23,6 @@ from unical.sync.models import (
     SyncPlan,
 )
 
-MANAGED_PROPERTY = "calendar_coloring_managed"
-"""Private property that tags the target events created by this tool."""
 LEGACY_MANAGED_PROPERTIES = ("polimi_sync_managed",)
 """Tags of older versions: their events are still managed, and get the current
 tag at the next sync."""
@@ -65,12 +69,20 @@ def is_managed(event: Event) -> bool:
     )
 
 
-def has_current_tag(event: Event) -> bool:
+def is_custom(event: Event) -> bool:
+    """True if the target event was created as a custom event by this tool."""
+    return is_custom_event(event)
+
+
+def has_current_tag(event: Event, for_custom: bool = False) -> bool:
     """True if the target event carries the current tag, and only that one."""
     private = _private_properties(event)
-    return private.get(MANAGED_PROPERTY) == "true" and not any(
+    has_managed = private.get(MANAGED_PROPERTY) == "true" and not any(
         tag in private for tag in LEGACY_MANAGED_PROPERTIES
     )
+    if for_custom:
+        return has_managed and private.get(CUSTOM_PROPERTY) == "true"
+    return has_managed
 
 
 def is_recurring_instance(event: Event) -> bool:
@@ -126,8 +138,11 @@ def needs_update(existing: Event, desired: Event) -> bool:
     for field_name in ("colorId", "recurrence"):
         if existing.get(field_name) != desired.get(field_name):
             return True
-    if not has_current_tag(existing):
+    desired_is_custom = is_custom(desired)
+    if not has_current_tag(existing, for_custom=desired_is_custom):
         # Adopts an event with the same ID, or replaces a legacy tag.
+        return True
+    if desired_is_custom != is_custom(existing):
         return True
     return any(
         _when(existing, edge) != _when(desired, edge) for edge in ("start", "end")
@@ -144,6 +159,7 @@ class SyncPlanner:
         window_to: date | None = None,
         course: str | None = None,
         in_scope: InScope | None = None,
+        custom_events: Sequence[CustomEvent] = (),
     ) -> None:
         """
         :param prune_before: source events starting before this day are left out
@@ -154,6 +170,7 @@ class SyncPlanner:
         :param in_scope: tells the source events the sync covers. The others are
             ignored: their copies in the target calendar are never inserted,
             updated nor deleted. Without it, every event is covered.
+        :param custom_events: user-defined custom events to sync into the target calendar.
         """
         self.strategy = strategy
         self.title_for = title_for
@@ -162,6 +179,7 @@ class SyncPlanner:
         self.window_to = window_to
         self.course = course
         self.in_scope = in_scope
+        self.custom_events = custom_events
 
     def is_pruned(self, event: Event) -> bool:
         if self.prune_before is None:
@@ -206,6 +224,7 @@ class SyncPlanner:
         mutations: list[Mutation] = []
         decisions: list[EventDecision] = []
 
+        # Plan university source events
         for source in source_events:
             raw_id = source.get("id")
             if not raw_id:
@@ -232,6 +251,66 @@ class SyncPlanner:
             if mutation is not None:
                 mutations.append(mutation)
 
+        # Plan custom events
+        for cst in self.custom_events:
+            desired = cst.to_target_event()
+            event_id = cst.id
+            if self.is_out_of_window(desired):
+                ignored_ids.add(event_id)
+                continue
+            source_ids.add(event_id)
+            existing = targets_by_id.get(event_id)
+            origin = ColorOrigin.STRATEGY if cst.color_id else ColorOrigin.DEFAULT
+            if existing is None:
+                mutations.append(
+                    Mutation(
+                        action=MutationAction.INSERT,
+                        event_id=event_id,
+                        summary=cst.summary,
+                        body=desired,
+                    )
+                )
+                decisions.append(
+                    EventDecision(
+                        event_id=event_id,
+                        source_summary=cst.summary,
+                        target_summary=cst.summary,
+                        color_id=cst.color_id,
+                        color_origin=origin,
+                        action=MutationAction.INSERT,
+                    )
+                )
+            elif needs_update(existing, desired):
+                mutations.append(
+                    Mutation(
+                        action=MutationAction.UPDATE,
+                        event_id=event_id,
+                        summary=cst.summary,
+                        body=desired,
+                    )
+                )
+                decisions.append(
+                    EventDecision(
+                        event_id=event_id,
+                        source_summary=cst.summary,
+                        target_summary=cst.summary,
+                        color_id=cst.color_id,
+                        color_origin=origin,
+                        action=MutationAction.UPDATE,
+                    )
+                )
+            else:
+                decisions.append(
+                    EventDecision(
+                        event_id=event_id,
+                        source_summary=cst.summary,
+                        target_summary=cst.summary,
+                        color_id=cst.color_id,
+                        color_origin=origin,
+                        action=None,
+                    )
+                )
+
         preserved_unmanaged: list[str] = []
         pruned_count = 0
         for event_id, existing in targets_by_id.items():
@@ -240,13 +319,25 @@ class SyncPlanner:
             if not is_managed(existing):
                 preserved_unmanaged.append(summary_of(existing) or event_id)
                 continue
+            # If target event is a custom event removed from profile
+            if is_custom(existing):
+                if self.is_out_of_window(existing):
+                    continue
+                mutations.append(
+                    Mutation(
+                        action=MutationAction.DELETE,
+                        event_id=event_id,
+                        summary=summary_of(existing) or event_id,
+                    )
+                )
+                continue
             if event_id in pruned_ids or self.is_pruned(existing):
                 pruned_count += 1
                 mutations.append(
                     Mutation(
                         action=MutationAction.DELETE,
                         event_id=event_id,
-                        summary=existing.get("summary", event_id),
+                        summary=summary_of(existing) or event_id,
                     )
                 )
                 continue
@@ -261,7 +352,7 @@ class SyncPlanner:
                 Mutation(
                     action=MutationAction.DELETE,
                     event_id=event_id,
-                    summary=existing.get("summary", event_id),
+                    summary=summary_of(existing) or event_id,
                 )
             )
 
