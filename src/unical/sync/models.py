@@ -72,6 +72,9 @@ class SyncPlan:
     prune_before: date | None = None
     source_event_count: int = 0
     target_event_count: int = 0
+    window_from: date | None = None
+    window_to: date | None = None
+    course: str | None = None
 
     def count(self, action: MutationAction) -> int:
         return sum(1 for m in self.mutations if m.action is action)

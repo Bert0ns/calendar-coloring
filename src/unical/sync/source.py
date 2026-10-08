@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Protocol
 
 from unical.events import Event
@@ -24,7 +25,11 @@ class EventSource(Protocol):
         """Human readable, secret-free description (e.g. for logs)."""
         ...
 
-    def fetch_events(self) -> list[Event]:
+    def fetch_events(
+        self,
+        time_min: date | None = None,
+        time_max: date | None = None,
+    ) -> list[Event]:
         """Returns the source events. Raises :class:`SourceError` on failure."""
         ...
 
@@ -40,8 +45,16 @@ class GoogleCalendarSource:
     def label(self) -> str:
         return f"'{self.name}'"
 
-    def fetch_events(self) -> list[Event]:
+    def fetch_events(
+        self,
+        time_min: date | None = None,
+        time_max: date | None = None,
+    ) -> list[Event]:
         calendar_id = self.gateway.get_calendar_id_by_name(self.name)
         if not calendar_id:
             raise SourceCalendarNotFoundError(self.name)
-        return self.gateway.get_all_events(calendar_id)
+        return self.gateway.get_all_events(
+            calendar_id,
+            time_min=time_min,
+            time_max=time_max,
+        )

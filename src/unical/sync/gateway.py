@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import date, datetime
 from typing import Protocol
 
 from unical.events import Event
@@ -21,10 +22,17 @@ class CalendarGateway(Protocol):
         ...
 
     def get_all_events(
-        self, calendar_id: str, expand_recurring: bool = True
+        self,
+        calendar_id: str,
+        expand_recurring: bool = True,
+        time_min: datetime | date | None = None,
+        time_max: datetime | date | None = None,
     ) -> list[Event]:
         """Lists events. With ``expand_recurring=False`` recurring events are
-        returned once (as their master event) instead of one per occurrence."""
+        returned once (as their master event) instead of one per occurrence.
+
+        Optionally restricted to ``time_min`` and ``time_max``.
+        """
         ...
 
     def batch_mutate_events(

@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import replace
+from datetime import date
+from unical.semesters import current_semester_window
 from functools import partial
 from typing import Any, ClassVar, Literal
 
@@ -209,6 +211,32 @@ def _optional_time_zone_error(value: str) -> str | None:
     return time_zone_error(value) if value.strip() else None
 
 
+def _parse_window_string(val: str) -> tuple[date | None, date | None, bool]:
+    s = val.strip().lower()
+    if s in ("all", "all-time", "all time"):
+        return None, None, True
+    if s in ("semester", "current", "current semester", "sem"):
+        d_from, d_to, _ = current_semester_window()
+        return d_from, d_to, False
+    parts = [p.strip() for p in s.replace("to", "..").replace("→", "..").replace("->", "..").split("..")]
+    if len(parts) == 1:
+        d = date.fromisoformat(parts[0])
+        return d, None, False
+    if len(parts) == 2:
+        d_from = date.fromisoformat(parts[0]) if parts[0] else None
+        d_to = date.fromisoformat(parts[1]) if parts[1] else None
+        return d_from, d_to, False
+    raise ValueError("Invalid format. Use 'all', 'semester', or 'YYYY-MM-DD..YYYY-MM-DD'.")
+
+
+def _validate_window_input(value: str) -> str | None:
+    try:
+        _parse_window_string(value)
+        return None
+    except Exception as exc:
+        return f"Invalid window ({exc}). Use 'all', 'semester', or 'YYYY-MM-DD..YYYY-MM-DD'."
+
+
 def _condition(condition: Condition | None) -> Text:
     if condition is None:
         return Text("— not detected", style="dim")
@@ -375,6 +403,14 @@ class UnicalApp(App[None]):
                     yield Static(id="setup-time-zone", classes="setup-value")
                     yield Button("Change…", id="change-time-zone")
                 with Horizontal(classes="setup-row"):
+                    yield Static("Window", classes="setup-label")
+                    yield Static(id="setup-window", classes="setup-value")
+                    yield Button("Change…", id="change-window")
+                with Horizontal(classes="setup-row"):
+                    yield Static("Course", classes="setup-label")
+                    yield Static(id="setup-course", classes="setup-value")
+                    yield Button("Change…", id="change-course")
+                with Horizontal(classes="setup-row"):
                     yield Static("Sync", classes="setup-label")
                     yield self._scope_select("scope-setup")
                     yield Static(
@@ -407,6 +443,7 @@ class UnicalApp(App[None]):
                 yield Static("Enter/c: pick a color.", classes="help")
                 yield self._table(DEADLINES, "Deadline", "Color", "Status")
             with TabPane("Sync", id=SYNC):
+                yield Static(id="sync-scope-reminder", classes="help")
                 with Horizontal(id="sync-actions"):
                     yield self._scope_select("scope-sync")
                     yield Button("Preview changes", id="preview", variant="primary")
@@ -845,6 +882,7 @@ class UnicalApp(App[None]):
         for select in self._ui.query(".scope").results(Select):
             select.value = event.value  # the other selector follows
         self._show_scope_tabs()
+        self._refresh_setup()
         if self.draft is not None:
             session = replace(self.draft.session, options=self.options)
             self.draft.session = self.workflow.rediscover(session)
@@ -862,6 +900,42 @@ class UnicalApp(App[None]):
                 (" · used when the target calendar is created", "dim"),
             )
         )
+        if self.options.all_time:
+            w_text = "All time"
+        elif self.options.window_from and self.options.window_to:
+            w_text = f"{self.options.window_from} → {self.options.window_to}"
+        elif self.options.window_from:
+            w_text = f"from {self.options.window_from}"
+        elif self.options.window_to:
+            w_text = f"until {self.options.window_to}"
+        else:
+            w_text = "All time"
+        self._ui.query_one("#setup-window", Static).update(w_text)
+
+        c_text = f"'{self.options.course}'" if self.options.course else "All courses"
+        self._ui.query_one("#setup-course", Static).update(c_text)
+
+        reminder_parts = [f"Scope: {SCOPE_LABELS[self.options.target]}"]
+        if self.options.all_time:
+            reminder_parts.append("Window: All time")
+        elif self.options.window_from and self.options.window_to:
+            reminder_parts.append(f"Window: {self.options.window_from} → {self.options.window_to}")
+        elif self.options.window_from:
+            reminder_parts.append(f"Window: from {self.options.window_from}")
+        elif self.options.window_to:
+            reminder_parts.append(f"Window: until {self.options.window_to}")
+        else:
+            reminder_parts.append("Window: All time")
+
+        if self.options.course:
+            reminder_parts.append(f"Course: '{self.options.course}'")
+        else:
+            reminder_parts.append("Course: All")
+
+        try:
+            self._ui.query_one("#sync-scope-reminder", Static).update(" · ".join(reminder_parts))
+        except Exception:
+            pass
         notes = []
         if self.setup.fixed_source is not None:
             notes.append(
@@ -1025,6 +1099,29 @@ class UnicalApp(App[None]):
                 f"New calendars use {_time_zone_label(time_zone)}.",
             )
 
+    def _window_chosen(self, value: str | None) -> None:
+        if value is None:
+            return
+        d_from, d_to, all_t = _parse_window_string(value)
+        self.options = replace(
+            self.options, window_from=d_from, window_to=d_to, all_time=all_t
+        )
+        self._refresh_setup()
+        self.load_session()
+        self.notify("Sync window updated.")
+
+    def _course_chosen(self, value: str | None) -> None:
+        if value is None:
+            return
+        course = value.strip() or None
+        self.options = replace(self.options, course=course)
+        self._refresh_setup()
+        if self.draft is not None:
+            session = replace(self.draft.session, options=self.options)
+            self.draft.session = self.workflow.rediscover(session)
+            self._preferences_changed()
+        self.notify("Course filter updated.")
+
     def _commit_settings(self, changes: dict[str, Any], message: str) -> None:
         """Uses the calendar settings from now on and saves them in the profile,
         without the preferences not saved yet."""
@@ -1067,6 +1164,30 @@ class UnicalApp(App[None]):
                     validate=_optional_time_zone_error,
                 ),
                 self._time_zone_chosen,
+            )
+        elif event.button.id == "change-window":
+            current_val = "all" if self.options.all_time else (
+                f"{self.options.window_from}..{self.options.window_to}"
+                if (self.options.window_from and self.options.window_to)
+                else ""
+            )
+            self.push_screen(
+                TextPrompt(
+                    "Sync window ('all', 'semester', or 'YYYY-MM-DD..YYYY-MM-DD')",
+                    current_val,
+                    placeholder="e.g. 2026-03-01..2026-09-15 · 'all' · 'semester'",
+                    validate=_validate_window_input,
+                ),
+                self._window_chosen,
+            )
+        elif event.button.id == "change-course":
+            self.push_screen(
+                TextPrompt(
+                    "Course filter (empty for all courses)",
+                    self.options.course or "",
+                    placeholder="e.g. Algorithms · empty: all courses",
+                ),
+                self._course_chosen,
             )
 
     def action_preview(self) -> None:

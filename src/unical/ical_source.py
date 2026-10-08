@@ -13,7 +13,7 @@ from datetime import date, datetime
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from unical.events import Event
+from unical.events import UNKNOWN_DATE, Event, start_date
 from unical.sync.source import SourceError
 
 DEFAULT_TIMEZONE = "Europe/Rome"
@@ -48,7 +48,7 @@ def fetch_ical(url: str, timeout: int = DEFAULT_TIMEOUT) -> str:
         parts = urlsplit(url)
     except ValueError as exc:
         raise ICalError(
-            f"Unsupported or unsafe URL scheme in '{mask_url(url)}'"
+            f"Invalid iCal URL: '{mask_url(url)}' (not a well-formed URL)"
         ) from exc
 
     scheme = parts.scheme.lower()
@@ -110,7 +110,8 @@ def _parse_property(line: str) -> tuple[str, dict[str, str], str] | None:
 
 def _parse_datetime(value: str, params: dict[str, str], default_tz: str) -> Event:
     """Converts a DTSTART/DTEND value into a Google Calendar time dict:
-    ``{"date": ...}`` or ``{"dateTime": ..., "timeZone": ...}``."""
+    ``{"date": ...}`` or ``{"dateTime": ..., "timeZone": ...}``.
+    """
     value_type = params.get("VALUE", "").upper()
     tzid = params.get("TZID", default_tz)
 
@@ -181,6 +182,8 @@ def parse_ical(
     text: str,
     default_tz: str = DEFAULT_TIMEZONE,
     on_warning: WarningSink = _ignore_warning,
+    time_min: date | None = None,
+    time_max: date | None = None,
 ) -> list[Event]:
     """Parses iCal text into Google Calendar API compatible event dicts."""
     lines = _unfold_lines(text)
@@ -208,6 +211,19 @@ def parse_ical(
                     )
                 else:
                     if event is not None:
+                        if time_min is not None or time_max is not None:
+                            d_str = start_date(event)
+                            if d_str != UNKNOWN_DATE:
+                                try:
+                                    ev_date = date.fromisoformat(d_str)
+                                    if time_min is not None and ev_date < time_min:
+                                        in_event, props, recurrence = False, {}, []
+                                        continue
+                                    if time_max is not None and ev_date > time_max:
+                                        in_event, props, recurrence = False, {}, []
+                                        continue
+                                except ValueError:
+                                    pass
                         events.append(event)
             in_event, props, recurrence = False, {}, []
         elif in_event:
@@ -246,5 +262,15 @@ class IcalFeedSource:
     def label(self) -> str:
         return "iCal feed"
 
-    def fetch_events(self) -> list[Event]:
-        return parse_ical(self._fetch(self.url), self._default_tz, self._on_warning)
+    def fetch_events(
+        self,
+        time_min: date | None = None,
+        time_max: date | None = None,
+    ) -> list[Event]:
+        return parse_ical(
+            self._fetch(self.url),
+            self._default_tz,
+            self._on_warning,
+            time_min=time_min,
+            time_max=time_max,
+        )

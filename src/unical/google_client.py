@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable, Iterator, Sequence
+from datetime import date, datetime, timezone
 from typing import Any
 
 from googleapiclient.discovery import build
@@ -20,6 +21,16 @@ FALLBACK_TIME_ZONE = "UTC"
 WRITABLE_ACCESS_ROLES = frozenset({"owner", "writer"})
 MAX_BATCH_SIZE = 50  # Google recommends at most 50 calls per batch
 BATCH_RETRIES = 3
+
+
+def _to_rfc3339(val: datetime | date, is_end: bool = False) -> str:
+    if isinstance(val, datetime):
+        if val.tzinfo is None:
+            return val.replace(tzinfo=timezone.utc).isoformat()
+        return val.isoformat()
+    if is_end:
+        return f"{val.isoformat()}T23:59:59.999999Z"
+    return f"{val.isoformat()}T00:00:00Z"
 
 
 class GoogleCalendarClient:
@@ -74,10 +85,19 @@ class GoogleCalendarClient:
         return str(self.service.calendars().insert(body=body).execute()["id"])
 
     def get_all_events(
-        self, calendar_id: str, expand_recurring: bool = True
+        self,
+        calendar_id: str,
+        expand_recurring: bool = True,
+        time_min: datetime | date | None = None,
+        time_max: datetime | date | None = None,
     ) -> list[Event]:
         # orderBy="startTime" is only allowed when expanding recurring events.
         ordering = {"orderBy": "startTime"} if expand_recurring else {}
+        params: dict[str, Any] = {}
+        if time_min is not None:
+            params["timeMin"] = _to_rfc3339(time_min, is_end=False)
+        if time_max is not None:
+            params["timeMax"] = _to_rfc3339(time_max, is_end=True)
         events: list[Event] = []
         page_token: str | None = None
         while True:
@@ -88,6 +108,7 @@ class GoogleCalendarClient:
                     singleEvents=expand_recurring,
                     pageToken=page_token,
                     **ordering,
+                    **params,
                 )
                 .execute()
             )

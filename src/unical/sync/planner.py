@@ -140,11 +140,17 @@ class SyncPlanner:
         strategy: EventColoringStrategy,
         title_for: TitleFor = summary_of,
         prune_before: date | None = None,
+        window_from: date | None = None,
+        window_to: date | None = None,
+        course: str | None = None,
         in_scope: InScope | None = None,
     ) -> None:
         """
         :param prune_before: source events starting before this day are left out
             of the target calendar (their managed copies get deleted).
+        :param window_from: events starting before this day are frozen (untouched).
+        :param window_to: events starting after this day are frozen (untouched).
+        :param course: optional course name substring filter.
         :param in_scope: tells the source events the sync covers. The others are
             ignored: their copies in the target calendar are never inserted,
             updated nor deleted. Without it, every event is covered.
@@ -152,6 +158,9 @@ class SyncPlanner:
         self.strategy = strategy
         self.title_for = title_for
         self.prune_before = prune_before
+        self.window_from = window_from
+        self.window_to = window_to
+        self.course = course
         self.in_scope = in_scope
 
     def is_pruned(self, event: Event) -> bool:
@@ -160,10 +169,22 @@ class SyncPlanner:
         day = start_day(event)
         return day is not None and day < self.prune_before
 
+    def is_out_of_window(self, event: Event) -> bool:
+        day = start_day(event)
+        if day is None:
+            return False
+        if self.window_from is not None and day < self.window_from:
+            return True
+        if self.window_to is not None and day > self.window_to:
+            return True
+        return False
+
     def is_syncable(self, event: Event) -> bool:
         """True if the source event will be mirrored into the target calendar."""
-        return bool(event.get("id") and event.get("start")) and not self.is_pruned(
-            event
+        return (
+            bool(event.get("id") and event.get("start"))
+            and not self.is_pruned(event)
+            and not self.is_out_of_window(event)
         )
 
     def syncable(self, source_events: Sequence[Event]) -> list[Event]:
@@ -195,11 +216,14 @@ class SyncPlanner:
                 skipped_without_start.append(summary_of(source) or raw_id)
                 continue
             event_id = sanitize_event_id(raw_id)
-            if self.in_scope is not None and not self.in_scope(source):
-                ignored_ids.add(event_id)
-                continue
             if self.is_pruned(source):
                 pruned_ids.add(event_id)
+                continue
+            if self.is_out_of_window(source):
+                ignored_ids.add(event_id)
+                continue
+            if self.in_scope is not None and not self.in_scope(source):
+                ignored_ids.add(event_id)
                 continue
             source_ids.add(event_id)
 
@@ -218,12 +242,23 @@ class SyncPlanner:
             if not is_managed(existing):
                 preserved_unmanaged.append(summary_of(existing) or event_id)
                 continue
-            if self.in_scope is not None and event_id not in pruned_ids:
+            if event_id in pruned_ids or self.is_pruned(existing):
+                pruned_count += 1
+                mutations.append(
+                    Mutation(
+                        action=MutationAction.DELETE,
+                        event_id=event_id,
+                        summary=existing.get("summary", event_id),
+                    )
+                )
+                continue
+            if self.is_out_of_window(existing):
+                # Preserved because it is outside the active sync window (frozen)
+                continue
+            if self.in_scope is not None:
                 # Gone from the source: its kind is unknown, so it may be out
                 # of scope. Only a sync of everything cleans it up.
                 continue
-            if event_id in pruned_ids or self.is_pruned(existing):
-                pruned_count += 1
             mutations.append(
                 Mutation(
                     action=MutationAction.DELETE,
@@ -242,6 +277,9 @@ class SyncPlanner:
             prune_before=self.prune_before,
             source_event_count=len(source_events),
             target_event_count=len(target_events),
+            window_from=self.window_from,
+            window_to=self.window_to,
+            course=self.course,
         )
 
     def _plan_event(

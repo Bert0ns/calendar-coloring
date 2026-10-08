@@ -147,6 +147,34 @@ def build_parser() -> argparse.ArgumentParser:
         "if still present in the source. Useful to drop past semesters.",
     )
     parser.add_argument(
+        "--from",
+        dest="window_from",
+        type=_iso_date,
+        default=None,
+        metavar="YYYY-MM-DD",
+        help="Start date of sync window. Events before this date are frozen/ignored.",
+    )
+    parser.add_argument(
+        "--to",
+        dest="window_to",
+        type=_iso_date,
+        default=None,
+        metavar="YYYY-MM-DD",
+        help="End date of sync window. Events after this date are frozen/ignored.",
+    )
+    parser.add_argument(
+        "--all-time",
+        action="store_true",
+        help="Disable semester windowing and sync all events across all time.",
+    )
+    parser.add_argument(
+        "--course",
+        type=str,
+        default=None,
+        metavar="NAME",
+        help="Sync only events belonging to courses matching NAME (case-insensitive substring).",
+    )
+    parser.add_argument(
         "-V",
         "--version",
         action="version",
@@ -216,17 +244,23 @@ def parse_args(argv: Sequence[str] | None = None) -> CliArgs:
     args = parser.parse_args(argv)
     if args.tui and args.dry_run:
         parser.error("--tui always previews before applying: drop --dry-run")
+    if args.all_time and (args.window_from or args.window_to):
+        parser.error("--all-time cannot be combined with --from or --to")
     # The terminal UI is the default; options that only make sense for a plain
     # sync (-i, -n, --no-tui) switch it off, and so does a non-interactive shell.
     tui = args.tui or not (
         args.no_tui or args.interactive or args.dry_run or not _is_interactive_shell()
     )
     return CliArgs(
-        options=SyncOptions(
+        options=SyncOptions.with_semester_default(
             target=SyncTarget(args.target),
             interactive=args.interactive,
             dry_run=args.dry_run,
             prune_before=args.prune_before,
+            window_from=args.window_from,
+            window_to=args.window_to,
+            all_time=args.all_time,
+            course=args.course,
         ),
         verbose=args.verbose,
         quiet=args.quiet,
@@ -273,6 +307,12 @@ def describe_run(
         flags.append("dry-run")
     if options.prune_before:
         flags.append(f"prune-before={options.prune_before}")
+    if options.all_time:
+        flags.append("window=all-time")
+    elif options.window_from or options.window_to:
+        flags.append(f"window={options.window_from or '...'}..{options.window_to or '...'}")
+    if options.course:
+        flags.append(f"course='{options.course}'")
     if flags:
         reporter.detail(f"Options: {', '.join(flags)}")
 

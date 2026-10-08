@@ -39,9 +39,12 @@ SOURCE = [
 
 # -- argument parsing --------------------------------------------------------
 
+def default_opts(*args, **kwargs) -> SyncOptions:
+    return SyncOptions.with_semester_default(*args, **kwargs)
+
 
 def test_parse_args_defaults() -> None:
-    assert cli.parse_args([]) == cli.CliArgs(options=SyncOptions())
+    assert cli.parse_args([]) == cli.CliArgs(options=default_opts())
 
 
 def test_parse_args_all_options() -> None:
@@ -58,7 +61,7 @@ def test_parse_args_all_options() -> None:
         ]
     )
     assert args == cli.CliArgs(
-        options=SyncOptions(
+        options=default_opts(
             target=SyncTarget.DEADLINES,
             interactive=True,
             dry_run=True,
@@ -72,9 +75,9 @@ def test_parse_args_all_options() -> None:
 @pytest.mark.parametrize(
     ("argv", "expected"),
     [
-        (["exams"], SyncOptions(target=SyncTarget.EXAMS)),
-        (["lectures", "-i"], SyncOptions(SyncTarget.LECTURES, interactive=True)),
-        (["-n"], SyncOptions(dry_run=True)),
+        (["exams"], default_opts(target=SyncTarget.EXAMS)),
+        (["lectures", "-i"], default_opts(SyncTarget.LECTURES, interactive=True)),
+        (["-n"], default_opts(dry_run=True)),
     ],
 )
 def test_parse_args_options(argv, expected) -> None:
@@ -449,7 +452,7 @@ def test_ical_mode_never_reads_the_google_source_calendar(config: Config) -> Non
 def test_parse_args_tui() -> None:
     args = cli.parse_args(["exams", "--tui", "--prune-before", "2025-01-01"])
     assert args.tui
-    assert args.options == SyncOptions(
+    assert args.options == default_opts(
         target=SyncTarget.EXAMS, prune_before=date(2025, 1, 1)
     )
 
@@ -482,7 +485,7 @@ def test_main_tui_runs_the_app(isolated_env, fake_auth, monkeypatch) -> None:
     assert cli.main(["lectures", "--tui"]) == cli.EXIT_OK
 
     [app] = launched
-    assert app.options == SyncOptions(target=SyncTarget.LECTURES)
+    assert app.options == default_opts(target=SyncTarget.LECTURES)
     assert app.calendars.target == "Calendar Colored"
     assert isinstance(app.source, GoogleCalendarSource)
     assert gateway.batches == []
@@ -938,3 +941,29 @@ def test_main_displays_update_notice_after_sync(
     plain = re.sub(r"\[[0-9;]*m", "", out)
     assert "A new version of unical is available: 1.0.1" in plain
     assert "1.0.2" in plain
+
+
+def test_parse_args_window_and_course() -> None:
+    args = cli.parse_args([
+        "--from", "2026-03-01",
+        "--to", "2026-09-15",
+        "--course", "Algorithms",
+    ])
+    assert args.options.window_from == date(2026, 3, 1)
+    assert args.options.window_to == date(2026, 9, 15)
+    assert not args.options.all_time
+    assert args.options.course == "Algorithms"
+
+
+def test_parse_args_all_time() -> None:
+    args = cli.parse_args(["--all-time"])
+    assert args.options.all_time
+    assert args.options.window_from is None
+    assert args.options.window_to is None
+
+
+def test_parse_args_all_time_conflict_fails(capsys) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        cli.parse_args(["--all-time", "--from", "2026-03-01"])
+    assert exc_info.value.code == 2
+    assert "--all-time cannot be combined with --from or --to" in capsys.readouterr().err
