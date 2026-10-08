@@ -76,21 +76,25 @@ jobs:
             binary_name: unical
             is_windows: false
             architecture: x64
+            cmd_prefix: ""
           - os: macos-14
             target: macos-x86_64
             binary_name: unical
             is_windows: false
             architecture: x64
+            cmd_prefix: "arch -x86_64 "
           - os: macos-14
             target: macos-arm64
             binary_name: unical
             is_windows: false
             architecture: arm64
+            cmd_prefix: ""
           - os: windows-latest
             target: windows-x86_64
             binary_name: unical.exe
             is_windows: true
             architecture: x64
+            cmd_prefix: ""
 
     steps:
       - name: Checkout repository
@@ -106,17 +110,17 @@ jobs:
 
       - name: Install package and PyInstaller
         run: |
-          python -m pip install --upgrade pip
-          pip install . pyinstaller
+          ${{ matrix.cmd_prefix }}python -m pip install --upgrade pip
+          ${{ matrix.cmd_prefix }}pip install . pyinstaller
 
       - name: Build standalone executable
-        run: pyinstaller --clean packaging/unical.spec
+        run: ${{ matrix.cmd_prefix }}pyinstaller --clean packaging/unical.spec
 
       - name: Test standalone binary (Unix)
         if: ${{ !matrix.is_windows }}
         run: |
-          ./dist/${{ matrix.binary_name }} --help
-          ./dist/${{ matrix.binary_name }} auth status
+          ${{ matrix.cmd_prefix }}./dist/${{ matrix.binary_name }} --help
+          ${{ matrix.cmd_prefix }}./dist/${{ matrix.binary_name }} auth status
 
       - name: Test standalone binary (Windows)
         if: ${{ matrix.is_windows }}
@@ -169,11 +173,18 @@ jobs:
         run: |
           cd release
           if [ -f "unical-macos-x86_64" ] && [ -f "unical-macos-arm64" ]; then
-            lipo -create -output unical unical-macos-x86_64 unical-macos-arm64
-            chmod +x unical
-            cp unical unical-macos-universal
-            tar -czvf unical-macos-universal.tar.gz unical
-            rm unical
+            ARCH_X86=$(lipo -archs unical-macos-x86_64)
+            ARCH_ARM=$(lipo -archs unical-macos-arm64)
+            if [ "$ARCH_X86" != "$ARCH_ARM" ]; then
+              lipo -create -output unical unical-macos-x86_64 unical-macos-arm64
+              chmod +x unical
+              cp unical unical-macos-universal
+              tar -czvf unical-macos-universal.tar.gz unical
+              rm unical
+            else
+              cp unical-macos-arm64 unical-macos-universal
+              tar -czvf unical-macos-universal.tar.gz unical-macos-arm64
+            fi
           fi
 
       - name: Compute SHA-256 checksums
