@@ -611,7 +611,7 @@ python -m build
 twine check dist/*
 ```
 
-CI runs all of the above on Python 3.12 and 3.14 and requires 95% test
+CI runs all of the above on Python 3.12, 3.13, and 3.14 and requires 95% test
 coverage.
 
 ## Architecture
